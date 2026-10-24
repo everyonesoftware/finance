@@ -1,5 +1,6 @@
 services:
   web:
+    image: ghcr.io/everyonesoftware/finance
     build:
       context: .
     ports:
