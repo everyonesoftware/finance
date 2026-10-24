@@ -26,6 +26,24 @@ npm run preview
 
 The optimized static site is written to `dist`.
 
+## Tests
+
+Run the production-build smoke test after building:
+
+```powershell
+npm test
+```
+
+## Continuous integration and container publishing
+
+Every push to `main` builds and tests the app with GitHub Actions. When both succeed, the workflow builds and pushes the Docker image to GitHub Container Registry with `latest` and commit-specific `sha-...` tags:
+
+```powershell
+docker pull ghcr.io/everyonesoftware/finance-typescript:latest
+```
+
+The workflow uses `GITHUB_TOKEN` with package-write permission to publish the image.
+
 ## Run with Docker
 
 Build and start the production container:
