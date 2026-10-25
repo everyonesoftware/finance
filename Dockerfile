@@ -1,19 +1,32 @@
-FROM node:22-alpine AS build
+FROM node:22-bookworm-slim AS build
 
 WORKDIR /app
+
+RUN apt-get update \
+  && apt-get install --yes --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
 RUN npm ci
 
 COPY . .
 RUN npm run build
+RUN npm prune --omit=dev
 
-FROM nginx:stable-alpine AS runtime
+FROM node:22-bookworm-slim AS app
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=build /app/dist /usr/share/nginx/html
+WORKDIR /app
+ENV NODE_ENV=production
 
-EXPOSE 80
+COPY --from=build /app/node_modules ./node_modules
+COPY package*.json ./
+COPY --from=build /app/dist ./dist
+COPY --from=build /app/server-dist ./server-dist
+COPY --from=build /app/server/migrations ./server/migrations
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 --spider http://127.0.0.1/ || exit 1
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=3s --start-period=15s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+
+CMD ["npm", "run", "start:api"]

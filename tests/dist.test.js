@@ -9,7 +9,7 @@ test("production HTML references existing JavaScript and CSS assets", async () =
   const scriptPath = html.match(/src="(\/assets\/[^"]+\.js)"/)?.[1];
   const stylesheetPath = html.match(/href="(\/assets\/[^"]+\.css)"/)?.[1];
 
-  assert.match(html, /<title>Ledger/);
+  assert.match(html, /<title>Finance/);
   assert.ok(scriptPath, "production HTML should reference a JavaScript asset");
   assert.ok(stylesheetPath, "production HTML should reference a CSS asset");
 

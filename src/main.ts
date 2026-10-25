@@ -1,159 +1,397 @@
+import { createAuthClient } from "better-auth/client";
+import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
+import { renderDashboard } from "./dashboard";
 
-const app: HTMLDivElement | null =
-  document.querySelector<HTMLDivElement>("#app");
-
-if (!app) {
-  throw new Error("App root element was not found");
+function getAppRoot(): HTMLDivElement {
+  const root: HTMLDivElement | null =
+    document.querySelector<HTMLDivElement>("#app");
+  if (!root) {
+    throw new Error("App root element was not found");
+  }
+  return root;
 }
 
-const currentDate: string = new Intl.DateTimeFormat("en-US", {
-  month: "long",
-  year: "numeric",
-}).format(new Date());
+const app: HTMLDivElement = getAppRoot();
 
-app.innerHTML = `
-  <div class="app-shell">
-    <aside class="sidebar" aria-label="Main navigation">
-      <a class="brand" href="/" aria-label="Ledger home">
-        <span class="brand-mark" aria-hidden="true">L</span>
-        <span>ledger</span>
-      </a>
-      <div class="workspace-label">WORKSPACE</div>
-      <nav class="navigation">
-        <a class="nav-link active" href="#overview" aria-current="page">
-          <span class="nav-icon" aria-hidden="true">◫</span> Overview
-        </a>
-        <a class="nav-link" href="#transactions">
-          <span class="nav-icon" aria-hidden="true">↕</span> Transactions
-        </a>
-        <a class="nav-link" href="#budgets">
-          <span class="nav-icon" aria-hidden="true">▤</span> Budgets
-        </a>
-        <a class="nav-link" href="#accounts">
-          <span class="nav-icon" aria-hidden="true">▣</span> Accounts
-        </a>
-      </nav>
-      <div class="sidebar-bottom">
-        <div class="profile-avatar" aria-hidden="true">Y</div>
-        <div class="profile-copy">
-          <strong>Your workspace</strong>
-          <span>Personal plan</span>
-        </div>
-        <span class="more-icon" aria-hidden="true">···</span>
-      </div>
-    </aside>
+const authClient = createAuthClient({
+  baseURL: window.location.origin,
+  plugins: [usernameClient()],
+});
 
-    <main class="main-content" id="overview">
-      <header class="topbar">
-        <div class="breadcrumb">Workspace <span>/</span> Overview</div>
-        <button class="icon-button" type="button" aria-label="Notifications">
-          <span aria-hidden="true">♧</span>
-          <i></i>
-        </button>
-      </header>
+type AuthUser = typeof authClient.$Infer.Session.user;
 
-      <section class="page-heading">
-        <div>
-          <p class="eyebrow">${currentDate.toUpperCase()}</p>
-          <h1>Good morning <span aria-hidden="true">✳</span></h1>
-          <p class="subheading">Here’s what’s happening with your money.</p>
-        </div>
-        <button class="primary-button" type="button" id="add-transaction">
-          <span aria-hidden="true">＋</span> Add transaction
-        </button>
-      </section>
+let currentUser: AuthUser | null = null;
+let authLoading: boolean = true;
+let authNotice: string = "";
 
-      <section class="summary-grid" aria-label="Financial summary">
-        <article class="summary-card balance-card">
-          <div class="card-label">Total balance <span aria-hidden="true">↗</span></div>
-          <div class="card-value">$24,680<span>.50</span></div>
-          <div class="card-foot"><span class="trend">↗ 4.8%</span> <span>vs. last month</span></div>
-          <div class="balance-decoration" aria-hidden="true"></div>
-        </article>
-        <article class="summary-card">
-          <div class="card-label">Income <span class="metric-icon income-icon" aria-hidden="true">↙</span></div>
-          <div class="card-value">$5,240<span>.00</span></div>
-          <div class="card-foot"><span class="trend">↗ 8.2%</span> <span>vs. last month</span></div>
-        </article>
-        <article class="summary-card">
-          <div class="card-label">Expenses <span class="metric-icon expense-icon" aria-hidden="true">↗</span></div>
-          <div class="card-value">$2,180<span>.35</span></div>
-          <div class="card-foot"><span class="trend">↘ 2.4%</span> <span>vs. last month</span></div>
-        </article>
-      </section>
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character: string): string => {
+    const entities: Record<string, string> = {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    };
 
-      <section class="content-grid">
-        <article class="panel spending-panel" id="budgets">
-          <div class="panel-heading">
-            <div>
-              <h2>Spending overview</h2>
-              <p>Your income and expenses over time</p>
-            </div>
-            <button class="select-button" type="button">Last 6 months <span aria-hidden="true">⌄</span></button>
-          </div>
-          <div class="chart-legend">
-            <span><i class="legend-income"></i> Income</span>
-            <span><i class="legend-expense"></i> Expenses</span>
-          </div>
-          <div class="chart" role="img" aria-label="Sample bar chart showing income and expenses from January to June">
-            <div class="chart-grid">
-              <span>$6k</span><span>$4k</span><span>$2k</span><span>$0</span>
-            </div>
-            <div class="chart-bars">
-              <div class="bar-group"><div class="bar income" style="--height: 58%"></div><div class="bar expense" style="--height: 34%"></div><span>Jan</span></div>
-              <div class="bar-group"><div class="bar income" style="--height: 72%"></div><div class="bar expense" style="--height: 43%"></div><span>Feb</span></div>
-              <div class="bar-group"><div class="bar income" style="--height: 63%"></div><div class="bar expense" style="--height: 38%"></div><span>Mar</span></div>
-              <div class="bar-group"><div class="bar income" style="--height: 84%"></div><div class="bar expense" style="--height: 48%"></div><span>Apr</span></div>
-              <div class="bar-group"><div class="bar income" style="--height: 68%"></div><div class="bar expense" style="--height: 42%"></div><span>May</span></div>
-              <div class="bar-group"><div class="bar income" style="--height: 92%"></div><div class="bar expense" style="--height: 54%"></div><span>Jun</span></div>
-            </div>
-          </div>
-        </article>
-
-        <article class="panel accounts-panel" id="accounts">
-          <div class="panel-heading">
-            <div><h2>Your accounts</h2><p>Balances across your accounts</p></div>
-            <button class="text-button" type="button">See all</button>
-          </div>
-          <div class="account-row">
-            <div class="account-icon checking" aria-hidden="true">⌂</div>
-            <div class="account-info"><strong>Checking account</strong><span>•••• 4829</span></div>
-            <strong class="account-balance">$8,420.50</strong>
-          </div>
-          <div class="account-row">
-            <div class="account-icon savings" aria-hidden="true">◉</div>
-            <div class="account-info"><strong>Savings account</strong><span>•••• 1056</span></div>
-            <strong class="account-balance">$12,500.00</strong>
-          </div>
-          <div class="account-row">
-            <div class="account-icon investment" aria-hidden="true">⌁</div>
-            <div class="account-info"><strong>Investment</strong><span>•••• 7732</span></div>
-            <strong class="account-balance">$3,760.00</strong>
-          </div>
-          <button class="connect-button" type="button"><span aria-hidden="true">＋</span> Connect an account</button>
-        </article>
-      </section>
-
-      <section class="panel transactions-panel" id="transactions">
-        <div class="panel-heading">
-          <div><h2>Recent transactions</h2><p>Your latest activity at a glance</p></div>
-          <button class="text-button" type="button">View all transactions <span aria-hidden="true">→</span></button>
-        </div>
-        <div class="transaction-empty">
-          <div class="empty-icon" aria-hidden="true">↕</div>
-          <strong>Your transactions will show up here</strong>
-          <span>Connect an account or add a transaction to get started.</span>
-        </div>
-      </section>
-
-      <footer class="page-footer">Your finances, in focus. <span>Ledger · Personal finance</span></footer>
-    </main>
-  </div>
-`;
-
-document
-  .querySelector<HTMLButtonElement>("#add-transaction")
-  ?.addEventListener("click", (): void => {
-    window.alert("Transaction entry will be available here soon.");
+    return entities[character] ?? character;
   });
+}
+
+function displayNameFor(user: AuthUser): string {
+  return user.name.trim() || user.username || user.email;
+}
+
+function renderLanding(): void {
+  const isSignUp: boolean = new URLSearchParams(window.location.search).get("mode") === "signup";
+  const noticeMarkup: string = authNotice
+    ? `<p class="auth-message error" role="alert">${escapeHtml(authNotice)}</p>`
+    : "";
+
+  app.innerHTML = `
+    <main class="landing-page">
+      <header class="landing-header">
+        <a class="brand" href="/" aria-label="Finance home">
+          <span class="brand-mark" aria-hidden="true">L</span>
+          <span>Finance</span>
+        </a>
+        <span class="landing-header-note">A clearer view of your money</span>
+      </header>
+      <section class="landing-content">
+        <div class="landing-copy">
+          <p class="eyebrow">YOUR MONEY, IN FOCUS</p>
+          <h1>A little more clarity.<br />A lot more confidence.</h1>
+          <p class="landing-description">
+            Bring your finances into one calm, clear space. Sign in to pick up
+            where you left off, or create an account to get started.
+          </p>
+          <div class="landing-highlights">
+            <div><span aria-hidden="true">✓</span><span>See your finances at a glance</span></div>
+            <div><span aria-hidden="true">✓</span><span>Keep your financial picture in one place</span></div>
+            <div><span aria-hidden="true">✓</span><span>Manage your account securely</span></div>
+          </div>
+          <p class="landing-disclaimer">Your dashboard currently uses sample financial data.</p>
+        </div>
+        <section class="auth-card" aria-labelledby="auth-title">
+          <div class="auth-tabs" role="tablist" aria-label="Account access">
+            <a class="${isSignUp ? "" : "selected"}" href="/" role="tab" aria-selected="${!isSignUp}">Log in</a>
+            <a class="${isSignUp ? "selected" : ""}" href="/?mode=signup" role="tab" aria-selected="${isSignUp}">Create account</a>
+          </div>
+          <h2 id="auth-title">${isSignUp ? "Create your account" : "Welcome back"}</h2>
+          <p class="auth-subtitle">${isSignUp ? "Choose a username and password to get started." : "Log in with your username and password."}</p>
+          ${noticeMarkup}
+          <form id="auth-form">
+            <fieldset class="auth-fields">
+            ${isSignUp ? `
+              <label class="form-field">
+                <span>Your name</span>
+                <input name="name" type="text" autocomplete="name" placeholder="Alex Morgan" required />
+              </label>
+              <label class="form-field">
+                <span>Username</span>
+                <input name="username" type="text" autocomplete="username" minlength="3" maxlength="30" required />
+              </label>
+              <label class="form-field">
+                <span>Email address</span>
+                <input name="email" type="email" autocomplete="email" placeholder="you@example.com" required />
+                <small>Saved as part of your account profile.</small>
+              </label>
+            ` : `
+              <label class="form-field">
+                <span>Username</span>
+                <input name="username" type="text" autocomplete="username" required />
+              </label>
+            `}
+            <label class="form-field">
+              <span>Password</span>
+              <input name="password" type="password" autocomplete="${isSignUp ? "new-password" : "current-password"}" minlength="8" required />
+            </label>
+            <button class="primary-button auth-submit" type="submit">
+              ${isSignUp ? "Create account" : "Log in"} <span aria-hidden="true">→</span>
+            </button>
+            </fieldset>
+          </form>
+          <p class="auth-terms">Your account is hosted by this application.</p>
+        </section>
+      </section>
+      <footer class="landing-footer">Finance <span>Thoughtful tools for your financial life.</span></footer>
+    </main>
+  `;
+
+  const form: HTMLFormElement | null =
+    document.querySelector<HTMLFormElement>("#auth-form");
+
+  form?.addEventListener("submit", async (event: SubmitEvent): Promise<void> => {
+    event.preventDefault();
+    const formData: FormData = new FormData(form);
+    const username: string = String(formData.get("username") ?? "").trim();
+    const password: string = String(formData.get("password") ?? "");
+    const submitButton: HTMLButtonElement | null =
+      form.querySelector<HTMLButtonElement>('button[type="submit"]');
+    const message: HTMLParagraphElement = document.createElement("p");
+    message.className = "auth-message";
+    message.setAttribute("role", "status");
+    form.prepend(message);
+
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.textContent = isSignUp ? "Creating account…" : "Logging in…";
+    }
+
+    try {
+      const result = isSignUp
+        ? await authClient.signUp.email({
+            name: String(formData.get("name") ?? "").trim(),
+            username,
+            email: String(formData.get("email") ?? "").trim(),
+            password,
+          })
+        : await authClient.signIn.username({ username, password });
+
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      window.location.assign("/dashboard");
+    } catch (error: unknown) {
+      message.textContent =
+        error instanceof Error ? error.message : "Unable to authenticate. Please try again.";
+      message.classList.add("error");
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.textContent = isSignUp ? "Create account →" : "Log in →";
+      }
+    }
+  });
+}
+
+function renderSettings(user: AuthUser): void {
+  app.innerHTML = `
+    <main class="settings-page">
+      <header class="settings-header">
+        <a class="brand" href="/dashboard" aria-label="Finance dashboard">
+          <span class="brand-mark" aria-hidden="true">L</span>
+          <span>Finance</span>
+        </a>
+        <nav class="settings-nav" aria-label="Account navigation">
+          <a href="/dashboard">← Back to dashboard</a>
+          <button class="text-button logout-button" type="button">Log out</button>
+        </nav>
+      </header>
+      <section class="settings-content">
+        <p class="eyebrow">YOUR ACCOUNT</p>
+        <h1>Settings</h1>
+        <p class="subheading">Manage your profile and sign-in details.</p>
+        <p id="settings-message" class="auth-message" role="status" hidden></p>
+        <section class="settings-card">
+          <h2>Profile</h2>
+          <p>Update your display name and username.</p>
+          <form id="profile-form">
+            <label class="form-field">
+              <span>Display name</span>
+              <input name="name" type="text" autocomplete="name" value="${escapeHtml(user.name)}" required />
+            </label>
+            <label class="form-field">
+              <span>Username</span>
+              <input name="username" type="text" autocomplete="username" value="${escapeHtml(user.username ?? "")}" minlength="3" maxlength="30" required />
+            </label>
+            <label class="form-field">
+              <span>Email address</span>
+              <input type="email" value="${escapeHtml(user.email)}" disabled />
+            </label>
+            <button class="primary-button" type="submit">Save profile</button>
+          </form>
+        </section>
+        <section class="settings-card">
+          <h2>Change password</h2>
+          <p>Confirm your current password before choosing a new one.</p>
+          <form id="password-form">
+            <label class="form-field">
+              <span>Current password</span>
+              <input name="currentPassword" type="password" autocomplete="current-password" required />
+            </label>
+            <label class="form-field">
+              <span>New password</span>
+              <input name="newPassword" type="password" autocomplete="new-password" minlength="8" required />
+            </label>
+            <label class="form-field">
+              <span>Confirm new password</span>
+              <input name="confirmPassword" type="password" autocomplete="new-password" minlength="8" required />
+            </label>
+            <button class="primary-button" type="submit">Update password</button>
+          </form>
+        </section>
+      </section>
+    </main>
+  `;
+
+  document
+    .querySelector<HTMLFormElement>("#profile-form")
+    ?.addEventListener("submit", async (event: SubmitEvent): Promise<void> => {
+      event.preventDefault();
+      if (!(event.currentTarget instanceof HTMLFormElement)) {
+        return;
+      }
+      const form: HTMLFormElement = event.currentTarget;
+      const formData: FormData = new FormData(form);
+      const name: string = String(formData.get("name") ?? "").trim();
+      const username: string = String(formData.get("username") ?? "").trim();
+
+      try {
+        const { error } = await authClient.updateUser({ name, username });
+        if (error) {
+          throw new Error(error.message);
+        }
+        await loadSession();
+        showSettingsMessage("Profile saved.", false);
+      } catch (error: unknown) {
+        showSettingsMessage(
+          error instanceof Error ? error.message : "Unable to save your profile.",
+          true,
+        );
+      }
+    });
+
+  document
+    .querySelector<HTMLFormElement>("#password-form")
+    ?.addEventListener("submit", async (event: SubmitEvent): Promise<void> => {
+      event.preventDefault();
+      if (!(event.currentTarget instanceof HTMLFormElement)) {
+        return;
+      }
+      const form: HTMLFormElement = event.currentTarget;
+      const formData: FormData = new FormData(form);
+      const currentPassword: string = String(formData.get("currentPassword") ?? "");
+      const newPassword: string = String(formData.get("newPassword") ?? "");
+      const confirmPassword: string = String(formData.get("confirmPassword") ?? "");
+
+      if (newPassword !== confirmPassword) {
+        showSettingsMessage("The passwords do not match.", true);
+        return;
+      }
+
+      try {
+        const { error } = await authClient.changePassword({
+          currentPassword,
+          newPassword,
+        });
+        if (error) {
+          throw new Error(error.message);
+        }
+        form.reset();
+        showSettingsMessage("Password updated.", false);
+      } catch (error: unknown) {
+        showSettingsMessage(
+          error instanceof Error ? error.message : "Unable to update your password.",
+          true,
+        );
+      }
+    });
+
+  attachLogoutHandler();
+}
+
+function showSettingsMessage(text: string, isError: boolean): void {
+  const message: HTMLParagraphElement | null =
+    document.querySelector<HTMLParagraphElement>("#settings-message");
+
+  if (message) {
+    message.hidden = false;
+    message.textContent = text;
+    message.classList.toggle("error", isError);
+    message.classList.toggle("success", !isError);
+  }
+}
+
+function attachLogoutHandler(): void {
+  document
+    .querySelector<HTMLButtonElement>(".logout-button")
+    ?.addEventListener("click", async (): Promise<void> => {
+      const button: HTMLButtonElement | null =
+        document.querySelector<HTMLButtonElement>(".logout-button");
+      if (button) {
+        button.disabled = true;
+        button.textContent = "Logging out…";
+      }
+
+      try {
+        const { error } = await authClient.signOut();
+        if (error) {
+          throw new Error(error.message);
+        }
+        window.location.assign("/");
+      } catch (error: unknown) {
+        if (button) {
+          button.disabled = false;
+          button.textContent = "Log out";
+        }
+        showSettingsMessage(
+          error instanceof Error ? error.message : "Unable to log out. Please try again.",
+          true,
+        );
+      }
+    });
+}
+
+async function loadSession(): Promise<void> {
+  try {
+    const { data, error } = await authClient.getSession();
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    currentUser = data?.user ?? null;
+  } catch (error: unknown) {
+    authNotice =
+      error instanceof Error ? error.message : "Unable to load your account session.";
+    currentUser = null;
+  }
+
+  authLoading = false;
+  render();
+}
+
+function render(): void {
+  const path: string = window.location.pathname;
+
+  if (authLoading) {
+    app.innerHTML = `<main class="loading-page" aria-live="polite">Loading your account…</main>`;
+    return;
+  }
+
+  if (currentUser && path === "/") {
+    window.location.replace("/dashboard");
+    return;
+  }
+
+  if (path === "/dashboard" || path === "/settings") {
+    if (!currentUser) {
+      authNotice = authNotice || "Log in or create an account to continue.";
+      window.history.replaceState(null, "", "/");
+      renderLanding();
+      return;
+    }
+
+    if (path === "/settings") {
+      renderSettings(currentUser);
+      return;
+    }
+
+    app.innerHTML = renderDashboard({
+      displayName: displayNameFor(currentUser),
+      username: currentUser.username ?? "",
+    });
+    attachLogoutHandler();
+    document
+      .querySelector<HTMLButtonElement>("#add-transaction")
+      ?.addEventListener("click", (): void => {
+        window.alert("Transaction entry will be available here soon.");
+      });
+    return;
+  }
+
+  renderLanding();
+}
+
+void loadSession();

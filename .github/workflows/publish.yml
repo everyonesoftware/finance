@@ -28,11 +28,11 @@ jobs:
       - name: Build application
         run: npm run build
 
-      - name: Test production build
+      - name: Test application
         run: npm test
 
   publish:
-    name: Publish image to GHCR
+    name: Publish container to GHCR
     needs: verify
     runs-on: ubuntu-latest
     permissions:
