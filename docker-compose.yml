@@ -5,11 +5,15 @@ services:
     build:
       context: .
     ports:
-      - "8080:3000"
+      - "127.0.0.1:8080:3000"
     environment:
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?Set BETTER_AUTH_SECRET in .env}
-      BETTER_AUTH_URL: ${BETTER_AUTH_URL:-http://localhost:8080}
+      ORIGIN_URL: ${ORIGIN_URL:-http://localhost:8080}
       DATABASE_PATH: /data/finance.sqlite
+      PLAID_CLIENT_ID: ${PLAID_CLIENT_ID:-}
+      PLAID_ENV: ${PLAID_ENV:-sandbox}
+      PLAID_SECRET: ${PLAID_SECRET:-}
+      PLAID_TOKEN_ENCRYPTION_KEY: ${PLAID_TOKEN_ENCRYPTION_KEY:-}
       NODE_ENV: production
       PORT: 3000
     volumes:

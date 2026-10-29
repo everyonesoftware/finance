@@ -30,7 +30,7 @@ export function renderDashboard(user: DashboardUser): string {
   <div class="app-shell">
     <aside class="sidebar" aria-label="Main navigation">
       <a class="brand" href="/dashboard" aria-label="Finance home">
-        <span class="brand-mark" aria-hidden="true">L</span>
+        <span class="brand-mark" aria-hidden="true">F</span>
         <span>Finance</span>
       </a>
       <div class="workspace-label">WORKSPACE</div>
@@ -44,7 +44,7 @@ export function renderDashboard(user: DashboardUser): string {
         <a class="nav-link" href="#budgets">
           <span class="nav-icon" aria-hidden="true">▤</span> Budgets
         </a>
-        <a class="nav-link" href="#accounts">
+        <a class="nav-link" href="/accounts">
           <span class="nav-icon" aria-hidden="true">▣</span> Accounts
         </a>
         <a class="nav-link" href="/settings">
@@ -64,6 +64,7 @@ export function renderDashboard(user: DashboardUser): string {
       <header class="topbar">
         <div class="breadcrumb">Workspace <span>/</span> Overview</div>
         <div class="header-actions">
+          <a class="settings-shortcut" href="/accounts">Accounts</a>
           <a class="settings-shortcut" href="/settings">Settings</a>
           <button class="text-button logout-button" type="button">Log out</button>
         </div>
@@ -127,25 +128,13 @@ export function renderDashboard(user: DashboardUser): string {
 
         <article class="panel accounts-panel" id="accounts">
           <div class="panel-heading">
-            <div><h2>Your accounts</h2><p>Balances across your accounts</p></div>
-            <button class="text-button" type="button">See all</button>
+            <div><h2>Bank accounts</h2><p>Accounts connected to your profile</p></div>
+            <a class="text-button" href="/accounts">See all</a>
           </div>
-          <div class="account-row">
-            <div class="account-icon checking" aria-hidden="true">⌂</div>
-            <div class="account-info"><strong>Checking account</strong><span>•••• 4829</span></div>
-            <strong class="account-balance">$8,420.50</strong>
+          <div id="overview-bank-accounts" aria-live="polite">
+            <div class="account-empty">Loading your bank accounts…</div>
           </div>
-          <div class="account-row">
-            <div class="account-icon savings" aria-hidden="true">◉</div>
-            <div class="account-info"><strong>Savings account</strong><span>•••• 1056</span></div>
-            <strong class="account-balance">$12,500.00</strong>
-          </div>
-          <div class="account-row">
-            <div class="account-icon investment" aria-hidden="true">⌁</div>
-            <div class="account-info"><strong>Investment</strong><span>•••• 7732</span></div>
-            <strong class="account-balance">$3,760.00</strong>
-          </div>
-          <button class="connect-button" type="button"><span aria-hidden="true">＋</span> Connect an account</button>
+          <a class="connect-button" href="/accounts"><span aria-hidden="true">＋</span> Connect an account</a>
         </article>
       </section>
 

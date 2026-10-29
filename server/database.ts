@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema.js";
+import { applySqlMigration } from "./migration-utils.js";
 
 const configuredDatabasePath: string =
   process.env["DATABASE_PATH"] ?? "./data/finance.sqlite";
@@ -41,7 +42,7 @@ export async function runMigrations(): Promise<void> {
 
     const migration: string = await readFile(join(migrationsDirectory, name), "utf8");
     const applyMigration = sqliteClient.transaction((): void => {
-      sqliteClient.exec(migration);
+      applySqlMigration(sqliteClient, migration);
       sqliteClient
         .prepare("INSERT INTO app_migration (name) VALUES (?)")
         .run(name);

@@ -30,6 +30,18 @@ npm run dev
 
 The Vite server prints its URL when ready. The API creates the SQLite database and applies migrations at startup using `DATABASE_PATH` from `.env`; `.env.example` stores it under `./data`. The root page provides account creation and username/password login. Registration also asks for an email address, which is stored with the profile. Email verification and email-based password recovery are not configured because no email delivery provider is set up. Authenticated users can update their display name, username, or password in settings.
 
+### Plaid bank connections
+
+Create a Plaid account and use its Sandbox credentials to enable bank linking. Add `PLAID_CLIENT_ID` and `PLAID_SECRET` from the Plaid Dashboard to `.env`, leave `PLAID_ENV=sandbox`, and generate a separate 32-byte encryption key:
+
+```powershell
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Set that value as `PLAID_TOKEN_ENCRYPTION_KEY`. Keep the Plaid credentials and encryption key out of source control. The key is required to decrypt stored access tokens and account data; back it up securely and separately from the database. Losing it makes saved Plaid connections unreadable. Restart the API after changing the environment.
+
+The Accounts page uses Plaid Link; Finance never receives or stores the bank's login credentials. For account balances, Link requests the Plaid Transactions product with a 30-day history window (Plaid's minimum in Production). Finance currently fetches and stores only account names, account type, masked number, currency, and balances; it does not fetch or store transaction history. Plaid access tokens, institution names, and account snapshots are encrypted at rest using the configured key. Test with Plaid Sandbox institutions and credentials; connecting a real Ally Bank account requires eligible Plaid Production access and real-account setup through Plaid.
+
 ## Production build
 
 ```powershell
@@ -65,7 +77,7 @@ Build and start the production container:
 docker compose up --build
 ```
 
-Copy `.env.example` to `.env` and replace `BETTER_AUTH_SECRET` with a randomly generated value before starting. For deployment, set `BETTER_AUTH_URL` to the app's public HTTPS origin. Compose starts the app, applies database migrations on startup, and stores the SQLite database in the `finance-data` named volume. Open [http://localhost:8080](http://localhost:8080). Stop the container with `Ctrl+C`; run `docker compose down` to stop and remove it. Database data remains in the named volume. Back up the SQLite database regularly, and avoid copying it while the app is actively writing; use SQLite's backup mechanism or briefly stop the app.
+Copy `.env.example` to `.env` and replace `BETTER_AUTH_SECRET` with a randomly generated value before starting. The app port is bound to host loopback (`127.0.0.1:8080`) and should not be exposed directly to untrusted networks. For public deployment, use a TLS-terminating reverse proxy that forwards to `127.0.0.1:8080`, and set `ORIGIN_URL` to the app's public HTTPS origin. Compose starts the app, applies database migrations on startup, and stores the SQLite database in the `finance-data` named volume. Open [http://localhost:8080](http://localhost:8080). Stop the container with `Ctrl+C`; run `docker compose down` to stop and remove it. Database data remains in the named volume. Back up the SQLite database regularly, and avoid copying it while the app is actively writing; use SQLite's backup mechanism or briefly stop the app.
 
 The `app` service serves both the Vite frontend and TypeScript API from one Node.js process and one image. SQLite is stored on the persistent volume; the existing PostgreSQL volume is not used or removed by this configuration.
 

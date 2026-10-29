@@ -5,25 +5,25 @@ import { database } from "./database.js";
 import * as schema from "./schema.js";
 
 const authSecret: string | undefined = process.env["BETTER_AUTH_SECRET"];
-const authUrl: string | undefined = process.env["BETTER_AUTH_URL"];
+const originUrl: string | undefined = process.env["ORIGIN_URL"];
 
 if (!authSecret || authSecret.length < 32) {
   throw new Error("BETTER_AUTH_SECRET must be set to at least 32 characters.");
 }
 
-if (!authUrl) {
-  throw new Error("BETTER_AUTH_URL must be set to the app's public URL.");
+if (!originUrl) {
+  throw new Error("ORIGIN_URL must be set to the app's public URL.");
 }
 
 const trustedOrigins: string[] = [
-  authUrl,
+  originUrl,
   "http://localhost:5173",
   "http://127.0.0.1:5173",
 ];
 
 export const auth = betterAuth({
   appName: "Finance",
-  baseURL: authUrl,
+  baseURL: originUrl,
   basePath: "/api/auth",
   secret: authSecret,
   trustedOrigins,
@@ -42,6 +42,6 @@ export const auth = betterAuth({
     }),
   ],
   advanced: {
-    useSecureCookies: new URL(authUrl).protocol === "https:",
+    useSecureCookies: new URL(originUrl).protocol === "https:",
   },
 });

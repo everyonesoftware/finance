@@ -2,6 +2,11 @@ import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
 import { renderDashboard } from "./dashboard";
+import {
+  initializeOverviewBankAccounts,
+  initializeBankAccountsPage,
+  renderBankAccountsPage,
+} from "./bank_accounts";
 
 function getAppRoot(): HTMLDivElement {
   const root: HTMLDivElement | null =
@@ -53,7 +58,7 @@ function renderLanding(): void {
     <main class="landing-page">
       <header class="landing-header">
         <a class="brand" href="/" aria-label="Finance home">
-          <span class="brand-mark" aria-hidden="true">L</span>
+          <span class="brand-mark" aria-hidden="true">F</span>
           <span>Finance</span>
         </a>
         <span class="landing-header-note">A clearer view of your money</span>
@@ -171,7 +176,7 @@ function renderSettings(user: AuthUser): void {
     <main class="settings-page">
       <header class="settings-header">
         <a class="brand" href="/dashboard" aria-label="Finance dashboard">
-          <span class="brand-mark" aria-hidden="true">L</span>
+          <span class="brand-mark" aria-hidden="true">F</span>
           <span>Finance</span>
         </a>
         <nav class="settings-nav" aria-label="Account navigation">
@@ -365,7 +370,7 @@ function render(): void {
     return;
   }
 
-  if (path === "/dashboard" || path === "/settings") {
+  if (path === "/dashboard" || path === "/settings" || path === "/accounts") {
     if (!currentUser) {
       authNotice = authNotice || "Log in or create an account to continue.";
       window.history.replaceState(null, "", "/");
@@ -378,11 +383,22 @@ function render(): void {
       return;
     }
 
+    if (path === "/accounts") {
+      app.innerHTML = renderBankAccountsPage({
+        displayName: displayNameFor(currentUser),
+        username: currentUser.username ?? "",
+      });
+      attachLogoutHandler();
+      initializeBankAccountsPage();
+      return;
+    }
+
     app.innerHTML = renderDashboard({
       displayName: displayNameFor(currentUser),
       username: currentUser.username ?? "",
     });
     attachLogoutHandler();
+    void initializeOverviewBankAccounts();
     document
       .querySelector<HTMLButtonElement>("#add-transaction")
       ?.addEventListener("click", (): void => {
