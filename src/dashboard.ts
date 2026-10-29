@@ -85,7 +85,7 @@ export function renderDashboard(user: DashboardUser): string {
       <section class="summary-grid" aria-label="Financial summary">
         <article class="summary-card balance-card">
           <div class="card-label">Total balance <span aria-hidden="true">↗</span></div>
-          <div class="card-value">$24,680<span>.50</span></div>
+          <div class="card-value" id="overview-total-balance">Loading…</div>
           <div class="card-foot"><span class="trend">↗ 4.8%</span> <span>vs. last month</span></div>
           <div class="balance-decoration" aria-hidden="true"></div>
         </article>

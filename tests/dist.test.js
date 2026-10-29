@@ -8,7 +8,11 @@ import {
   getPlaidErrorLogDetails,
 } from "../server-dist/plaid.js";
 import { applySqlMigration } from "../server-dist/migration-utils.js";
-import { renderOverviewBankAccounts } from "../src/bank_accounts.ts";
+import {
+  getTotalBalance,
+  renderAccounts,
+  renderOverviewBankAccounts,
+} from "../src/bank_accounts.ts";
 
 const distDirectory = new URL("../dist/", import.meta.url);
 const migrationsDirectory = new URL("../server/migrations/", import.meta.url);
@@ -101,6 +105,62 @@ test("overview bank-account list escapes values and links additional accounts", 
   assert.match(html, /\+1 more account/);
   assert.doesNotMatch(html, /<Checking>|Bank <One>/);
   assert.match(renderOverviewBankAccounts([]), /No bank accounts connected yet/);
+});
+
+test("overview total balance subtracts credit and loan balances", () => {
+  const account = {
+    id: "account-1",
+    itemId: "item-1",
+    institutionName: "Bank One",
+    name: "Checking",
+    officialName: null,
+    type: "depository",
+    subtype: "checking",
+    mask: "1234",
+    currentBalance: 125.5,
+    availableBalance: 100,
+    currencyCode: "USD",
+    updatedAt: new Date().toISOString(),
+  };
+
+  assert.equal(
+    getTotalBalance([
+      account,
+      { ...account, id: "account-2", currentBalance: 250.25 },
+      { ...account, id: "account-3", currentBalance: null },
+      { ...account, id: "account-4", type: "credit", currentBalance: 75 },
+      { ...account, id: "account-5", type: "loan", currentBalance: 10 },
+      { ...account, id: "account-6", type: "credit", currentBalance: -5 },
+    ]),
+    285.75,
+  );
+  assert.equal(getTotalBalance([]), 0);
+});
+
+test("accounts page renders credit and loan balances as negative and red", () => {
+  const account = {
+    id: "account-1",
+    itemId: "item-1",
+    institutionName: "Bank One",
+    name: "Credit card",
+    officialName: null,
+    type: "credit",
+    subtype: "credit card",
+    mask: "1234",
+    currentBalance: 75,
+    availableBalance: 100,
+    currencyCode: "USD",
+    updatedAt: new Date().toISOString(),
+  };
+  const html = renderAccounts([
+    account,
+    { ...account, id: "account-2", type: "loan", name: "Loan", currentBalance: -125 },
+    { ...account, id: "account-3", type: "depository", name: "Checking" },
+  ]);
+
+  assert.match(html, /class="connected-account-balance liability-balance">\s*-\$75\.00/);
+  assert.match(html, /class="connected-account-balance liability-balance">\s*-\$125\.00/);
+  assert.match(html, /class="connected-account-balance">\s*\$75\.00/);
 });
 
 test("bank-account migration creates user-owned encrypted data tables", async () => {

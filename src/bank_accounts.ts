@@ -148,7 +148,22 @@ function formatBalance(
   return balance.toFixed(2);
 }
 
-function renderAccounts(accounts: BankAccount[]): string {
+function isLiabilityAccount(account: BankAccount): boolean {
+  const accountType: string = account.type.toLowerCase();
+  return accountType === "credit" || accountType === "loan";
+}
+
+function formatAccountBalance(account: BankAccount): string {
+  const balance: number | null = account.currentBalance;
+  const signedBalance: number | null =
+    balance !== null && isLiabilityAccount(account) && balance !== 0
+      ? -Math.abs(balance)
+      : balance;
+
+  return formatBalance(signedBalance, account.currencyCode);
+}
+
+export function renderAccounts(accounts: BankAccount[]): string {
   if (accounts.length === 0) {
     return `
       <div class="accounts-empty">
@@ -189,6 +204,10 @@ function renderAccounts(accounts: BankAccount[]): string {
           const mask: string = account.mask
             ? `•••• ${escapeHtml(account.mask)}`
             : "Account number hidden";
+          const liabilityClass: string =
+            isLiabilityAccount(account) && account.currentBalance !== null
+              ? " liability-balance"
+              : "";
 
           return `
             <article class="connected-account">
@@ -197,8 +216,8 @@ function renderAccounts(accounts: BankAccount[]): string {
                 <strong>${escapeHtml(account.name)}</strong>
                 <span>${escapeHtml(accountType)} · ${mask}</span>
               </div>
-              <strong class="connected-account-balance">
-                ${escapeHtml(formatBalance(account.currentBalance, account.currencyCode))}
+              <strong class="connected-account-balance${liabilityClass}">
+                ${escapeHtml(formatAccountBalance(account))}
               </strong>
             </article>
           `;
@@ -263,12 +282,26 @@ export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
   return `${container}${additionalLink}`;
 }
 
+export function getTotalBalance(accounts: BankAccount[]): number {
+  return accounts.reduce(
+    (total: number, account: BankAccount): number => {
+      const balance: number = account.currentBalance ?? 0;
+
+      return total + (isLiabilityAccount(account) ? -Math.abs(balance) : balance);
+    },
+    0,
+  );
+}
+
 export async function initializeOverviewBankAccounts(): Promise<void> {
   const container: HTMLDivElement | null =
     document.querySelector<HTMLDivElement>("#overview-bank-accounts");
   if (!container) {
     return;
   }
+
+  const totalBalanceElement: HTMLDivElement | null =
+    document.querySelector<HTMLDivElement>("#overview-total-balance");
 
   try {
     const response: Response = await fetch("/api/accounts", {
@@ -282,7 +315,16 @@ export async function initializeOverviewBankAccounts(): Promise<void> {
       throw new Error("The server returned an invalid bank-account response.");
     }
     container.innerHTML = renderOverviewBankAccounts(payload.accounts);
+    if (totalBalanceElement) {
+      totalBalanceElement.textContent = formatBalance(
+        getTotalBalance(payload.accounts),
+        "USD",
+      );
+    }
   } catch {
+    if (totalBalanceElement) {
+      totalBalanceElement.textContent = "Balance unavailable";
+    }
     container.innerHTML = `
       <div class="account-empty">
         <span>Bank accounts couldn't be loaded.</span>

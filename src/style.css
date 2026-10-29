@@ -780,6 +780,10 @@ h1 span {
   white-space: nowrap;
 }
 
+.connected-account-balance.liability-balance {
+  color: #b42318;
+}
+
 .transactions-panel {
   margin-top: 18px;
   padding-bottom: 0;
