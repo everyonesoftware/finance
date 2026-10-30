@@ -7,7 +7,7 @@ export type TransactionGroup =
   | { type: "single"; transactions: [TransactionRecord] }
   | {
       type: "transfer";
-      transactions: [TransactionRecord, TransactionRecord];
+      transactions: TransactionRecord[];
       fromAccount: BankAccount;
       toAccount: BankAccount;
     };
@@ -38,6 +38,37 @@ function dateOrdinal(value: string): number | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
   const timestamp = Date.parse(`${value}T00:00:00.000Z`);
   return Number.isFinite(timestamp) ? timestamp / 86_400_000 : null;
+}
+
+function getFidelityAchTransferAccounts(
+  transaction: TransactionRecord,
+  accountsByPlaidId: Map<string, BankAccount>,
+  accounts: BankAccount[],
+): { fromAccount: BankAccount; toAccount: BankAccount } | null {
+  const name = stringField(transaction, "name");
+  const amount = numberField(transaction, "amount");
+  const receivingAccountId = stringField(transaction, "account_id");
+  const referenceMatch = name?.match(/\bX\d{4,}(\d{4})\b/i);
+  if (
+    !name ||
+    !/\bFID\s+BKG\s+SVC\s+LLC\s+ACH\b/i.test(name) ||
+    !referenceMatch?.[1] ||
+    amount === null || amount >= 0 ||
+    !receivingAccountId
+  ) return null;
+
+  const toAccount = accountsByPlaidId.get(receivingAccountId);
+  if (!toAccount || toAccount.type !== "depository") return null;
+  const sourceMask = referenceMatch[1];
+  const sourceAccounts = accounts.filter((account) => {
+    const accountMask = account.mask?.replace(/\D/g, "");
+    return account.type === "investment" &&
+      /\bfidelity\b/i.test(account.institutionName) &&
+      accountMask?.endsWith(sourceMask);
+  });
+  if (sourceAccounts.length !== 1 || sourceAccounts[0]?.id === toAccount.id) return null;
+  const fromAccount = sourceAccounts[0];
+  return fromAccount ? { fromAccount, toAccount } : null;
 }
 
 function plausiblePair(
@@ -116,6 +147,14 @@ export function groupInternalTransfers(
         counterpartIndex = candidateIndex;
         pairedAccounts = pair;
         break;
+      }
+    }
+
+    if (counterpartIndex < 0) {
+      const describedTransfer = getFidelityAchTransferAccounts(transaction, accountsByPlaidId, accounts);
+      if (describedTransfer) {
+        groups.push({ type: "transfer", transactions: [transaction], ...describedTransfer });
+        continue;
       }
     }
 

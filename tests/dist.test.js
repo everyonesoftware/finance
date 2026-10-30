@@ -89,6 +89,50 @@ test("internal transfers with reciprocal connected-account references collapse i
   assert.match(html, /Internet transfer to/);
 });
 
+test("Fidelity ACH deposits referencing a connected brokerage account are grouped as transfers", () => {
+  const accounts = [
+    { id: "fidelity-id", plaidAccountId: "plaid-fidelity", itemId: "item-a", name: "Brokerage", officialName: "Individual Brokerage", institutionName: "Fidelity Investments", type: "investment", subtype: "brokerage", mask: "1283", currentBalance: 1000, availableBalance: null, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "spending-id", plaidAccountId: "plaid-spending", itemId: "item-b", name: "Spending", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "5566", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+  ];
+  const transaction = {
+    transaction_id: "fidelity-ach",
+    account_id: "plaid-spending",
+    name: "X77621283 708XN FID BKG SVC LLC ACH",
+    date: "2026-10-29",
+    amount: -400,
+    iso_currency_code: "USD",
+  };
+
+  const groups = groupInternalTransfers([transaction], accounts);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].type, "transfer");
+  if (groups[0].type !== "transfer") return;
+  assert.equal(groups[0].transactions.length, 1);
+  assert.equal(groups[0].fromAccount.id, "fidelity-id");
+  assert.equal(groups[0].toAccount.id, "spending-id");
+
+  const html = renderTransactionList([transaction], accounts);
+  assert.match(html, /Transfer: Brokerage → Spending/);
+  assert.match(html, /class="transfer-pair-amount">\$400\.00/);
+  assert.match(html, /X77621283 708XN FID BKG SVC LLC ACH/);
+});
+
+test("Fidelity ACH transfer detection requires an incoming transaction and matching connected Fidelity mask", () => {
+  const accounts = [
+    { id: "fidelity-id", plaidAccountId: "plaid-fidelity", itemId: "item-a", name: "Brokerage", officialName: null, institutionName: "Fidelity Investments", type: "investment", subtype: "brokerage", mask: "1283", currentBalance: 1000, availableBalance: null, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "spending-id", plaidAccountId: "plaid-spending", itemId: "item-b", name: "Spending", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "5566", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+  ];
+  const transaction = { account_id: "plaid-spending", name: "X77621283 708XN FID BKG SVC LLC ACH", date: "2026-10-29", amount: -400, iso_currency_code: "USD" };
+  const mismatches = [
+    { ...transaction, amount: 400 },
+    { ...transaction, name: "X77629999 708XN FID BKG SVC LLC ACH" },
+    { ...transaction, name: "X77621283 708XN GENERIC ACH" },
+  ];
+  for (const mismatch of mismatches) {
+    assert.equal(groupInternalTransfers([mismatch], accounts)[0]?.type, "single");
+  }
+});
+
 test("transactions remain separate unless amount, direction, date, currency, and reciprocal accounts match", () => {
   const accounts = [
     { id: "checking-id", plaidAccountId: "plaid-checking", itemId: "item-a", name: "Checking", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "1257", currentBalance: 100, availableBalance: 100, currencyCode: "USD", updatedAt: "2026-10-30" },
