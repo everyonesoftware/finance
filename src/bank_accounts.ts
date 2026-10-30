@@ -26,6 +26,7 @@ interface AccountsResponse {
 interface AccountDetailResponse {
   account: BankAccount;
   transactions: Array<Record<string, unknown>>;
+  accounts: BankAccount[];
 }
 
 interface PlaidLinkExitError {
@@ -125,6 +126,9 @@ function isAccountDetailResponse(value: unknown): value is AccountDetailResponse
     value !== null &&
     "account" in value &&
     isBankAccount(value.account) &&
+    "accounts" in value &&
+    Array.isArray(value.accounts) &&
+    value.accounts.every(isBankAccount) &&
     "transactions" in value &&
     Array.isArray(value.transactions) &&
     value.transactions.every(
@@ -183,9 +187,40 @@ function formatAccountBalance(account: BankAccount): string {
   return formatBalance(signedBalance, account.currencyCode);
 }
 
+function renderTransactionName(name: string, accounts: BankAccount[]): string {
+  const candidates: Array<{ start: number; end: number; account: BankAccount }> = [];
+  for (const account of accounts) {
+    const mask = account.mask?.replace(/\D/g, "");
+    if (!mask || !account.name.trim()) continue;
+    const escapedName = account.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const pattern = new RegExp(
+      `(?<![\\p{L}\\p{N}])${escapedName}(?:\\s+account)?\\s*(?:ending\\s*(?:in\\s*)?|x{2,}|\\*{2,}|…)?\\s*${mask}(?!\\d)`,
+      "giu",
+    );
+    for (const match of name.matchAll(pattern)) {
+      if (match.index !== undefined) {
+        candidates.push({ start: match.index, end: match.index + match[0].length, account });
+      }
+    }
+  }
+
+  candidates.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  let result = "";
+  let lastIndex = 0;
+  for (const candidate of candidates) {
+    if (candidate.start < lastIndex) continue;
+    result += escapeHtml(name.slice(lastIndex, candidate.start));
+    result += `<a class="transaction-account-link" href="/accounts/${escapeHtml(encodeURIComponent(candidate.account.id))}">${escapeHtml(name.slice(candidate.start, candidate.end))}</a>`;
+    lastIndex = candidate.end;
+  }
+  result += escapeHtml(name.slice(lastIndex));
+  return result;
+}
+
 export function renderAccountDetail(
   account: BankAccount,
   transactions: Array<Record<string, unknown>>,
+  accounts: BankAccount[] = [account],
 ): string {
   const accountType = [account.type, account.subtype]
     .filter((part): part is string => Boolean(part))
@@ -204,12 +239,13 @@ export function renderAccountDetail(
             ? transaction.unofficial_currency_code
             : null;
         const name = typeof transaction.name === "string" ? transaction.name : "Transaction";
+        const linkedName = renderTransactionName(name, accounts);
         const date = typeof transaction.date === "string" ? transaction.date : "Date unavailable";
         const pendingLabel = transaction.pending === true ? " · Pending" : "";
         return `
           <article class="account-transaction-row">
             <div class="account-transaction-copy">
-              <strong>${escapeHtml(name)}</strong>
+              <strong>${linkedName}</strong>
               <span>${escapeHtml(date + pendingLabel)}</span>
             </div>
             <strong class="account-transaction-amount">${escapeHtml(formatTransactionAmount(amount, currencyCode))}</strong>
@@ -867,7 +903,7 @@ export async function initializeAccountDetailPage(accountId: string): Promise<vo
     if (!response.ok || !isAccountDetailResponse(payload)) {
       throw new Error(getErrorMessage(payload, "Unable to load this account."));
     }
-    container.innerHTML = renderAccountDetail(payload.account, payload.transactions);
+    container.innerHTML = renderAccountDetail(payload.account, payload.transactions, payload.accounts);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unable to load this account.";
     container.innerHTML = `

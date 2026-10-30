@@ -247,16 +247,22 @@ test("account detail renders an account snapshot and escaped account transaction
     currencyCode: "USD",
     updatedAt: "2026-10-30T12:00:00.000Z",
   };
+  const matchingSavings = { ...account, id: "savings-id", name: "Savings", mask: "4753" };
   const html = renderAccountDetail(account, [
-    { name: "<Coffee shop>", date: "2026-10-29", amount: 12.5, iso_currency_code: "USD" },
-  ]);
+    { name: "Internet transfer from Savings account XXXX4753", date: "2026-10-29", amount: 12.5, iso_currency_code: "USD" },
+    { name: "Internet transfer from Savings account XXXX9999", date: "2026-10-28", amount: 2, iso_currency_code: "USD" },
+    { name: "Merchant <unsafe>", date: "2026-10-27", amount: 1, iso_currency_code: "USD" },
+  ], [account, matchingSavings]);
   assert.match(html, /Bank One/);
   assert.match(html, /Everyday Checking/);
   assert.match(html, /•••• 1234/);
   assert.match(html, /\$250\.50/);
   assert.match(html, /-\$12\.50/);
-  assert.match(html, /&lt;Coffee shop&gt;/);
-  assert.doesNotMatch(html, /<Coffee shop>/);
+  assert.match(html, /href="\/accounts\/savings-id"[^>]*>Savings account XXXX4753<\/a>/);
+  assert.match(html, /Savings account XXXX9999/);
+  assert.doesNotMatch(html, /href="\/accounts\/account-1"[^>]*>Savings account XXXX9999/);
+  assert.match(html, /Merchant &lt;unsafe&gt;/);
+  assert.doesNotMatch(html, /<unsafe>/);
   assert.ok(html.indexOf("account-detail-snapshot") < html.indexOf("account-detail-transactions"));
 });
 

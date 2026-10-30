@@ -298,7 +298,7 @@ bankAccountsRouter.get("/:accountId/transactions", async (context) => {
       metadata.plaidAccountId,
       connection.encryptionKey,
     );
-    return context.json({ account, transactions });
+    return context.json({ account, transactions, accounts: getAccountsForUser(userId) });
   } catch (error) {
     if (error instanceof PlaidConfigurationError) return configurationFailure(context);
     logPlaidFailure("account transaction listing", error);

@@ -903,6 +903,19 @@ a.text-button {
   font-size: 10px;
 }
 
+.transaction-account-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: #9ebaa2;
+  text-underline-offset: 2px;
+}
+
+.transaction-account-link:hover,
+.transaction-account-link:focus-visible {
+  color: #477858;
+  text-decoration-color: currentColor;
+}
+
 .account-transaction-amount {
   flex: 0 0 auto;
   color: #343b33;
