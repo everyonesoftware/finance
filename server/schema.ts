@@ -123,6 +123,7 @@ export const bankAccount = sqliteTable(
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
     encryptedData: text("encrypted_data").notNull(),
+    isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     updatedAt: integer("updated_at", { mode: "timestamp" })
       .notNull()
       .default(sql`(unixepoch())`),

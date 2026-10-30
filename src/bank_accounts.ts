@@ -282,6 +282,28 @@ export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
   return `${container}${additionalLink}`;
 }
 
+export function formatTransactionAmount(amount: number, currencyCode: string | null): string {
+  if (!Number.isFinite(amount)) {
+    return "—";
+  }
+
+  // Plaid uses positive values for outflows and negative values for inflows;
+  // invert the sign for a familiar account-ledger presentation.
+  const displayedAmount = -amount;
+  if (currencyCode && /^[A-Z]{3}$/.test(currencyCode)) {
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: currencyCode,
+      }).format(displayedAmount);
+    } catch {
+      // Fall back to a plain numeric amount if Intl rejects the currency.
+    }
+  }
+
+  return `${displayedAmount < 0 ? "-" : ""}${Math.abs(displayedAmount).toFixed(2)}`;
+}
+
 export function getTotalBalance(accounts: BankAccount[]): number {
   return accounts.reduce(
     (total: number, account: BankAccount): number => {
@@ -647,8 +669,9 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           <strong>Your data, kept to what this page needs</strong>
           <p>
             Plaid Link requests the Transactions product with a 30-day history
-            window. Finance stores encrypted account details and balances, but
-            does not fetch or store transaction history.
+            window. You can manually sync transaction history from the dashboard.
+            Finance stores transaction details and sync cursors encrypted at rest,
+            along with encrypted account details and balances.
           </p>
         </section>
 

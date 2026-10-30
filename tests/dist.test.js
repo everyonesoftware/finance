@@ -7,8 +7,12 @@ import {
   encryptPlaidValue,
   getPlaidErrorLogDetails,
 } from "../server-dist/plaid.js";
+import { refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
 import { applySqlMigration } from "../server-dist/migration-utils.js";
+import { collectTransactionPages, getRecentTransactions } from "../server-dist/transaction-sync.js";
+import { renderDashboard } from "../src/dashboard.ts";
 import {
+  formatTransactionAmount,
   getTotalBalance,
   renderAccounts,
   renderOverviewBankAccounts,
@@ -16,6 +20,54 @@ import {
 
 const distDirectory = new URL("../dist/", import.meta.url);
 const migrationsDirectory = new URL("../server/migrations/", import.meta.url);
+
+test("transaction pagination restarts from the original cursor after mutation", async () => {
+  const calls = [];
+  let attempt = 0;
+  const result = await collectTransactionPages(async ({ cursor }) => {
+    calls.push(cursor);
+    if (attempt++ === 0) return { added: [{ transaction_id: "stale" }], modified: [], removed: [], next_cursor: "page-2", has_more: true };
+    if (attempt === 2) throw Object.assign(new Error("mutation"), { response: { data: { error_code: "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION" } } });
+    return { added: [{ transaction_id: "fresh" }], modified: [], removed: [], next_cursor: "done", has_more: false };
+  }, "saved", 3);
+  assert.deepEqual(calls, ["saved", "page-2", "saved"]);
+  assert.deepEqual(result.added.map((transaction) => transaction.transaction_id), ["fresh"]);
+  assert.equal(result.cursor, "done");
+});
+
+test("transaction pagination safety cap fails without returning a commit cursor", async () => {
+  let calls = 0;
+  await assert.rejects(collectTransactionPages(async () => {
+    calls++;
+    return { added: [{ transaction_id: `t${calls}` }], modified: [], removed: [], next_cursor: `c${calls}`, has_more: true };
+  }, "saved", 2), /page limit/);
+  assert.equal(calls, 2);
+});
+
+test("recent transactions are sorted newest first and limited to 50", () => {
+  const transactions = Array.from({ length: 52 }, (_, index) => ({
+    transaction_id: `t${index}`,
+    date: new Date(Date.UTC(2026, 0, index + 1)).toISOString().slice(0, 10),
+  }));
+  const recent = getRecentTransactions(transactions);
+  assert.equal(recent.length, 50);
+  assert.equal(recent[0].date, transactions[51].date);
+  assert.equal(recent.at(-1).date, transactions[2].date);
+});
+
+test("Plaid transaction amounts render spending as negative and income as positive", () => {
+  assert.equal(formatTransactionAmount(24.5, "USD"), "-$24.50");
+  assert.equal(formatTransactionAmount(-125.75, "USD"), "$125.75");
+  assert.equal(formatTransactionAmount(3, "CAD"), "-CA$3.00");
+  assert.equal(formatTransactionAmount(3, null), "-3.00");
+});
+
+test("dashboard does not present sample income, expense, or chart data as real", () => {
+  const html = renderDashboard({ displayName: "Test", username: "test" });
+  assert.doesNotMatch(html, /\$5,240|\$2,180|--height:/);
+  assert.match(html, /Not available yet/);
+  assert.match(html, /Sync transactions to see income and spending trends/);
+});
 
 test("production HTML references existing JavaScript and CSS assets", async () => {
   const html = await readFile(new URL("index.html", distDirectory), "utf8");
@@ -259,5 +311,79 @@ test("legacy auth table rename keeps existing rows", async () => {
       .get().id,
     "existing-verification",
   );
+  database.close();
+});
+
+
+test("account refresh preserves historical account IDs while hiding inactive accounts", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const migrationNames = (await readdir(migrationsDirectory))
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  for (const migrationName of migrationNames) {
+    applySqlMigration(database, await readFile(new URL(migrationName, migrationsDirectory), "utf8"));
+  }
+  database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+    .run("user-one", "User One", "one@example.test");
+  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
+    .run("item-one", "user-one", "encrypted-name", "encrypted-token");
+
+  refreshBankAccountSnapshots(database, "item-one", "user-one", [
+    { plaidAccountId: "plaid-account-one", encryptedData: "encrypted-v1" },
+  ]);
+  const original = database.prepare("SELECT id FROM bank_account WHERE item_id = ?")
+    .get("item-one");
+  refreshBankAccountSnapshots(database, "item-one", "user-one", []);
+  const inactive = database.prepare("SELECT id, is_active FROM bank_account WHERE item_id = ?")
+    .get("item-one");
+  assert.equal(inactive.id, original.id);
+  assert.equal(inactive.is_active, 0);
+
+  refreshBankAccountSnapshots(database, "item-one", "user-one", [
+    { plaidAccountId: "plaid-account-one", encryptedData: "encrypted-v2" },
+  ]);
+  const reactivated = database.prepare("SELECT id, is_active, encrypted_data FROM bank_account WHERE item_id = ?")
+    .get("item-one");
+  assert.equal(reactivated.id, original.id);
+  assert.equal(reactivated.is_active, 1);
+  assert.equal(reactivated.encrypted_data, "encrypted-v2");
+  database.close();
+});
+
+test("transaction migration stores encrypted transaction records and protected sync cursors", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const migrationNames = (await readdir(migrationsDirectory))
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  for (const migrationName of migrationNames) {
+    applySqlMigration(database, await readFile(new URL(migrationName, migrationsDirectory), "utf8"));
+  }
+  const tables = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map((row) => row.name);
+  assert.ok(tables.includes("bank_transaction"));
+  const columns = database.prepare("PRAGMA table_info(bank_item)").all().map((column) => column.name);
+  assert.ok(columns.includes("encrypted_transaction_cursor"));
+  const transactionColumns = database.prepare("PRAGMA table_info(bank_transaction)").all().map((column) => column.name);
+  assert.ok(transactionColumns.includes("encrypted_data"));
+
+  database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+    .run("user-one", "User One", "one@example.test");
+  database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+    .run("user-two", "User Two", "two@example.test");
+  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
+    .run("item-one", "user-one", "encrypted-name", "encrypted-token");
+  database.prepare("INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)")
+    .run("tx-one", "item-one", "user-one", "account-one", "encrypted-payload");
+  assert.throws(
+    () => database.prepare("INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)")
+      .run("tx-two", "item-one", "user-two", "account-two", "encrypted-payload"),
+    /FOREIGN KEY constraint failed/,
+  );
+  const wrongOwnerDelete = database.prepare("DELETE FROM bank_transaction WHERE item_id = ? AND transaction_id = ? AND user_id = ?")
+    .run("item-one", "tx-one", "user-two");
+  assert.equal(wrongOwnerDelete.changes, 0);
+  assert.equal(database.prepare("SELECT user_id FROM bank_transaction WHERE item_id = ? AND transaction_id = ?")
+    .get("item-one", "tx-one").user_id, "user-one");
   database.close();
 });
