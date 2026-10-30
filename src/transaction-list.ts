@@ -176,12 +176,21 @@ export function renderTransactionList(
       .filter((date): date is string => date !== null)
       .sort();
     const dateLabel = dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} – ${dates.at(-1)}`;
+    const amountTransaction = group.transactions.find((transaction) => numberField(transaction, "amount") !== null);
+    const transferAmount = amountTransaction ? Math.abs(numberField(amountTransaction, "amount") ?? 0) : Number.NaN;
+    const amountCurrency = amountTransaction ? currencyCode(amountTransaction) : null;
     return `
       <details class="transaction-transfer-pair">
         <summary aria-label="Expand or collapse original transfer transactions">
-          <span class="transfer-pair-title">Transfer: ${escapeHtml(group.fromAccount.name)} ↔ ${escapeHtml(group.toAccount.name)}</span>
-          <span class="transfer-pair-meta">${escapeHtml(dateLabel ?? "Date unavailable")} · 2 transactions</span>
-          <span class="transfer-pair-toggle" aria-hidden="true">View entries⌄</span>
+          <div class="transaction-copy transfer-pair-copy">
+            <strong>Transfer: ${escapeHtml(group.fromAccount.name)} → ${escapeHtml(group.toAccount.name)}</strong>
+            <span>${escapeHtml(dateLabel ?? "Date unavailable")}</span>
+          </div>
+          <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-transferAmount, amountCurrency))}</b>
+          <span class="transfer-pair-toggle" aria-hidden="true">
+            <span class="transfer-pair-collapsed">+</span>
+            <span class="transfer-pair-expanded">−</span>
+          </span>
         </summary>
         <div class="transfer-pair-rows">${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts)).join("")}</div>
       </details>
