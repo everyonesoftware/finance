@@ -8,6 +8,7 @@ export interface BankAccountsPageUser {
 export interface BankAccount {
   id: string;
   itemId: string;
+  plaidAccountId?: string;
   institutionName: string;
   name: string;
   officialName: string | null;
@@ -104,7 +105,8 @@ function isBankAccount(value: unknown): value is BankAccount {
     "currencyCode" in value &&
     isNullableString(value.currencyCode) &&
     "updatedAt" in value &&
-    typeof value.updatedAt === "string"
+    typeof value.updatedAt === "string" &&
+    (!("plaidAccountId" in value) || typeof value.plaidAccountId === "string")
   );
 }
 
@@ -189,8 +191,17 @@ function formatAccountBalance(account: BankAccount): string {
   return formatBalance(signedBalance, account.currencyCode);
 }
 
-function renderTransactionName(name: string, accounts: BankAccount[]): string {
-  const candidates: Array<{ start: number; end: number; account: BankAccount }> = [];
+interface TransactionAccountMention {
+  start: number;
+  end: number;
+  account: BankAccount;
+}
+
+function getTransactionAccountMentions(
+  name: string,
+  accounts: BankAccount[],
+): TransactionAccountMention[] {
+  const candidates: TransactionAccountMention[] = [];
   for (const account of accounts) {
     const mask = account.mask?.replace(/\D/g, "");
     if (!mask) continue;
@@ -210,13 +221,26 @@ function renderTransactionName(name: string, accounts: BankAccount[]): string {
       );
       for (const match of name.matchAll(pattern)) {
         if (match.index !== undefined) {
-          candidates.push({ start: match.index, end: match.index + match[0].length, account });
+          let start = match.index;
+          if (alias.toLowerCase() === "account") {
+            const prefix = name.slice(0, start);
+            const boundary = [...prefix.matchAll(/\b(?:to|from)\s+/gi)].at(-1);
+            if (boundary?.index !== undefined) start = boundary.index + boundary[0].length;
+          }
+          candidates.push({ start, end: match.index + match[0].length, account });
         }
       }
     }
   }
+  return candidates.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+}
 
-  candidates.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+export function findReferencedAccount(name: string, accounts: BankAccount[]): BankAccount | null {
+  return getTransactionAccountMentions(name, accounts)[0]?.account ?? null;
+}
+
+export function renderLinkedTransactionName(name: string, accounts: BankAccount[]): string {
+  const candidates = getTransactionAccountMentions(name, accounts);
   let result = "";
   let lastIndex = 0;
   for (const candidate of candidates) {
@@ -251,7 +275,7 @@ export function renderAccountDetail(
             ? transaction.unofficial_currency_code
             : null;
         const name = typeof transaction.name === "string" ? transaction.name : "Transaction";
-        const linkedName = renderTransactionName(name, accounts);
+        const linkedName = renderLinkedTransactionName(name, accounts);
         const date = typeof transaction.date === "string" ? transaction.date : "Date unavailable";
         const pendingLabel = transaction.pending === true ? " · Pending" : "";
         return `

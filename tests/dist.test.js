@@ -11,6 +11,7 @@ import {
 import { listAccountTransactions, refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
 import { applySqlMigration } from "../server-dist/migration-utils.js";
 import { collectTransactionPages, getRecentTransactions } from "../server-dist/transaction-sync.js";
+import { groupInternalTransfers, renderTransactionList } from "../src/transaction-list.ts";
 import { renderDashboard } from "../src/dashboard.ts";
 import {
   formatTransactionAmount,
@@ -57,6 +58,52 @@ test("recent transactions are sorted newest first and limited to 50", () => {
   assert.equal(recent.length, 50);
   assert.equal(recent[0].date, transactions[51].date);
   assert.equal(recent.at(-1).date, transactions[2].date);
+});
+
+test("internal transfers with reciprocal connected-account references collapse into one expandable pair", () => {
+  const accounts = [
+    { id: "checking-id", plaidAccountId: "plaid-checking", itemId: "item-a", name: "Checking", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "1257", currentBalance: 100, availableBalance: 100, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "savings-id", plaidAccountId: "plaid-savings", itemId: "item-a", name: "Everyday Savings", officialName: null, institutionName: "Bank", type: "depository", subtype: "savings", mask: "4753", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+  ];
+  const transactions = [
+    { transaction_id: "out", account_id: "plaid-checking", name: "Internet transfer to Savings account XXXXXX4753", date: "2026-10-29", amount: 50, iso_currency_code: "USD" },
+    { transaction_id: "in", account_id: "plaid-savings", name: "Internet transfer from Savings account XXXXXX1257", date: "2026-10-29", amount: -50, iso_currency_code: "USD" },
+    { transaction_id: "groceries", account_id: "plaid-checking", name: "Grocery store", date: "2026-10-28", amount: 22, iso_currency_code: "USD" },
+  ];
+
+  const groups = groupInternalTransfers(transactions, accounts);
+  assert.equal(groups.length, 2);
+  assert.equal(groups[0].type, "transfer");
+  assert.deepEqual(groups[0].transactions.map((transaction) => transaction.transaction_id), ["out", "in"]);
+  assert.equal(groups[1].type, "single");
+
+  const html = renderTransactionList(transactions, accounts);
+  assert.match(html, /<details class="transaction-transfer-pair">/);
+  assert.match(html, /Transfer: Checking ↔ Everyday Savings/);
+  assert.match(html, /aria-label="Expand or collapse original transfer transactions"/);
+  assert.match(html, /href="\/accounts\/savings-id"/);
+  assert.match(html, /href="\/accounts\/checking-id">Savings account XXXXXX1257<\/a>/);
+  assert.match(html, /Internet transfer to/);
+});
+
+test("transactions remain separate unless amount, direction, date, currency, and reciprocal accounts match", () => {
+  const accounts = [
+    { id: "checking-id", plaidAccountId: "plaid-checking", itemId: "item-a", name: "Checking", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "1257", currentBalance: 100, availableBalance: 100, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "savings-id", plaidAccountId: "plaid-savings", itemId: "item-a", name: "Savings", officialName: null, institutionName: "Bank", type: "depository", subtype: "savings", mask: "4753", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+  ];
+  const outgoing = { transaction_id: "out", account_id: "plaid-checking", name: "Transfer to Savings account XXXX4753", date: "2026-10-29", amount: 50, iso_currency_code: "USD" };
+  const incoming = { transaction_id: "in", account_id: "plaid-savings", name: "Transfer from Checking account XXXX1257", date: "2026-10-29", amount: -50, iso_currency_code: "USD" };
+  const mismatches = [
+    { ...incoming, amount: -49 },
+    { ...incoming, name: "Transfer to Checking account XXXX1257" },
+    { ...incoming, date: "2026-11-03" },
+    { ...incoming, iso_currency_code: "CAD" },
+    { ...incoming, name: "Transfer from Checking account XXXX9999" },
+  ];
+  for (const mismatch of mismatches) {
+    const groups = groupInternalTransfers([outgoing, mismatch], accounts);
+    assert.equal(groups.every((group) => group.type === "single"), true);
+  }
 });
 
 test("Plaid transaction amounts render spending as negative and income as positive", () => {

@@ -3,13 +3,14 @@ import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
 import { renderDashboard } from "./dashboard";
 import {
-  formatTransactionAmount,
   initializeOverviewBankAccounts,
   initializeBankAccountsPage,
   initializeAccountDetailPage,
   renderBankAccountDetailPage,
   renderBankAccountsPage,
+  type BankAccount,
 } from "./bank_accounts";
+import { renderTransactionList } from "./transaction-list";
 
 function getAppRoot(): HTMLDivElement {
   const root: HTMLDivElement | null =
@@ -427,19 +428,14 @@ function render(): void {
       try {
         const response = await fetch("/api/accounts/transactions", { credentials: "same-origin" });
         if (!response.ok) throw new Error("Unable to load transactions.");
-        const body = await response.json() as { transactions: Array<Record<string, unknown>> };
+        const body = await response.json() as {
+          transactions: Array<Record<string, unknown>>;
+          accounts?: BankAccount[];
+        };
         const transactions = body.transactions;
         if (!transactionList) return;
         transactionList.className = transactions.length ? "transaction-list" : "transaction-empty";
-        transactionList.innerHTML = transactions.length ? transactions.map((transaction) => {
-          const amount = typeof transaction.amount === "number" ? transaction.amount : Number.NaN;
-          const currencyCode = typeof transaction.iso_currency_code === "string"
-            ? transaction.iso_currency_code
-            : typeof transaction.unofficial_currency_code === "string"
-              ? transaction.unofficial_currency_code
-              : null;
-          return `<div class="account-row"><strong>${escapeHtml(String(transaction.name ?? "Transaction"))}</strong><span>${escapeHtml(String(transaction.date ?? ""))}</span><b>${escapeHtml(formatTransactionAmount(amount, currencyCode))}</b></div>`;
-        }).join("") : "No transactions yet. Connect a bank and sync to get started.";
+        transactionList.innerHTML = renderTransactionList(transactions, body.accounts ?? []);
       } catch { if (transactionList) transactionList.textContent = "Unable to load transactions."; }
     };
     void renderTransactions();

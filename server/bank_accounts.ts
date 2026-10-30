@@ -33,6 +33,7 @@ interface AccountSnapshot {
 interface BankAccountResponse extends AccountSnapshot {
   id: string;
   itemId: string;
+  plaidAccountId: string;
   institutionName: string;
   updatedAt: string;
 }
@@ -134,6 +135,7 @@ function getAccountsForUser(userId: string): BankAccountResponse[] {
   const records: Array<{
     id: string;
     itemId: string;
+    plaidAccountId: string;
     encryptedInstitutionName: string;
     encryptedData: string;
     updatedAt: Date;
@@ -141,6 +143,7 @@ function getAccountsForUser(userId: string): BankAccountResponse[] {
     .select({
       id: bankAccount.id,
       itemId: bankAccount.itemId,
+      plaidAccountId: bankAccount.plaidAccountId,
       encryptedInstitutionName: bankItem.encryptedInstitutionName,
       encryptedData: bankAccount.encryptedData,
       updatedAt: bankAccount.updatedAt,
@@ -168,6 +171,7 @@ function getAccountsForUser(userId: string): BankAccountResponse[] {
       ...snapshot,
       id: record.id,
       itemId: record.itemId,
+      plaidAccountId: record.plaidAccountId,
       institutionName: decryptPlaidValue(
         record.encryptedInstitutionName,
         connection.encryptionKey,
@@ -265,9 +269,20 @@ function listTransactions(userId: string, key: Buffer) {
 bankAccountsRouter.get("/transactions", async (context) => {
   context.header("Cache-Control", "no-store");
   const userId = await getUserId(context);
-  if (!userId) return context.json({error:"Authentication required."},401);
-  try { const connection=getPlaidConnection(); if(!connection) return context.json({transactions:[],configured:false}); return context.json({transactions:listTransactions(userId,connection.encryptionKey),configured:true}); }
-  catch(error){ if(error instanceof PlaidConfigurationError) return configurationFailure(context); logPlaidFailure("transaction listing",error); return context.json({error:"Unable to load transactions."},500); }
+  if (!userId) return context.json({ error: "Authentication required." }, 401);
+  try {
+    const connection = getPlaidConnection();
+    if (!connection) return context.json({ transactions: [], accounts: [], configured: false });
+    return context.json({
+      transactions: listTransactions(userId, connection.encryptionKey),
+      accounts: getAccountsForUser(userId),
+      configured: true,
+    });
+  } catch (error) {
+    if (error instanceof PlaidConfigurationError) return configurationFailure(context);
+    logPlaidFailure("transaction listing", error);
+    return context.json({ error: "Unable to load transactions." }, 500);
+  }
 });
 
 bankAccountsRouter.get("/:accountId/transactions", async (context) => {

@@ -1003,6 +1003,95 @@ a.text-button {
   padding-bottom: 0;
 }
 
+.transaction-list {
+  display: grid;
+}
+
+.transaction-row {
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.transaction-copy {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.transaction-copy strong {
+  overflow-wrap: anywhere;
+  color: #303730;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.transaction-copy span {
+  color: #81877f;
+  font-size: 10px;
+}
+
+.transaction-row > b {
+  flex: 0 0 auto;
+  color: #343b33;
+  font-size: 11px;
+}
+
+.transaction-transfer-pair {
+  border-bottom: 1px solid #f0f1ee;
+}
+
+.transaction-transfer-pair summary {
+  display: grid;
+  min-height: 62px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.transaction-transfer-pair summary::-webkit-details-marker {
+  display: none;
+}
+
+.transfer-pair-title {
+  color: #2e6749;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.transfer-pair-meta {
+  color: #81877f;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.transfer-pair-toggle {
+  color: #2e6749;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.transaction-transfer-pair[open] .transfer-pair-toggle {
+  color: #737970;
+}
+
+.transfer-pair-rows {
+  padding-left: 14px;
+  border-left: 2px solid #dbe8dd;
+}
+
+.transfer-pair-rows .transaction-row:last-child {
+  border-bottom: 0;
+}
+
+.transaction-transfer-pair summary:focus-visible {
+  border-radius: 5px;
+  outline: 2px solid #548166;
+  outline-offset: 2px;
+}
+
 .transaction-empty {
   display: grid;
   min-height: 145px;
@@ -1099,6 +1188,28 @@ a.text-button {
 }
 
 @media (max-width: 620px) {
+  .transaction-transfer-pair summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 10px;
+    padding: 9px 0;
+  }
+
+  .transfer-pair-title {
+    grid-column: 1 / -1;
+  }
+
+  .transfer-pair-meta {
+    grid-column: 1;
+  }
+
+  .transfer-pair-toggle {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .transaction-row {
+    gap: 10px;
+  }
   .main-content {
     padding-right: 16px;
     padding-left: 16px;
