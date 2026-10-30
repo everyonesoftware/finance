@@ -16,7 +16,7 @@ import {
   PlaidConfigurationError,
 } from "./plaid.js";
 import { and, eq } from "drizzle-orm";
-import { refreshBankAccountSnapshots } from "./account-storage.js";
+import { refreshBankAccountSnapshots, listAccountTransactions } from "./account-storage.js";
 import { collectTransactionPages, getRecentTransactions } from "./transaction-sync.js";
 
 interface AccountSnapshot {
@@ -268,6 +268,42 @@ bankAccountsRouter.get("/transactions", async (context) => {
   if (!userId) return context.json({error:"Authentication required."},401);
   try { const connection=getPlaidConnection(); if(!connection) return context.json({transactions:[],configured:false}); return context.json({transactions:listTransactions(userId,connection.encryptionKey),configured:true}); }
   catch(error){ if(error instanceof PlaidConfigurationError) return configurationFailure(context); logPlaidFailure("transaction listing",error); return context.json({error:"Unable to load transactions."},500); }
+});
+
+bankAccountsRouter.get("/:accountId/transactions", async (context) => {
+  context.header("Cache-Control", "no-store");
+  const userId = await getUserId(context);
+  if (!userId) return context.json({ error: "Authentication required." }, 401);
+
+  const accountId = context.req.param("accountId");
+  try {
+    const metadata = sqliteClient
+      .prepare(`
+        SELECT item_id AS itemId, plaid_account_id AS plaidAccountId
+        FROM bank_account
+        WHERE id = ? AND user_id = ? AND is_active = 1
+      `)
+      .get(accountId, userId) as { itemId: string; plaidAccountId: string } | undefined;
+    if (!metadata) return context.json({ error: "Account not found." }, 404);
+
+    const account = getAccountsForUser(userId).find((candidate) => candidate.id === accountId);
+    if (!account) return context.json({ error: "Account not found." }, 404);
+
+    const connection = getPlaidConnection();
+    if (!connection) return configurationFailure(context);
+    const transactions = listAccountTransactions(
+      sqliteClient,
+      userId,
+      metadata.itemId,
+      metadata.plaidAccountId,
+      connection.encryptionKey,
+    );
+    return context.json({ account, transactions });
+  } catch (error) {
+    if (error instanceof PlaidConfigurationError) return configurationFailure(context);
+    logPlaidFailure("account transaction listing", error);
+    return context.json({ error: "Unable to load this account." }, 500);
+  }
 });
 
 bankAccountsRouter.post("/transactions/sync", async (context) => {

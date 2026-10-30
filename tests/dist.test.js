@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import {
@@ -7,13 +8,15 @@ import {
   encryptPlaidValue,
   getPlaidErrorLogDetails,
 } from "../server-dist/plaid.js";
-import { refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
+import { listAccountTransactions, refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
 import { applySqlMigration } from "../server-dist/migration-utils.js";
 import { collectTransactionPages, getRecentTransactions } from "../server-dist/transaction-sync.js";
 import { renderDashboard } from "../src/dashboard.ts";
 import {
   formatTransactionAmount,
   getTotalBalance,
+  renderAccountDetail,
+  renderBankAccountDetailPage,
   renderAccounts,
   renderOverviewBankAccounts,
 } from "../src/bank_accounts.ts";
@@ -154,6 +157,8 @@ test("overview bank-account list escapes values and links additional accounts", 
   assert.equal((html.match(/class="account-row"/g) ?? []).length, 4);
   assert.match(html, /&lt;Checking&gt;/);
   assert.match(html, /Bank &lt;One&gt;/);
+  assert.match(html, /href="\/accounts\/account-1"/);
+  assert.equal((html.match(/class="overview-account-link"/g) ?? []).length, 4);
   assert.match(html, /\+1 more account/);
   assert.doesNotMatch(html, /<Checking>|Bank <One>/);
   assert.match(renderOverviewBankAccounts([]), /No bank accounts connected yet/);
@@ -213,6 +218,46 @@ test("accounts page renders credit and loan balances as negative and red", () =>
   assert.match(html, /class="connected-account-balance liability-balance">\s*-\$75\.00/);
   assert.match(html, /class="connected-account-balance liability-balance">\s*-\$125\.00/);
   assert.match(html, /class="connected-account-balance">\s*\$75\.00/);
+  assert.match(html, /href="\/accounts\/account-1"/);
+});
+
+test("account detail page provides a protected-page shell and loading target", () => {
+  const html = renderBankAccountDetailPage({ displayName: "<A User>", username: "finance-user" });
+  assert.match(html, /id="account-detail-content"/);
+  assert.match(html, /href="\/accounts"/);
+  assert.match(html, /Loading account details and transactions/);
+  assert.match(html, /id="sync-account-transactions"/);
+  assert.match(html, /id="account-transaction-status"/);
+  assert.match(html, /&lt;A User&gt;/);
+  assert.doesNotMatch(html, /<A User>/);
+});
+
+test("account detail renders an account snapshot and escaped account transactions", () => {
+  const account = {
+    id: "account-1",
+    itemId: "item-1",
+    institutionName: "Bank One",
+    name: "Checking",
+    officialName: "Everyday Checking",
+    type: "depository",
+    subtype: "checking",
+    mask: "1234",
+    currentBalance: 250.5,
+    availableBalance: 200,
+    currencyCode: "USD",
+    updatedAt: "2026-10-30T12:00:00.000Z",
+  };
+  const html = renderAccountDetail(account, [
+    { name: "<Coffee shop>", date: "2026-10-29", amount: 12.5, iso_currency_code: "USD" },
+  ]);
+  assert.match(html, /Bank One/);
+  assert.match(html, /Everyday Checking/);
+  assert.match(html, /•••• 1234/);
+  assert.match(html, /\$250\.50/);
+  assert.match(html, /-\$12\.50/);
+  assert.match(html, /&lt;Coffee shop&gt;/);
+  assert.doesNotMatch(html, /<Coffee shop>/);
+  assert.ok(html.indexOf("account-detail-snapshot") < html.indexOf("account-detail-transactions"));
 });
 
 test("bank-account migration creates user-owned encrypted data tables", async () => {
@@ -351,6 +396,34 @@ test("account refresh preserves historical account IDs while hiding inactive acc
   database.close();
 });
 
+test("account transaction queries are scoped to the owning user, item, and account", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const migrationNames = (await readdir(migrationsDirectory))
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  for (const migrationName of migrationNames) {
+    applySqlMigration(database, await readFile(new URL(migrationName, migrationsDirectory), "utf8"));
+  }
+  database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+    .run("user-one", "User One", "one@example.test");
+  database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+    .run("user-two", "User Two", "two@example.test");
+  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)");
+  insertItem.run("item-one", "user-one", "encrypted-name", "encrypted-token");
+  insertItem.run("item-two", "user-two", "encrypted-name", "encrypted-token");
+  const key = Buffer.alloc(32, 23);
+  const insertTransaction = database.prepare("INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)");
+  const encode = (name, date) => encryptPlaidValue(JSON.stringify({ name, date }), key);
+  insertTransaction.run("tx-one", "item-one", "user-one", "account-one", encode("Target account transaction", "2026-10-29"));
+  insertTransaction.run("tx-two", "item-one", "user-one", "account-two", encode("Another account transaction", "2026-10-30"));
+  insertTransaction.run("tx-three", "item-two", "user-two", "account-one", encode("Another user transaction", "2026-10-30"));
+
+  const transactions = listAccountTransactions(database, "user-one", "item-one", "account-one", key);
+  assert.deepEqual(transactions.map((transaction) => transaction.name), ["Target account transaction"]);
+  database.close();
+});
+
 test("transaction migration stores encrypted transaction records and protected sync cursors", async () => {
   const database = new Database(":memory:");
   database.pragma("foreign_keys = ON");
@@ -386,4 +459,34 @@ test("transaction migration stores encrypted transaction records and protected s
   assert.equal(database.prepare("SELECT user_id FROM bank_transaction WHERE item_id = ? AND transaction_id = ?")
     .get("item-one", "tx-one").user_id, "user-one");
   database.close();
+});
+
+test("account transaction endpoint requires an authenticated session", async () => {
+  const temporaryDirectory = await mkdtemp(join(process.env["TMPDIR"] ?? process.cwd(), "finance-route-test-"));
+  const originalEnvironment = {
+    DATABASE_PATH: process.env["DATABASE_PATH"],
+    BETTER_AUTH_SECRET: process.env["BETTER_AUTH_SECRET"],
+    ORIGIN_URL: process.env["ORIGIN_URL"],
+  };
+  process.env["DATABASE_PATH"] = join(temporaryDirectory, "finance.sqlite");
+  process.env["BETTER_AUTH_SECRET"] = "test-only-auth-secret-at-least-32-characters-long";
+  process.env["ORIGIN_URL"] = "http://localhost:5173";
+  let closeDatabase;
+
+  try {
+    const databaseModule = await import("../server-dist/database.js");
+    const { bankAccountsRouter } = await import("../server-dist/bank_accounts.js");
+    closeDatabase = databaseModule.closeDatabase;
+    await databaseModule.runMigrations();
+    const response = await bankAccountsRouter.request("/account-one/transactions");
+    assert.equal(response.status, 401);
+    assert.equal(response.headers.get("Cache-Control"), "no-store");
+  } finally {
+    await closeDatabase?.();
+    for (const [name, value] of Object.entries(originalEnvironment)) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
 });

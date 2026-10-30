@@ -23,6 +23,11 @@ interface AccountsResponse {
   accounts: BankAccount[];
 }
 
+interface AccountDetailResponse {
+  account: BankAccount;
+  transactions: Array<Record<string, unknown>>;
+}
+
 interface PlaidLinkExitError {
   display_message?: string | null;
 }
@@ -114,6 +119,21 @@ function isAccountsResponse(value: unknown): value is AccountsResponse {
   );
 }
 
+function isAccountDetailResponse(value: unknown): value is AccountDetailResponse {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "account" in value &&
+    isBankAccount(value.account) &&
+    "transactions" in value &&
+    Array.isArray(value.transactions) &&
+    value.transactions.every(
+      (transaction: unknown): transaction is Record<string, unknown> =>
+        typeof transaction === "object" && transaction !== null,
+    )
+  );
+}
+
 function getErrorMessage(value: unknown, fallback: string): string {
   if (
     typeof value === "object" &&
@@ -163,6 +183,63 @@ function formatAccountBalance(account: BankAccount): string {
   return formatBalance(signedBalance, account.currencyCode);
 }
 
+export function renderAccountDetail(
+  account: BankAccount,
+  transactions: Array<Record<string, unknown>>,
+): string {
+  const accountType = [account.type, account.subtype]
+    .filter((part): part is string => Boolean(part))
+    .join(" · ");
+  const mask = account.mask ? `•••• ${escapeHtml(account.mask)}` : "Account number hidden";
+  const updatedAt = new Date(account.updatedAt);
+  const updatedLabel = Number.isNaN(updatedAt.getTime())
+    ? "Update time unavailable"
+    : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(updatedAt);
+  const transactionRows = transactions.length > 0
+    ? transactions.map((transaction): string => {
+        const amount = typeof transaction.amount === "number" ? transaction.amount : Number.NaN;
+        const currencyCode = typeof transaction.iso_currency_code === "string"
+          ? transaction.iso_currency_code
+          : typeof transaction.unofficial_currency_code === "string"
+            ? transaction.unofficial_currency_code
+            : null;
+        const name = typeof transaction.name === "string" ? transaction.name : "Transaction";
+        const date = typeof transaction.date === "string" ? transaction.date : "Date unavailable";
+        const pendingLabel = transaction.pending === true ? " · Pending" : "";
+        return `
+          <article class="account-transaction-row">
+            <div class="account-transaction-copy">
+              <strong>${escapeHtml(name)}</strong>
+              <span>${escapeHtml(date + pendingLabel)}</span>
+            </div>
+            <strong class="account-transaction-amount">${escapeHtml(formatTransactionAmount(amount, currencyCode))}</strong>
+          </article>
+        `;
+      }).join("")
+    : `<div class="account-empty">No transactions are available for this account yet.</div>`;
+
+  return `
+    <a class="account-back-link" href="/accounts">← Back to accounts</a>
+    <section class="account-detail-snapshot panel">
+      <div class="account-detail-heading">
+        <p class="eyebrow">${escapeHtml(account.institutionName)}</p>
+        <h1>${escapeHtml(account.name)}</h1>
+        <p>${escapeHtml(accountType)} · ${mask}</p>
+        ${account.officialName ? `<span>${escapeHtml(account.officialName)}</span>` : ""}
+      </div>
+      <div class="account-detail-balances">
+        <div><span>Current balance</span><strong>${escapeHtml(formatAccountBalance(account))}</strong></div>
+        <div><span>Available balance</span><strong>${escapeHtml(formatBalance(account.availableBalance, account.currencyCode))}</strong></div>
+      </div>
+      <p class="account-detail-updated">Account details retrieved ${escapeHtml(updatedLabel)}</p>
+    </section>
+    <section class="panel account-detail-transactions">
+      <div class="panel-heading"><div><h2>Transactions</h2><p>Recent activity for this account</p></div></div>
+      <div class="account-transaction-list">${transactionRows}</div>
+    </section>
+  `;
+}
+
 export function renderAccounts(accounts: BankAccount[]): string {
   if (accounts.length === 0) {
     return `
@@ -210,16 +287,18 @@ export function renderAccounts(accounts: BankAccount[]): string {
               : "";
 
           return `
-            <article class="connected-account">
-              <div class="connected-account-icon" aria-hidden="true">▣</div>
-              <div class="connected-account-info">
-                <strong>${escapeHtml(account.name)}</strong>
-                <span>${escapeHtml(accountType)} · ${mask}</span>
-              </div>
-              <strong class="connected-account-balance${liabilityClass}">
-                ${escapeHtml(formatAccountBalance(account))}
-              </strong>
-            </article>
+            <a class="connected-account-link" href="/accounts/${escapeHtml(encodeURIComponent(account.id))}">
+              <article class="connected-account">
+                <div class="connected-account-icon" aria-hidden="true">▣</div>
+                <div class="connected-account-info">
+                  <strong>${escapeHtml(account.name)}</strong>
+                  <span>${escapeHtml(accountType)} · ${mask}</span>
+                </div>
+                <strong class="connected-account-balance${liabilityClass}">
+                  ${escapeHtml(formatAccountBalance(account))}
+                </strong>
+              </article>
+            </a>
           `;
         })
         .join("");
@@ -262,14 +341,16 @@ export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
             .join(" · ");
 
           return `
-            <div class="account-row">
-              <div class="account-icon checking" aria-hidden="true">▣</div>
-              <div class="account-info">
-                <strong>${escapeHtml(account.name)}</strong>
-                <span>${escapeHtml(account.institutionName)}${accountType ? ` · ${escapeHtml(accountType)}` : ""}</span>
+            <a class="overview-account-link" href="/accounts/${escapeHtml(encodeURIComponent(account.id))}">
+              <div class="account-row">
+                <div class="account-icon checking" aria-hidden="true">▣</div>
+                <div class="account-info">
+                  <strong>${escapeHtml(account.name)}</strong>
+                  <span>${escapeHtml(account.institutionName)}${accountType ? ` · ${escapeHtml(accountType)}` : ""}</span>
+                </div>
+                <strong class="account-balance">${escapeHtml(formatBalance(account.currentBalance, account.currencyCode))}</strong>
               </div>
-              <strong class="account-balance">${escapeHtml(formatBalance(account.currentBalance, account.currencyCode))}</strong>
-            </div>
+            </a>
           `;
         })
         .join("");
@@ -686,6 +767,117 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
       </main>
     </div>
   `;
+}
+
+export function renderBankAccountDetailPage(user: BankAccountsPageUser): string {
+  const displayName = escapeHtml(user.displayName);
+  const username = escapeHtml(user.username);
+  const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
+
+  return `
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="/dashboard" aria-label="Finance home">
+          <span class="brand-mark" aria-hidden="true">F</span><span>Finance</span>
+        </a>
+        <div class="workspace-label">WORKSPACE</div>
+        <nav class="navigation">
+          <a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a>
+          <a class="nav-link" href="/dashboard#transactions"><span class="nav-icon" aria-hidden="true">↕</span> Transactions</a>
+          <a class="nav-link" href="/dashboard#budgets"><span class="nav-icon" aria-hidden="true">▤</span> Budgets</a>
+          <a class="nav-link active" href="/accounts" aria-current="page"><span class="nav-icon" aria-hidden="true">▣</span> Accounts</a>
+          <a class="nav-link" href="/settings"><span class="nav-icon" aria-hidden="true">⚙</span> Settings</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="profile-avatar" aria-hidden="true">${initial}</div>
+          <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span></div>
+        </div>
+      </aside>
+      <main class="main-content accounts-content">
+        <header class="topbar">
+          <div class="breadcrumb">Workspace <span>/</span> <a href="/accounts">Accounts</a> <span>/</span> Account details</div>
+          <div class="header-actions">
+            <a class="settings-shortcut" href="/settings">Settings</a>
+            <button class="text-button logout-button" type="button">Log out</button>
+          </div>
+        </header>
+        <section class="page-heading accounts-page-heading">
+          <div><p class="eyebrow">CONNECTED ACCOUNT</p><h1>Account details</h1><p class="subheading">A current snapshot and recent activity for this account.</p></div>
+          <div class="account-detail-actions">
+            <a class="text-button account-all-link" href="/accounts">All accounts</a>
+            <button class="primary-button" id="sync-account-transactions" type="button">Sync transactions</button>
+          </div>
+        </section>
+        <p id="account-transaction-status" class="auth-message" role="status" aria-live="polite" hidden></p>
+        <div id="account-detail-content" class="account-detail-content" aria-live="polite">
+          <div class="panel accounts-loading">Loading account details and transactions…</div>
+        </div>
+        <footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer>
+      </main>
+    </div>
+  `;
+}
+
+export async function initializeAccountDetailPage(accountId: string): Promise<void> {
+  const container = document.querySelector<HTMLDivElement>("#account-detail-content");
+  if (!container) return;
+
+  const syncButton = document.querySelector<HTMLButtonElement>("#sync-account-transactions");
+  const syncStatus = document.querySelector<HTMLParagraphElement>("#account-transaction-status");
+  if (syncButton && syncButton.dataset["handlerAttached"] !== "true") {
+    syncButton.dataset["handlerAttached"] = "true";
+    syncButton.addEventListener("click", async (): Promise<void> => {
+      syncButton.disabled = true;
+      if (syncStatus) {
+        syncStatus.hidden = false;
+        syncStatus.classList.remove("error", "success");
+        syncStatus.textContent = "Syncing transactions for connected accounts…";
+      }
+      try {
+        const response = await fetch("/api/accounts/transactions/sync", {
+          method: "POST",
+          credentials: "same-origin",
+        });
+        const payload: unknown = await readJson(response);
+        if (!response.ok) {
+          throw new Error(getErrorMessage(payload, "Unable to sync transactions."));
+        }
+        await initializeAccountDetailPage(accountId);
+        if (syncStatus) {
+          syncStatus.textContent = "Transactions synced.";
+          syncStatus.classList.add("success");
+        }
+      } catch (error: unknown) {
+        if (syncStatus) {
+          syncStatus.textContent = error instanceof Error ? error.message : "Unable to sync transactions.";
+          syncStatus.classList.add("error");
+        }
+      } finally {
+        syncButton.disabled = false;
+      }
+    });
+  }
+
+  try {
+    const response = await fetch(
+      `/api/accounts/${encodeURIComponent(accountId)}/transactions`,
+      { cache: "no-store", credentials: "same-origin" },
+    );
+    const payload: unknown = await readJson(response);
+    if (!response.ok || !isAccountDetailResponse(payload)) {
+      throw new Error(getErrorMessage(payload, "Unable to load this account."));
+    }
+    container.innerHTML = renderAccountDetail(payload.account, payload.transactions);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Unable to load this account.";
+    container.innerHTML = `
+      <section class="panel account-detail-error" role="alert">
+        <strong>This account could not be loaded.</strong>
+        <span>${escapeHtml(message)}</span>
+        <a class="text-button" href="/accounts">Back to accounts</a>
+      </section>
+    `;
+  }
 }
 
 export function initializeBankAccountsPage(): void {

@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
+import { decryptPlaidValue } from "./plaid.js";
+import { getRecentTransactions } from "./transaction-sync.js";
 
 export interface BankAccountSnapshotWrite {
   plaidAccountId: string;
@@ -42,4 +44,24 @@ export function refreshBankAccountSnapshots(
       snapshot.encryptedData,
     );
   }
+}
+
+export function listAccountTransactions(
+  sqliteClient: Database.Database,
+  userId: string,
+  itemId: string,
+  plaidAccountId: string,
+  encryptionKey: Buffer,
+): Array<Record<string, unknown>> {
+  const rows = sqliteClient
+    .prepare(`
+      SELECT encrypted_data AS encryptedData
+      FROM bank_transaction
+      WHERE user_id = ? AND item_id = ? AND account_id = ?
+    `)
+    .all(userId, itemId, plaidAccountId) as Array<{ encryptedData: string }>;
+  const transactions = rows.map((row) =>
+    JSON.parse(decryptPlaidValue(row.encryptedData, encryptionKey)) as Record<string, unknown> & { date?: unknown },
+  );
+  return getRecentTransactions(transactions);
 }

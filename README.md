@@ -1,6 +1,6 @@
 # Finance
 
-A personal-finance app starter with a Vite/TypeScript frontend, a Hono TypeScript API, Better Auth username/password authentication, and SQLite. Dashboard balances and transactions are still sample content.
+A personal-finance app with a Vite/TypeScript frontend, Hono TypeScript API, Better Auth username/password authentication, SQLite, and Plaid-connected accounts. Account snapshots and synced transaction data are stored encrypted at rest.
 
 ## Requirements
 
@@ -40,7 +40,7 @@ node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
 
 Set that value as `PLAID_TOKEN_ENCRYPTION_KEY`. Keep the Plaid credentials and encryption key out of source control. The key is required to decrypt stored access tokens and account data; back it up securely and separately from the database. Losing it makes saved Plaid connections unreadable. Restart the API after changing the environment.
 
-The Accounts page uses Plaid Link; Finance never receives or stores the bank's login credentials. Link requests the Transactions product with a 30-day history window. Use **Sync transactions** on the dashboard to fetch and update recent transaction history from each connected item; sync applies added, modified, and removed records and can be retried manually. Finance stores full transaction payloads and sync cursors encrypted at rest using `PLAID_TOKEN_ENCRYPTION_KEY`. Access tokens, institution names, and account snapshots are also encrypted. Back up the key securely and separately from the database; losing it makes saved Plaid data unreadable. No background or webhook sync is implemented. Test with Plaid Sandbox; production requires eligible Plaid access.
+The Accounts page uses Plaid Link; Finance never receives or stores the bank's login credentials. Clicking a connected account opens its saved balance/details snapshot and recent synced transactions. Link requests the Transactions product with a 30-day history window. Use **Sync transactions** on the dashboard or an account details page to fetch and update recent transaction history from all connected items; sync applies added, modified, and removed records and can be retried manually. Finance stores full transaction payloads and sync cursors encrypted at rest using `PLAID_TOKEN_ENCRYPTION_KEY`. Access tokens, institution names, and account snapshots are also encrypted. Back up the key securely and separately from the database; losing it makes saved Plaid data unreadable. No background or webhook sync is implemented. Test with Plaid Sandbox; production requires eligible Plaid access.
 
 ## Production build
 
@@ -83,4 +83,4 @@ The `app` service serves both the Vite frontend and TypeScript API from one Node
 
 ## Current backend scope
 
-Better Auth manages registration, username/password login, sessions, profile names, and password changes. SQLite stores authentication users, accounts, sessions, and verification records. The financial dashboard remains sample data; financial account and transaction tables, API routes, and per-user data authorization have not been implemented yet. Do not treat the current frontend route checks as authorization for future financial data—enforce ownership in the API for every data operation.
+Better Auth manages registration, username/password login, sessions, profile names, and password changes. SQLite stores authentication data, Plaid connections, bank-account snapshots, transactions, and sync cursors. Account and transaction APIs enforce per-user ownership; financial data and Plaid secrets are encrypted at rest. The dashboard displays real transactions only after a manual sync and does not invent income, expense, balance-trend, or chart values. Transactions can be synced from the dashboard or an account details page; background and webhook sync are not implemented.

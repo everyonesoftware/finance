@@ -176,6 +176,15 @@ button {
   color: #c0c4bd;
 }
 
+.breadcrumb a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.breadcrumb a:hover {
+  color: #477858;
+}
+
 .icon-button {
   position: relative;
   display: grid;
@@ -739,6 +748,181 @@ h1 span {
   color: #9b4d42;
 }
 
+.connected-account-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.connected-account-link:hover .connected-account {
+  background: #f8faf8;
+}
+
+.connected-account-link:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid #548166;
+  outline-offset: 2px;
+}
+
+.overview-account-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.overview-account-link:hover .account-row {
+  background: #f8faf8;
+}
+
+.overview-account-link:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid #548166;
+  outline-offset: 2px;
+}
+
+a.text-button {
+  text-decoration: none;
+}
+
+.account-back-link {
+  display: inline-block;
+  margin: 0 0 14px;
+  color: #477858;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.account-back-link:hover,
+.account-back-link:focus-visible,
+.account-all-link:hover {
+  text-decoration: underline;
+}
+
+.account-detail-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.account-detail-snapshot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 0.8fr);
+  gap: 22px;
+  padding: 24px;
+  margin-bottom: 20px;
+}
+
+.account-detail-heading h1 {
+  margin: 5px 0 8px;
+  font-size: 24px;
+}
+
+.account-detail-heading > p:not(.eyebrow),
+.account-detail-heading > span {
+  margin: 0;
+  color: #737970;
+  font-size: 11px;
+}
+
+.account-detail-heading > span {
+  display: inline-block;
+  margin-top: 6px;
+}
+
+.account-detail-balances {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-content: center;
+}
+
+.account-detail-balances > div {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 8px;
+  background: #f7f8f5;
+}
+
+.account-detail-balances span,
+.account-detail-updated {
+  color: #737970;
+  font-size: 10px;
+}
+
+.account-detail-balances strong {
+  color: #252b25;
+  font-size: 18px;
+}
+
+.account-detail-updated {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+.account-detail-transactions {
+  padding: 20px;
+}
+
+.account-transaction-list {
+  display: grid;
+}
+
+.account-transaction-row {
+  display: flex;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-bottom: 1px solid #f0f1ee;
+}
+
+.account-transaction-row:last-child {
+  border-bottom: 0;
+}
+
+.account-transaction-copy {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.account-transaction-copy strong {
+  overflow: hidden;
+  color: #303730;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-transaction-copy span {
+  color: #81877f;
+  font-size: 10px;
+}
+
+.account-transaction-amount {
+  flex: 0 0 auto;
+  color: #343b33;
+  font-size: 11px;
+}
+
+.account-detail-error {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+  padding: 24px;
+  color: #737970;
+  font-size: 11px;
+}
+
+.account-detail-error strong {
+  color: #343b33;
+  font-size: 13px;
+}
+
 .connected-account {
   display: flex;
   min-height: 69px;
@@ -914,6 +1098,29 @@ h1 span {
     flex: 0 0 auto;
     padding: 0 10px;
     font-size: 10px;
+  }
+
+  .account-detail-snapshot {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    padding: 18px;
+  }
+
+  .account-detail-balances {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .account-detail-balances > div {
+    padding: 10px;
+  }
+
+  .account-detail-balances strong {
+    font-size: 15px;
+  }
+
+  .account-detail-transactions {
+    padding: 16px;
   }
 
   .summary-grid {

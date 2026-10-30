@@ -6,6 +6,8 @@ import {
   formatTransactionAmount,
   initializeOverviewBankAccounts,
   initializeBankAccountsPage,
+  initializeAccountDetailPage,
+  renderBankAccountDetailPage,
   renderBankAccountsPage,
 } from "./bank_accounts";
 
@@ -360,6 +362,7 @@ async function loadSession(): Promise<void> {
 
 function render(): void {
   const path: string = window.location.pathname;
+  const accountDetailMatch = path.match(/^\/accounts\/([^/]+)$/);
 
   if (authLoading) {
     app.innerHTML = `<main class="loading-page" aria-live="polite">Loading your account…</main>`;
@@ -371,7 +374,7 @@ function render(): void {
     return;
   }
 
-  if (path === "/dashboard" || path === "/settings" || path === "/accounts") {
+  if (path === "/dashboard" || path === "/settings" || path === "/accounts" || accountDetailMatch) {
     if (!currentUser) {
       authNotice = authNotice || "Log in or create an account to continue.";
       window.history.replaceState(null, "", "/");
@@ -391,6 +394,24 @@ function render(): void {
       });
       attachLogoutHandler();
       initializeBankAccountsPage();
+      return;
+    }
+
+    if (accountDetailMatch) {
+      let accountId: string;
+      try {
+        accountId = decodeURIComponent(accountDetailMatch[1]);
+      } catch {
+        window.history.replaceState(null, "", "/accounts");
+        render();
+        return;
+      }
+      app.innerHTML = renderBankAccountDetailPage({
+        displayName: displayNameFor(currentUser),
+        username: currentUser.username ?? "",
+      });
+      attachLogoutHandler();
+      void initializeAccountDetailPage(accountId);
       return;
     }
 
