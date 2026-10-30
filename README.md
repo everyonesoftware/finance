@@ -42,6 +42,8 @@ Set that value as `PLAID_TOKEN_ENCRYPTION_KEY`. Keep the Plaid credentials and e
 
 The Accounts page uses Plaid Link; Finance never receives or stores the bank's login credentials. Clicking a connected account opens its saved balance/details snapshot and recent synced transactions. Link requests the Transactions product with a 30-day history window. Use **Sync transactions** on the dashboard or an account details page to fetch and update recent transaction history from all connected items; sync applies added, modified, and removed records and can be retried manually. Finance stores full transaction payloads and sync cursors encrypted at rest using `PLAID_TOKEN_ENCRYPTION_KEY`. Access tokens, institution names, and account snapshots are also encrypted. Back up the key securely and separately from the database; losing it makes saved Plaid data unreadable. No background or webhook sync is implemented. Test with Plaid Sandbox; production requires eligible Plaid access.
 
+Each successful push to `main` receives an integer application version from the GitHub Actions workflow run number. The version appears in the lower-left account profile area and is also published as the matching numeric GHCR tag (for example, `ghcr.io/everyonesoftware/finance:42`); `latest` and `sha-...` tags remain available. Local builds show `Version dev` unless `APP_VERSION` is set.
+
 ## Production build
 
 ```powershell

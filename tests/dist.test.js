@@ -17,6 +17,7 @@ import {
   getTotalBalance,
   renderAccountDetail,
   renderBankAccountDetailPage,
+  renderBankAccountsPage,
   renderAccounts,
   renderOverviewBankAccounts,
 } from "../src/bank_accounts.ts";
@@ -68,6 +69,7 @@ test("Plaid transaction amounts render spending as negative and income as positi
 test("dashboard does not present sample income, expense, or chart data as real", () => {
   const html = renderDashboard({ displayName: "Test", username: "test" });
   assert.doesNotMatch(html, /\$5,240|\$2,180|--height:/);
+  assert.match(html, /class="app-version">Version dev<\/span>/);
   assert.match(html, /Not available yet/);
   assert.match(html, /Sync transactions to see income and spending trends/);
 });
@@ -228,8 +230,12 @@ test("account detail page provides a protected-page shell and loading target", (
   assert.match(html, /Loading account details and transactions/);
   assert.match(html, /id="sync-account-transactions"/);
   assert.match(html, /id="account-transaction-status"/);
+  assert.match(html, /class="app-version">Version dev<\/span>/);
   assert.match(html, /&lt;A User&gt;/);
   assert.doesNotMatch(html, /<A User>/);
+
+  const accountsPage = renderBankAccountsPage({ displayName: "Test User", username: "test-user" });
+  assert.match(accountsPage, /class="app-version">Version dev<\/span>/);
 });
 
 test("account detail renders an account snapshot and escaped account transactions", () => {

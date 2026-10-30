@@ -1,3 +1,5 @@
+import { appVersion } from "./app-version.ts";
+
 export interface BankAccountsPageUser {
   displayName: string;
   username: string;
@@ -748,6 +750,7 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           <div class="profile-copy">
             <strong>${displayName}</strong>
             <span>@${username}</span>
+            <span class="app-version">Version ${escapeHtml(appVersion)}</span>
           </div>
         </div>
       </aside>
@@ -826,7 +829,7 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
         </nav>
         <div class="sidebar-bottom">
           <div class="profile-avatar" aria-hidden="true">${initial}</div>
-          <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span></div>
+          <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
         </div>
       </aside>
       <main class="main-content accounts-content">

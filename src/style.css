@@ -147,6 +147,12 @@ button {
   font-size: 10px;
 }
 
+.profile-copy .app-version {
+  color: #a0a69e;
+  font-size: 9px;
+  letter-spacing: 0.02em;
+}
+
 .more-icon {
   margin-left: auto;
   color: var(--muted);

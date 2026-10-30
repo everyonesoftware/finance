@@ -1,3 +1,5 @@
+import { appVersion } from "./app-version.ts";
+
 export interface DashboardUser {
   displayName: string;
   username: string;
@@ -56,6 +58,7 @@ export function renderDashboard(user: DashboardUser): string {
         <div class="profile-copy">
           <strong>${displayName}</strong>
           <span>@${username}</span>
+          <span class="app-version">Version ${escapeHtml(appVersion)}</span>
         </div>
       </div>
     </aside>

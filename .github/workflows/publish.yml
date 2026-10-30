@@ -16,6 +16,10 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set application version
+        id: version
+        run: echo "version=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -27,6 +31,8 @@ jobs:
 
       - name: Build application
         run: npm run build
+        env:
+          APP_VERSION: ${{ steps.version.outputs.version }}
 
       - name: Test application
         run: npm test
@@ -41,6 +47,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+
+      - name: Set application version
+        id: version
+        run: echo "version=$GITHUB_RUN_NUMBER" >> "$GITHUB_OUTPUT"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -59,6 +69,7 @@ jobs:
           images: ghcr.io/everyonesoftware/finance
           tags: |
             type=raw,value=latest
+            type=raw,value=${{ steps.version.outputs.version }}
             type=sha,prefix=sha-
 
       - name: Build and push image
@@ -66,5 +77,7 @@ jobs:
         with:
           context: .
           push: true
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
