@@ -193,15 +193,25 @@ function renderTransactionName(name: string, accounts: BankAccount[]): string {
   const candidates: Array<{ start: number; end: number; account: BankAccount }> = [];
   for (const account of accounts) {
     const mask = account.mask?.replace(/\D/g, "");
-    if (!mask || !account.name.trim()) continue;
-    const escapedName = account.name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const pattern = new RegExp(
-      `(?<![\\p{L}\\p{N}])${escapedName}(?:\\s+account)?\\s*(?:ending\\s*(?:in\\s*)?|x{2,}|\\*{2,}|…)?\\s*${mask}(?!\\d)`,
-      "giu",
+    if (!mask) continue;
+    const aliases = new Set(
+      [account.name, account.officialName, account.subtype]
+        .filter((value): value is string => typeof value === "string" && value.trim().length > 0)
+        .map((value) => value.trim()),
     );
-    for (const match of name.matchAll(pattern)) {
-      if (match.index !== undefined) {
-        candidates.push({ start: match.index, end: match.index + match[0].length, account });
+    aliases.add("account");
+
+    for (const alias of aliases) {
+      const escapedAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const permitsAccountSuffix = !/\baccount$/i.test(alias);
+      const pattern = new RegExp(
+        `(?<![\\p{L}\\p{N}])${escapedAlias}${permitsAccountSuffix ? "(?:\\s+account)?" : ""}\\s*(?:ending\\s*(?:in\\s*)?)?(?:x{2,}|\\*{2,}|…)?\\s*${mask}(?!\\d)`,
+        "giu",
+      );
+      for (const match of name.matchAll(pattern)) {
+        if (match.index !== undefined) {
+          candidates.push({ start: match.index, end: match.index + match[0].length, account });
+        }
       }
     }
   }

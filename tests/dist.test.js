@@ -269,6 +269,11 @@ test("account detail renders an account snapshot and escaped account transaction
   assert.doesNotMatch(html, /href="\/accounts\/account-1"[^>]*>Savings account XXXX9999/);
   assert.match(html, /Merchant &lt;unsafe&gt;/);
   assert.doesNotMatch(html, /<unsafe>/);
+  const differentlyNamedSavings = { ...matchingSavings, name: "Everyday Savings", subtype: "savings" };
+  const reverseTransfer = renderAccountDetail(account, [
+    { name: "Internet transfer from Savings account XXXXXX4753", date: "2026-10-26", amount: 7, iso_currency_code: "USD" },
+  ], [account, differentlyNamedSavings]);
+  assert.match(reverseTransfer, /Internet transfer from <a class="transaction-account-link" href="\/accounts\/savings-id">Savings account XXXXXX4753<\/a>/);
   assert.ok(html.indexOf("account-detail-snapshot") < html.indexOf("account-detail-transactions"));
 });
 
