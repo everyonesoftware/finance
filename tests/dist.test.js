@@ -81,9 +81,9 @@ test("internal transfers with reciprocal connected-account references collapse i
   assert.match(html, /<details class="transaction-transfer-pair">/);
   assert.match(html, /class="transaction-copy transfer-pair-copy">\s*<strong>Transfer: Checking → Everyday Savings<\/strong>\s*<span>2026-10-29<\/span>/);
   assert.match(html, /class="transfer-pair-amount">\$50\.00/);
-  assert.match(html, /class="transfer-pair-collapsed">\+/);
-  assert.match(html, /class="transfer-pair-expanded">−/);
+  assert.doesNotMatch(html, /transfer-pair-toggle|transfer-pair-collapsed|transfer-pair-expanded/);
   assert.match(html, /aria-label="Expand or collapse original transfer transactions"/);
+  assert.match(html, /class="transfer-pair-details-label">Transactions included in this transfer<\/div>/);
   assert.match(html, /href="\/accounts\/savings-id"/);
   assert.match(html, /href="\/accounts\/checking-id">Savings account XXXXXX1257<\/a>/);
   assert.match(html, /Internet transfer to/);

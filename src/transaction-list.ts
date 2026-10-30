@@ -187,12 +187,11 @@ export function renderTransactionList(
             <span>${escapeHtml(dateLabel ?? "Date unavailable")}</span>
           </div>
           <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-transferAmount, amountCurrency))}</b>
-          <span class="transfer-pair-toggle" aria-hidden="true">
-            <span class="transfer-pair-collapsed">+</span>
-            <span class="transfer-pair-expanded">−</span>
-          </span>
         </summary>
-        <div class="transfer-pair-rows">${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts)).join("")}</div>
+        <div class="transfer-pair-rows">
+          <div class="transfer-pair-details-label">Transactions included in this transfer</div>
+          ${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts)).join("")}
+        </div>
       </details>
     `;
   }).join("");
