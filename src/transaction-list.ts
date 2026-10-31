@@ -1,5 +1,6 @@
 import type { BankAccount } from "./bank_accounts.ts";
-import { findReferencedAccount, formatTransactionAmount, renderLinkedTransactionName } from "./bank_accounts.ts";
+import { findReferencedAccount, formatTransactionAmount, renderLinkedTransactionName } from "./account-transaction-utils.ts";
+import { escapeHtml } from "./html-utils.ts";
 
 export type TransactionRecord = Record<string, unknown>;
 
@@ -173,16 +174,6 @@ export function groupInternalTransfers(
     groups.push({ type: "single", transactions: [transaction] });
   }
   return groups;
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  })[character] ?? character);
 }
 
 function renderTransactionRow(transaction: TransactionRecord, accounts: BankAccount[]): string {

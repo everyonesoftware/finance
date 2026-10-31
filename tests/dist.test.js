@@ -434,7 +434,8 @@ test("account detail renders an account snapshot and escaped account transaction
   const html = renderAccountDetail(account, [
     { name: "Internet transfer from Savings account XXXX4753", date: "2026-10-29", amount: 12.5, iso_currency_code: "USD" },
     { name: "Internet transfer from Savings account XXXX9999", date: "2026-10-28", amount: 2, iso_currency_code: "USD" },
-    { name: "Merchant <unsafe>", date: "2026-10-27", amount: 1, iso_currency_code: "USD" },
+    { name: "Merchant <unsafe>", date: "2026-10-27", amount: Number.NaN, iso_currency_code: "USD", pending: true },
+    { name: "International purchase", date: "2026-10-26", amount: -2.34, unofficial_currency_code: "EUR" },
   ], [account, matchingSavings]);
   assert.match(html, /Bank One/);
   assert.match(html, /Everyday Checking/);
@@ -445,6 +446,9 @@ test("account detail renders an account snapshot and escaped account transaction
   assert.match(html, /Savings account XXXX9999/);
   assert.doesNotMatch(html, /href="\/accounts\/account-1"[^>]*>Savings account XXXX9999/);
   assert.match(html, /Merchant &lt;unsafe&gt;/);
+  assert.match(html, /<span>2026-10-27 · Pending<\/span>/);
+  assert.match(html, /<b>—<\/b>/);
+  assert.match(html, /<b>€2\.34<\/b>/);
   assert.doesNotMatch(html, /<unsafe>/);
   const differentlyNamedSavings = { ...matchingSavings, name: "Everyday Savings", subtype: "savings" };
   const reverseTransfer = renderAccountDetail(account, [
@@ -452,6 +456,54 @@ test("account detail renders an account snapshot and escaped account transaction
   ], [account, differentlyNamedSavings]);
   assert.match(reverseTransfer, /Internet transfer from <a class="transaction-account-link" href="\/accounts\/savings-id">Savings account XXXXXX4753<\/a>/);
   assert.ok(html.indexOf("account-detail-snapshot") < html.indexOf("account-detail-transactions"));
+});
+
+test("account details render a matching Fidelity ACH deposit as a collapsed transfer", () => {
+  const allyAccount = {
+    id: "ally-checking",
+    itemId: "ally-item",
+    plaidAccountId: "plaid-ally-checking",
+    institutionName: "Ally Bank",
+    name: "Checking",
+    officialName: null,
+    type: "depository",
+    subtype: "checking",
+    mask: "5566",
+    currentBalance: 1000,
+    availableBalance: 900,
+    currencyCode: "USD",
+    updatedAt: "2026-10-31T12:00:00.000Z",
+  };
+  const fidelityAccount = {
+    id: "fidelity-tod",
+    itemId: "fidelity-item",
+    plaidAccountId: "plaid-fidelity-tod",
+    institutionName: "Fidelity",
+    name: "Individual - TOD",
+    officialName: null,
+    type: "investment",
+    subtype: "brokerage",
+    mask: "1283",
+    currentBalance: 25000,
+    availableBalance: null,
+    currencyCode: "USD",
+    updatedAt: "2026-10-31T12:00:00.000Z",
+  };
+  const transaction = {
+    transaction_id: "fidelity-ach-to-ally",
+    account_id: "plaid-ally-checking",
+    name: "X77621283 708XN FID BKG SVC LLC ACH",
+    date: "2026-10-27",
+    amount: -25004.82,
+    iso_currency_code: "USD",
+  };
+
+  const html = renderAccountDetail(allyAccount, [transaction], [allyAccount, fidelityAccount]);
+  assert.match(html, /<details class="transaction-transfer-pair">/);
+  assert.match(html, /Transfer: Individual - TOD → Checking/);
+  assert.match(html, /class="transfer-pair-amount">\$25,004\.82/);
+  assert.match(html, /class="transfer-pair-rows">[\s\S]*?X77621283 708XN FID BKG SVC LLC ACH/);
+  assert.doesNotMatch(html, /class="account-transaction-row"/);
 });
 
 test("bank-account migration creates user-owned encrypted data tables", async () => {
