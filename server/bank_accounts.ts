@@ -18,7 +18,11 @@ import {
   type PlaidErrorLogContext,
 } from "./plaid.js";
 import { and, eq } from "drizzle-orm";
-import { refreshBankAccountSnapshots, listAccountTransactions } from "./account-storage.js";
+import {
+  listAccountTransactions,
+  listAllUserTransactions,
+  refreshBankAccountSnapshots,
+} from "./account-storage.js";
 import { collectTransactionPages, getRecentTransactions } from "./transaction-sync.js";
 
 interface AccountSnapshot {
@@ -329,15 +333,7 @@ function configurationFailure(context: Context): Response {
 }
 
 function listTransactions(userId: string, key: Buffer) {
-  const rows = sqliteClient
-    .prepare(
-      "SELECT encrypted_data AS encryptedData FROM bank_transaction WHERE user_id = ?",
-    )
-    .all(userId) as Array<{ encryptedData: string }>;
-  const transactions = rows.map((row) =>
-    JSON.parse(decryptPlaidValue(row.encryptedData, key)) as { date?: unknown },
-  );
-  return getRecentTransactions(transactions);
+  return getRecentTransactions(listAllUserTransactions(sqliteClient, userId, key));
 }
 
 bankAccountsRouter.get("/transactions", async (context) => {
@@ -355,6 +351,25 @@ bankAccountsRouter.get("/transactions", async (context) => {
   } catch (error) {
     if (error instanceof PlaidConfigurationError) return configurationFailure(context);
     logPlaidFailure("transaction listing", error);
+    return context.json({ error: "Unable to load transactions." }, 500);
+  }
+});
+
+bankAccountsRouter.get("/transactions/all", async (context) => {
+  context.header("Cache-Control", "no-store");
+  const userId = await getUserId(context);
+  if (!userId) return context.json({ error: "Authentication required." }, 401);
+  try {
+    const connection = getPlaidConnection();
+    if (!connection) return context.json({ transactions: [], accounts: [], configured: false });
+    return context.json({
+      transactions: listAllUserTransactions(sqliteClient, userId, connection.encryptionKey),
+      accounts: getAccountsForUser(userId),
+      configured: true,
+    });
+  } catch (error) {
+    if (error instanceof PlaidConfigurationError) return configurationFailure(context);
+    logPlaidFailure("all transaction listing", error);
     return context.json({ error: "Unable to load transactions." }, 500);
   }
 });

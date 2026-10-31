@@ -65,3 +65,20 @@ export function listAccountTransactions(
   );
   return getRecentTransactions(transactions);
 }
+
+export function listAllUserTransactions(
+  sqliteClient: Database.Database,
+  userId: string,
+  encryptionKey: Buffer,
+): Array<Record<string, unknown>> {
+  const rows = sqliteClient
+    .prepare(`
+      SELECT encrypted_data AS encryptedData
+      FROM bank_transaction
+      WHERE user_id = ?
+    `)
+    .all(userId) as Array<{ encryptedData: string }>;
+  return rows.map((row) =>
+    JSON.parse(decryptPlaidValue(row.encryptedData, encryptionKey)) as Record<string, unknown>,
+  );
+}

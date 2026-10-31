@@ -2,6 +2,7 @@ import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
 import { renderDashboard } from "./dashboard";
+import { initializeTransactionsPage, renderTransactionsPage } from "./transactions-page";
 import {
   initializeOverviewBankAccounts,
   initializeBankAccountsPage,
@@ -375,7 +376,7 @@ function render(): void {
     return;
   }
 
-  if (path === "/dashboard" || path === "/settings" || path === "/accounts" || accountDetailMatch) {
+  if (path === "/dashboard" || path === "/transactions" || path === "/settings" || path === "/accounts" || accountDetailMatch) {
     if (!currentUser) {
       authNotice = authNotice || "Log in or create an account to continue.";
       window.history.replaceState(null, "", "/");
@@ -385,6 +386,16 @@ function render(): void {
 
     if (path === "/settings") {
       renderSettings(currentUser);
+      return;
+    }
+
+    if (path === "/transactions") {
+      app.innerHTML = renderTransactionsPage({
+        displayName: displayNameFor(currentUser),
+        username: currentUser.username ?? "",
+      });
+      attachLogoutHandler();
+      void initializeTransactionsPage();
       return;
     }
 

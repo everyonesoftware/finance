@@ -8,6 +8,9 @@ import {
 import { escapeHtml } from "./html-utils.ts";
 
 export type TransactionRecord = Record<string, unknown>;
+export interface TransactionListRenderOptions {
+  showAccount?: boolean;
+}
 
 export type TransactionGroup =
   | { type: "single"; transactions: [TransactionRecord] }
@@ -172,16 +175,28 @@ export function groupInternalTransfers(
   return groups;
 }
 
-function renderTransactionRow(transaction: TransactionRecord, accounts: BankAccount[]): string {
+function renderTransactionRow(
+  transaction: TransactionRecord,
+  accounts: BankAccount[],
+  showAccount: boolean,
+): string {
   const name = stringField(transaction, "name") ?? "Transaction";
   const date = stringField(transaction, "date") ?? "Date unavailable";
   const pending = transaction["pending"] === true ? " · Pending" : "";
   const amount = numberField(transaction, "amount") ?? Number.NaN;
+  const plaidAccountId = stringField(transaction, "account_id");
+  const account = showAccount && plaidAccountId
+    ? accounts.find((candidate) => candidate.plaidAccountId === plaidAccountId)
+    : undefined;
+  const accountLabel = account
+    ? `<span class="transaction-account-label">${escapeHtml(account.institutionName)} · ${escapeHtml(account.name)}</span>`
+    : "";
   return `
     <div class="account-row transaction-row">
       <div class="transaction-copy">
         <strong>${renderLinkedTransactionName(name, accounts)}</strong>
         <span>${escapeHtml(date + pending)}</span>
+        ${accountLabel}
       </div>
       <b>${escapeHtml(formatTransactionAmount(amount, currencyCode(transaction)))}</b>
     </div>
@@ -191,12 +206,13 @@ function renderTransactionRow(transaction: TransactionRecord, accounts: BankAcco
 export function renderTransactionList(
   transactions: TransactionRecord[],
   accounts: BankAccount[],
+  options: TransactionListRenderOptions = {},
 ): string {
   const groups = groupInternalTransfers(transactions, accounts);
   if (groups.length === 0) return "No transactions yet. Connect a bank and sync to get started.";
 
   return groups.map((group): string => {
-    if (group.type === "single") return renderTransactionRow(group.transactions[0], accounts);
+    if (group.type === "single") return renderTransactionRow(group.transactions[0], accounts, options.showAccount === true);
     const dates = group.transactions
       .map((transaction) => stringField(transaction, "date"))
       .filter((date): date is string => date !== null)
@@ -216,7 +232,7 @@ export function renderTransactionList(
         </summary>
         <div class="transfer-pair-rows">
           <div class="transfer-pair-details-label">Transactions included in this transfer</div>
-          ${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts)).join("")}
+          ${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts, options.showAccount === true)).join("")}
         </div>
       </details>
     `;

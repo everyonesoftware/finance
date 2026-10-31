@@ -9,10 +9,12 @@ import {
   getPlaidErrorLogDetails,
   readPlaidTransactionCursor,
 } from "../server-dist/plaid.js";
-import { listAccountTransactions, refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
+import { listAccountTransactions, listAllUserTransactions, refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
 import { applySqlMigration } from "../server-dist/migration-utils.js";
 import { collectTransactionPages, getRecentTransactions } from "../server-dist/transaction-sync.js";
 import { groupInternalTransfers, renderTransactionList } from "../src/transaction-list.ts";
+import { filterAndSortTransactionGroups } from "../src/transaction-filters.ts";
+import { renderTransactionsPage, getTransactionAmountBounds } from "../src/transactions-page.ts";
 import { renderDashboard } from "../src/dashboard.ts";
 import {
   formatTransactionAmount,
@@ -88,6 +90,78 @@ test("internal transfers with reciprocal connected-account references collapse i
   assert.match(html, /href="\/accounts\/savings-id"/);
   assert.match(html, /href="\/accounts\/checking-id">Savings account XXXXXX1257<\/a>/);
   assert.match(html, /Internet transfer to/);
+});
+
+test("transaction filters include, exclude, and sort grouped transactions by amount and date", () => {
+  const checking = { id: "checking-id", plaidAccountId: "plaid-checking", name: "Checking" };
+  const savings = { id: "savings-id", plaidAccountId: "plaid-savings", name: "Savings" };
+  const groups = [
+    { type: "single", transactions: [{ transaction_id: "checking-five", account_id: "plaid-checking", amount: -5, date: "2026-10-28" }] },
+    { type: "single", transactions: [{ transaction_id: "savings-ten", account_id: "plaid-savings", amount: 10, date: "2026-10-30" }] },
+    {
+      type: "transfer",
+      transactions: [
+        { transaction_id: "transfer-out", account_id: "plaid-checking", amount: 20, date: "2026-10-29" },
+        { transaction_id: "transfer-in", account_id: "plaid-savings", amount: -20, date: "2026-10-29" },
+      ],
+      fromAccount: checking,
+      toAccount: savings,
+    },
+  ];
+  const sharedFilters = {
+    includeAccountIds: [],
+    excludeAccountIds: [],
+    minimumAmount: -20,
+    maximumAmount: 20,
+  };
+
+  const included = filterAndSortTransactionGroups(groups, [checking, savings], {
+    ...sharedFilters,
+    includeAccountIds: ["checking-id"],
+    sort: "amount-desc",
+  });
+  assert.deepEqual(included.map((group) => group.transactions[0].transaction_id), ["transfer-out", "checking-five"]);
+
+  const multiIncluded = filterAndSortTransactionGroups(groups, [checking, savings], {
+    ...sharedFilters,
+    includeAccountIds: ["checking-id", "savings-id"],
+    sort: "amount-desc",
+  });
+  assert.deepEqual(multiIncluded.map((group) => group.transactions[0].transaction_id), ["transfer-out", "checking-five", "savings-ten"]);
+
+  const amountRange = filterAndSortTransactionGroups(groups, [checking, savings], {
+    ...sharedFilters,
+    minimumAmount: -15,
+    maximumAmount: -5,
+    sort: "amount-asc",
+  });
+  assert.deepEqual(amountRange.map((group) => group.transactions[0].transaction_id), ["savings-ten"]);
+
+  const excluded = filterAndSortTransactionGroups(groups, [checking, savings], {
+    ...sharedFilters,
+    excludeAccountIds: ["savings-id"],
+    sort: "date-desc",
+  });
+  assert.deepEqual(excluded.map((group) => group.transactions[0].transaction_id), ["checking-five"]);
+
+  const byDate = filterAndSortTransactionGroups(groups, [checking, savings], {
+    ...sharedFilters,
+    sort: "date-desc",
+  });
+  assert.deepEqual(byDate.map((group) => group.transactions[0].transaction_id), ["savings-ten", "transfer-out", "checking-five"]);
+});
+
+test("transaction lists can show the owning institution and account for each row", () => {
+  const account = {
+    id: "checking-id",
+    plaidAccountId: "plaid-checking",
+    institutionName: "Ally Bank",
+    name: "Checking",
+  };
+  const html = renderTransactionList([
+    { transaction_id: "coffee", account_id: "plaid-checking", name: "Coffee shop", date: "2026-10-30", amount: 4.5, iso_currency_code: "USD" },
+  ], [account], { showAccount: true });
+  assert.match(html, /class="transaction-account-label">Ally Bank · Checking<\/span>/);
 });
 
 test("Fidelity ACH deposits referencing a connected brokerage account are grouped as transfers", () => {
@@ -167,9 +241,26 @@ test("dashboard shows only implemented account and transaction features", () => 
   assert.match(html, /id="overview-bank-accounts"/);
   assert.match(html, /id="transaction-list"/);
   assert.match(html, /id="sync-transactions"/);
-  assert.match(html, /href="#transactions"/);
+  assert.ok(html.includes('href="/transactions"'));
   assert.doesNotMatch(html, /Not available yet|Spending overview|chart-placeholder|Budgets|View all transactions/);
   assert.match(html, /class="app-version">Version dev<\/span>/);
+});
+
+test("transactions page exposes account, amount, and sort filters with active navigation", () => {
+  const html = renderTransactionsPage({ displayName: "Test", username: "test" });
+  assert.match(html, /class="nav-link active" href="\/transactions" aria-current="page"/);
+  assert.match(html, /id="include-account-options"/);
+  assert.match(html, /id="exclude-account-options"/);
+  assert.match(html, /id="minimum-transaction-amount" type="range"/);
+  assert.match(html, /id="maximum-transaction-amount" type="range"/);
+  for (const value of ["date-desc", "date-asc", "amount-desc", "amount-asc"]) {
+    assert.ok(html.includes(`value="${value}"`));
+  }
+});
+
+test("amount bounds handle large histories without exceeding argument limits", () => {
+  const amounts = Array.from({ length: 150_000 }, (_, index) => index - 75_000);
+  assert.deepEqual(getTransactionAmountBounds(amounts), { minimum: -75_000, maximum: 74_999 });
 });
 
 test("production HTML references existing JavaScript and CSS assets", async () => {
@@ -690,6 +781,48 @@ test("account transaction queries are scoped to the owning user, item, and accou
   database.close();
 });
 
+test("all transaction queries return every account for one user without the dashboard limit", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  const migrationNames = (await readdir(migrationsDirectory))
+    .filter((name) => name.endsWith(".sql"))
+    .sort();
+  for (const migrationName of migrationNames) {
+    applySqlMigration(database, await readFile(new URL(migrationName, migrationsDirectory), "utf8"));
+  }
+  database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+    .run("user-one", "User One", "one@example.test");
+  database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+    .run("user-two", "User Two", "two@example.test");
+  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)");
+  insertItem.run("item-one", "user-one", "encrypted-name", "encrypted-token");
+  insertItem.run("item-two", "user-two", "encrypted-name", "encrypted-token");
+  const key = Buffer.alloc(32, 23);
+  const insertTransaction = database.prepare("INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)");
+  for (let index = 0; index < 55; index += 1) {
+    insertTransaction.run(
+      `tx-${index}`,
+      "item-one",
+      "user-one",
+      index % 2 === 0 ? "account-one" : "account-two",
+      encryptPlaidValue(JSON.stringify({ transaction_id: `tx-${index}`, account_id: index % 2 === 0 ? "account-one" : "account-two", name: `Transaction ${index}`, date: "2026-10-30", amount: index }), key),
+    );
+  }
+  insertTransaction.run(
+    "tx-other-user",
+    "item-two",
+    "user-two",
+    "account-one",
+    encryptPlaidValue(JSON.stringify({ transaction_id: "tx-other-user", name: "Other user's transaction", date: "2026-10-30", amount: 1 }), key),
+  );
+
+  const transactions = listAllUserTransactions(database, "user-one", key);
+  assert.equal(transactions.length, 55);
+  assert.equal(new Set(transactions.map((transaction) => transaction.account_id)).size, 2);
+  assert.equal(transactions.some((transaction) => transaction.transaction_id === "tx-other-user"), false);
+  database.close();
+});
+
 test("transaction migration stores encrypted transaction records and protected sync cursors", async () => {
   const database = new Database(":memory:");
   database.pragma("foreign_keys = ON");
@@ -755,6 +888,10 @@ test("account sync requires authentication and disconnect removes only after Pla
     assert.equal(response.status, 401);
     assert.equal(response.headers.get("Cache-Control"), "no-store");
 
+    const allTransactionsResponse = await bankAccountsRouter.request("/transactions/all");
+    assert.equal(allTransactionsResponse.status, 401);
+    assert.equal(allTransactionsResponse.headers.get("Cache-Control"), "no-store");
+
     const syncResponse = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
       method: "POST",
       headers: { Origin: "http://localhost:5173" },
@@ -805,6 +942,27 @@ test("account sync requires authentication and disconnect removes only after Pla
       assert.equal(transactionSyncTokens.length, 0);
 
       sessionUserId = "user-one";
+      const insertAllTransaction = databaseModule.sqliteClient.prepare(
+        "INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)",
+      );
+      for (const transaction of [
+        { itemId: "item-one", transactionId: "first-item-transaction", accountId: "plaid-one", name: "First bank" },
+        { itemId: "item-two", transactionId: "second-item-transaction", accountId: "plaid-two", name: "Second bank" },
+      ]) {
+        insertAllTransaction.run(
+          transaction.transactionId,
+          transaction.itemId,
+          "user-one",
+          transaction.accountId,
+          encryptPlaidValue(JSON.stringify({ transaction_id: transaction.transactionId, account_id: transaction.accountId, name: transaction.name, date: "2026-10-30", amount: 5 }), key),
+        );
+      }
+      const allAcrossItemsResponse = await bankAccountsRouter.request("/transactions/all");
+      assert.equal(allAcrossItemsResponse.status, 200);
+      assert.equal(allAcrossItemsResponse.headers.get("Cache-Control"), "no-store");
+      const allAcrossItemsPayload = await allAcrossItemsResponse.json();
+      assert.deepEqual(allAcrossItemsPayload.transactions.map((transaction) => transaction.name).sort(), ["First bank", "Second bank"]);
+
       const institutionSync = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
         method: "POST",
         headers: { Origin: "http://localhost:5173" },
