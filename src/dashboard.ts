@@ -43,9 +43,6 @@ export function renderDashboard(user: DashboardUser): string {
         <a class="nav-link" href="#transactions">
           <span class="nav-icon" aria-hidden="true">↕</span> Transactions
         </a>
-        <a class="nav-link" href="#budgets">
-          <span class="nav-icon" aria-hidden="true">▤</span> Budgets
-        </a>
         <a class="nav-link" href="/accounts">
           <span class="nav-icon" aria-hidden="true">▣</span> Accounts
         </a>
@@ -85,31 +82,20 @@ export function renderDashboard(user: DashboardUser): string {
 
       <section class="summary-grid" aria-label="Financial summary">
         <article class="summary-card balance-card">
-          <div class="card-label">Total balance <span aria-hidden="true">↗</span></div>
+          <div class="card-label">Total balance</div>
           <div class="card-value" id="overview-total-balance">Loading…</div>
           <div class="card-foot"><span>Across connected accounts</span></div>
           <div class="balance-decoration" aria-hidden="true"></div>
         </article>
-        <article class="summary-card">
-          <div class="card-label">Income <span class="metric-icon income-icon" aria-hidden="true">↙</span></div>
-          <div class="card-value">—</div>
-          <div class="card-foot"><span>Not available yet</span></div>
-        </article>
-        <article class="summary-card">
-          <div class="card-label">Expenses <span class="metric-icon expense-icon" aria-hidden="true">↗</span></div>
-          <div class="card-value">—</div>
-          <div class="card-foot"><span>Not available yet</span></div>
-        </article>
       </section>
 
       <section class="content-grid">
-        <article class="panel spending-panel" id="budgets">
+        <article class="panel transactions-panel" id="transactions">
           <div class="panel-heading">
-            <div><h2>Spending overview</h2><p>Trends from synced transactions</p></div>
+            <div><h2>Recent transactions</h2><p>Your latest activity at a glance</p></div>
           </div>
-          <div class="chart" role="status">
-            <div class="chart-placeholder">Sync transactions to see income and spending trends</div>
-          </div>
+          <div id="transaction-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
+          <p id="transaction-status" role="status" hidden></p>
         </article>
 
         <article class="panel accounts-panel" id="accounts">
@@ -122,15 +108,6 @@ export function renderDashboard(user: DashboardUser): string {
           </div>
           <a class="connect-button" href="/accounts"><span aria-hidden="true">＋</span> Connect an account</a>
         </article>
-      </section>
-
-      <section class="panel transactions-panel" id="transactions">
-        <div class="panel-heading">
-          <div><h2>Recent transactions</h2><p>Your latest activity at a glance</p></div>
-          <button class="text-button" type="button">View all transactions <span aria-hidden="true">→</span></button>
-        </div>
-        <div id="transaction-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
-        <p id="transaction-status" role="status"></p>
       </section>
 
       <footer class="page-footer">Your finances, in focus. <span>Finance · Personal finance</span></footer>

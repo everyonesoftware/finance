@@ -160,12 +160,15 @@ test("Plaid transaction amounts render spending as negative and income as positi
   assert.equal(formatTransactionAmount(3, null), "-3.00");
 });
 
-test("dashboard does not present sample income, expense, or chart data as real", () => {
+test("dashboard shows only implemented account and transaction features", () => {
   const html = renderDashboard({ displayName: "Test", username: "test" });
-  assert.doesNotMatch(html, /\$5,240|\$2,180|--height:/);
+  assert.match(html, /id="overview-total-balance"/);
+  assert.match(html, /id="overview-bank-accounts"/);
+  assert.match(html, /id="transaction-list"/);
+  assert.match(html, /id="sync-transactions"/);
+  assert.match(html, /href="#transactions"/);
+  assert.doesNotMatch(html, /Not available yet|Spending overview|chart-placeholder|Budgets|View all transactions/);
   assert.match(html, /class="app-version">Version dev<\/span>/);
-  assert.match(html, /Not available yet/);
-  assert.match(html, /Sync transactions to see income and spending trends/);
 });
 
 test("production HTML references existing JavaScript and CSS assets", async () => {

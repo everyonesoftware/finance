@@ -80,7 +80,7 @@ function renderLanding(): void {
             <div><span aria-hidden="true">✓</span><span>Keep your financial picture in one place</span></div>
             <div><span aria-hidden="true">✓</span><span>Manage your account securely</span></div>
           </div>
-          <p class="landing-disclaimer">Your dashboard currently uses sample financial data.</p>
+          <p class="landing-disclaimer">Connect an institution to view account balances and recent transactions.</p>
         </div>
         <section class="auth-card" aria-labelledby="auth-title">
           <div class="auth-tabs" role="tablist" aria-label="Account access">
@@ -442,15 +442,23 @@ function render(): void {
     document.querySelector<HTMLButtonElement>("#sync-transactions")?.addEventListener("click", async (event) => {
       const button = event.currentTarget as HTMLButtonElement;
       button.disabled = true;
-      if (transactionStatus) transactionStatus.textContent = "Syncing transactions…";
+      if (transactionStatus) {
+        transactionStatus.hidden = false;
+        transactionStatus.textContent = "Syncing transactions…";
+      }
       try {
         const response = await fetch("/api/accounts/transactions/sync", { method: "POST", credentials: "same-origin" });
         const body = await response.json() as { error?: string };
         if (!response.ok) throw new Error(body.error ?? "Sync failed.");
         if (transactionStatus) transactionStatus.textContent = "Transactions synced.";
         await renderTransactions();
-      } catch (error) { if (transactionStatus) transactionStatus.textContent = error instanceof Error ? error.message : "Sync failed."; }
-      finally { button.disabled = false; }
+      } catch (error) {
+        if (transactionStatus) {
+          transactionStatus.textContent = error instanceof Error ? error.message : "Sync failed.";
+        }
+      } finally {
+        button.disabled = false;
+      }
     });
     return;
   }

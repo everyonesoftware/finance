@@ -274,7 +274,7 @@ h1 span {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
 }
 
@@ -287,12 +287,15 @@ h1 span {
 
 .summary-card {
   position: relative;
-  min-height: 138px;
+  min-height: 108px;
   overflow: hidden;
-  padding: 19px 20px;
+  padding: 16px 20px;
 }
 
 .balance-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   border-color: #2e6749;
   background: #2e6749;
   color: #fff;
@@ -300,7 +303,9 @@ h1 span {
 
 .card-label {
   display: flex;
+  grid-column: 1;
   align-items: center;
+  align-self: end;
   justify-content: space-between;
   color: #848a82;
   font-size: 11px;
@@ -314,7 +319,9 @@ h1 span {
 .card-value {
   position: relative;
   z-index: 1;
-  margin-top: 16px;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  margin-top: 0;
   font-family: "Segoe UI", Arial, sans-serif;
   font-size: 27px;
   font-weight: 700;
@@ -335,8 +342,10 @@ h1 span {
   position: relative;
   z-index: 1;
   display: flex;
+  grid-column: 1;
+  align-self: start;
   gap: 7px;
-  margin-top: 7px;
+  margin-top: 4px;
   color: #979d95;
   font-size: 9px;
 }
@@ -998,10 +1007,6 @@ a.text-button {
   color: #b42318;
 }
 
-.transactions-panel {
-  margin-top: 18px;
-  padding-bottom: 0;
-}
 
 .transaction-list {
   display: grid;
@@ -1186,6 +1191,10 @@ a.text-button {
   .topbar {
     height: 55px;
   }
+
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 620px) {
@@ -1263,10 +1272,6 @@ a.text-button {
   .content-grid {
     grid-template-columns: 1fr;
     gap: 12px;
-    margin-top: 12px;
-  }
-
-  .transactions-panel {
     margin-top: 12px;
   }
 
