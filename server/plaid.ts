@@ -12,14 +12,26 @@ export interface PlaidConnection {
 
 export class PlaidConfigurationError extends Error {}
 
+export interface PlaidErrorLogContext {
+  phase?: string;
+  itemNumber?: number;
+  itemCount?: number;
+}
+
 export interface PlaidErrorLogDetails {
   operation: string;
   errorName: string;
+  errorSummary: string;
+  phase?: string;
+  itemNumber?: number;
+  itemCount?: number;
   plaidErrorType?: string;
   plaidErrorCode?: string;
   requestId?: string;
   httpStatus?: number;
   networkCode?: string;
+  internalCode?: string;
+  stackFrames?: string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,9 +44,48 @@ function safeCode(value: unknown): string | undefined {
     : undefined;
 }
 
+function safeErrorSummary(error: unknown): string {
+  if (!(error instanceof Error)) return "Unknown non-Error exception; message withheld for safety.";
+  if (error.message === "Plaid transaction references an account outside this item.") {
+    return "Transaction account ownership validation failed.";
+  }
+  if (/^Transaction sync exceeded the \d+ page limit\.$/.test(error.message)) {
+    return "Transaction pagination exceeded the configured safety limit.";
+  }
+  if (error.message === "Transaction sync exceeded the restart limit.") {
+    return "Transaction pagination exceeded the retry limit.";
+  }
+  if (error.message === "Stored Plaid data has an unsupported encryption format.") {
+    return "Stored Plaid data format is unsupported.";
+  }
+  if (error instanceof SyntaxError) return "Stored JSON data could not be parsed.";
+  return "Unclassified error; message withheld for safety.";
+}
+
+function safeStackFrames(error: unknown): string[] | undefined {
+  if (!(error instanceof Error) || typeof error.stack !== "string") return undefined;
+  const frames = error.stack
+    .split(String.fromCharCode(10))
+    .map((frame) => frame.replaceAll(String.fromCharCode(13), ""))
+    .slice(1, 9)
+    .flatMap((frame) => {
+      const match = frame.match(/^\s*at\s+(?:(.*?)\s+\()?(.+):(\d+):(\d+)\)?\s*$/);
+      if (!match) return [];
+      const filename = match[2]?.replace(/\\/g, "/").split("/").at(-1);
+      const line = match[3];
+      const column = match[4];
+      if (!filename || !/^[A-Za-z0-9_.-]{1,100}$/.test(filename) || !line || !column) return [];
+      const functionName = (match[1] ?? "").replace(/[^A-Za-z0-9_.$<>-]/g, "").slice(0, 80);
+      return [`${functionName ? `${functionName} @ ` : ""}${filename}:${line}:${column}`];
+    })
+    .slice(0, 6);
+  return frames.length > 0 ? frames : undefined;
+}
+
 export function getPlaidErrorLogDetails(
   operation: string,
   error: unknown,
+  context?: PlaidErrorLogContext,
 ): PlaidErrorLogDetails {
   const errorRecord: Record<string, unknown> = isRecord(error) ? error : {};
   const response: Record<string, unknown> = isRecord(errorRecord["response"])
@@ -49,7 +100,19 @@ export function getPlaidErrorLogDetails(
       error instanceof Error
         ? error.name.slice(0, 80)
         : "UnknownError",
+    errorSummary: safeErrorSummary(error),
   };
+  const stackFrames = safeStackFrames(error);
+  if (stackFrames) details.stackFrames = stackFrames;
+  if (context?.phase && /^[A-Za-z][A-Za-z0-9 /_-]{0,79}$/.test(context.phase)) {
+    details.phase = context.phase;
+  }
+  if (context && Number.isSafeInteger(context.itemNumber) && (context.itemNumber ?? 0) > 0) {
+    details.itemNumber = context.itemNumber;
+  }
+  if (context && Number.isSafeInteger(context.itemCount) && (context.itemCount ?? -1) >= 0) {
+    details.itemCount = context.itemCount;
+  }
   const plaidErrorType: string | undefined = safeCode(
     plaidError["error_type"],
   );
@@ -73,7 +136,8 @@ export function getPlaidErrorLogDetails(
     details.httpStatus = httpStatus;
   }
   if (networkCode) {
-    details.networkCode = networkCode;
+    if (/^SQLITE_[A-Za-z0-9_]+$/.test(networkCode)) details.internalCode = networkCode;
+    else details.networkCode = networkCode;
   }
 
   return details;

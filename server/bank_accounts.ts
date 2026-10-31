@@ -14,6 +14,7 @@ import {
   getPlaidErrorLogDetails,
   getPlaidConnection,
   PlaidConfigurationError,
+  type PlaidErrorLogContext,
 } from "./plaid.js";
 import { and, eq } from "drizzle-orm";
 import { refreshBankAccountSnapshots, listAccountTransactions } from "./account-storage.js";
@@ -239,10 +240,14 @@ function saveAccounts(
   save();
 }
 
-function logPlaidFailure(operation: string, error: unknown): void {
+function logPlaidFailure(
+  operation: string,
+  error: unknown,
+  context?: PlaidErrorLogContext,
+): void {
   console.error(
-    `Plaid request failed: ${JSON.stringify(
-      getPlaidErrorLogDetails(operation, error),
+    `Bank data operation failed: ${JSON.stringify(
+      getPlaidErrorLogDetails(operation, error, context),
     )}`,
   );
 }
@@ -323,33 +328,81 @@ bankAccountsRouter.get("/:accountId/transactions", async (context) => {
 
 bankAccountsRouter.post("/transactions/sync", async (context) => {
   context.header("Cache-Control", "no-store");
-  if (!isTrustedOrigin(context.req.header("origin"))) return context.json({error:"Request origin is not allowed."},403);
-  const userId=await getUserId(context); if(!userId) return context.json({error:"Authentication required."},401);
-  let connection; try { connection=getPlaidConnection(); } catch(error){ if(error instanceof PlaidConfigurationError) return configurationFailure(context); throw error; }
-  if(!connection) return configurationFailure(context);
-  const items=sqliteClient.prepare("SELECT item_id AS itemId, encrypted_access_token AS token, encrypted_transaction_cursor AS cursor FROM bank_item WHERE user_id = ?").all(userId) as Array<{itemId:string;token:string;cursor:string|null}>;
+  if (!isTrustedOrigin(context.req.header("origin"))) {
+    return context.json({ error: "Request origin is not allowed." }, 403);
+  }
+  const userId = await getUserId(context);
+  if (!userId) return context.json({ error: "Authentication required." }, 401);
+
+  let connection;
   try {
-    for(const item of items){
-      const access_token=decryptPlaidValue(item.token,connection.encryptionKey);
-      const initialCursor=item.cursor ? decryptPlaidValue(item.cursor,connection.encryptionKey) : undefined;
-      const batch=await collectTransactionPages(async ({cursor}) => {
-        const page=await connection.client.transactionsSync({access_token,...(cursor?{cursor}:{}),count:500});
+    connection = getPlaidConnection();
+  } catch (error) {
+    if (error instanceof PlaidConfigurationError) return configurationFailure(context);
+    throw error;
+  }
+  if (!connection) return configurationFailure(context);
+
+  let failureContext: PlaidErrorLogContext = { phase: "load connected items" };
+  try {
+    const items = sqliteClient
+      .prepare("SELECT item_id AS itemId, encrypted_access_token AS token, encrypted_transaction_cursor AS cursor FROM bank_item WHERE user_id = ?")
+      .all(userId) as Array<{ itemId: string; token: string; cursor: string | null }>;
+
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      const item = items[itemIndex];
+      if (!item) continue;
+      const itemContext = { itemNumber: itemIndex + 1, itemCount: items.length };
+
+      failureContext = { ...itemContext, phase: "decrypt access token" };
+      const access_token = decryptPlaidValue(item.token, connection.encryptionKey);
+
+      failureContext = { ...itemContext, phase: "decrypt saved transaction cursor" };
+      const initialCursor = item.cursor
+        ? decryptPlaidValue(item.cursor, connection.encryptionKey)
+        : undefined;
+
+      failureContext = { ...itemContext, phase: "request Plaid transaction page" };
+      const batch = await collectTransactionPages(async ({ cursor }) => {
+        failureContext = { ...itemContext, phase: "request Plaid transaction page" };
+        const page = await connection.client.transactionsSync({
+          access_token,
+          ...(cursor ? { cursor } : {}),
+          count: 500,
+        });
         return page.data;
-      },initialCursor);
-      const commit=sqliteClient.transaction(()=>{
-        const del=sqliteClient.prepare("DELETE FROM bank_transaction WHERE item_id=? AND transaction_id=? AND user_id=?");
-        for(const r of batch.removed) del.run(item.itemId,r.transaction_id,userId);
-        const up=sqliteClient.prepare("INSERT INTO bank_transaction(transaction_id,item_id,user_id,account_id,encrypted_data) VALUES(?,?,?,?,?) ON CONFLICT(item_id,transaction_id) DO UPDATE SET account_id=excluded.account_id, encrypted_data=excluded.encrypted_data, updated_at=unixepoch()");
-        const accountIds = new Set((sqliteClient.prepare("SELECT plaid_account_id AS id FROM bank_account WHERE item_id=? AND user_id=?").all(item.itemId,userId) as Array<{id:string}>).map(account=>account.id));
-        for(const t of [...batch.added,...batch.modified]) {
-          if(!accountIds.has(t.account_id)) throw new Error("Plaid transaction references an account outside this item.");
-          up.run(t.transaction_id,item.itemId,userId,t.account_id,encryptPlaidValue(JSON.stringify(t),connection.encryptionKey));
+      }, initialCursor);
+
+      failureContext = { ...itemContext, phase: "validate and persist transaction batch" };
+      const commit = sqliteClient.transaction(() => {
+        const del = sqliteClient.prepare("DELETE FROM bank_transaction WHERE item_id=? AND transaction_id=? AND user_id=?");
+        for (const removed of batch.removed) del.run(item.itemId, removed.transaction_id, userId);
+        const up = sqliteClient.prepare("INSERT INTO bank_transaction(transaction_id,item_id,user_id,account_id,encrypted_data) VALUES(?,?,?,?,?) ON CONFLICT(item_id,transaction_id) DO UPDATE SET account_id=excluded.account_id, encrypted_data=excluded.encrypted_data, updated_at=unixepoch()");
+        const accountIds = new Set((sqliteClient.prepare("SELECT plaid_account_id AS id FROM bank_account WHERE item_id=? AND user_id=?").all(item.itemId, userId) as Array<{ id: string }>).map((account) => account.id));
+        for (const transaction of [...batch.added, ...batch.modified]) {
+          if (!accountIds.has(transaction.account_id)) {
+            throw new Error("Plaid transaction references an account outside this item.");
+          }
+          up.run(
+            transaction.transaction_id,
+            item.itemId,
+            userId,
+            transaction.account_id,
+            encryptPlaidValue(JSON.stringify(transaction), connection.encryptionKey),
+          );
         }
-        sqliteClient.prepare("UPDATE bank_item SET encrypted_transaction_cursor=?,updated_at=unixepoch() WHERE item_id=? AND user_id=?").run(encryptPlaidValue(batch.cursor,connection.encryptionKey),item.itemId,userId);
-      }); commit();
+        sqliteClient.prepare("UPDATE bank_item SET encrypted_transaction_cursor=?,updated_at=unixepoch() WHERE item_id=? AND user_id=?")
+          .run(encryptPlaidValue(batch.cursor, connection.encryptionKey), item.itemId, userId);
+      });
+      commit();
     }
-    return context.json({transactions:listTransactions(userId,connection.encryptionKey)});
-  } catch(error){ logPlaidFailure("transaction sync",error); return context.json({error:"Unable to sync transactions. Please retry."},502); }
+
+    failureContext = { phase: "load saved transaction list" };
+    return context.json({ transactions: listTransactions(userId, connection.encryptionKey) });
+  } catch (error) {
+    logPlaidFailure("transaction sync", error, failureContext);
+    return context.json({ error: "Unable to sync transactions. Please retry." }, 502);
+  }
 });
 
 bankAccountsRouter.get("/", async (context) => {

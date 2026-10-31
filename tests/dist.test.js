@@ -211,20 +211,42 @@ test("Plaid failure logs contain diagnostics but omit sensitive response data", 
       },
     },
   });
+  error.stack = [
+    "Error: request contains a sensitive token",
+    "    at syncPage (C:\\Users\\private\\secret.js:55:3)",
+    "    at Object.run (C:\\Users\\dan\\finance\\server-dist\\bank_accounts.js:352:5)",
+  ].join("\n");
 
-  const details = getPlaidErrorLogDetails("link token creation", error);
+  const details = getPlaidErrorLogDetails("transaction sync", error, {
+    phase: "fetch and collect Plaid transaction pages",
+    itemNumber: 2,
+    itemCount: 3,
+  });
   const serialized = JSON.stringify(details);
 
-  assert.deepEqual(details, {
-    operation: "link token creation",
-    errorName: "Error",
-    plaidErrorType: "INVALID_REQUEST",
-    plaidErrorCode: "INVALID_FIELD",
-    requestId: "request-123",
-    httpStatus: 400,
-    networkCode: "ECONNABORTED",
-  });
-  assert.doesNotMatch(serialized, /secret-value|sensitive|PLAID-SECRET/);
+  assert.equal(details.operation, "transaction sync");
+  assert.equal(details.errorName, "Error");
+  assert.equal(details.errorSummary, "Unclassified error; message withheld for safety.");
+  assert.equal(details.plaidErrorType, "INVALID_REQUEST");
+  assert.equal(details.plaidErrorCode, "INVALID_FIELD");
+  assert.equal(details.requestId, "request-123");
+  assert.equal(details.httpStatus, 400);
+  assert.equal(details.networkCode, "ECONNABORTED");
+  assert.equal(details.phase, "fetch and collect Plaid transaction pages");
+  assert.equal(details.itemNumber, 2);
+  assert.equal(details.itemCount, 3);
+  assert.deepEqual(details.stackFrames, [
+    "syncPage @ secret.js:55:3",
+    "Object.run @ bank_accounts.js:352:5",
+  ]);
+  assert.doesNotMatch(serialized, /secret-value|sensitive|PLAID-SECRET|C:\\\\Users/);
+});
+
+test("sync failure summaries identify known internal errors without exposing raw messages", () => {
+  const error = new Error("Plaid transaction references an account outside this item.");
+  const details = getPlaidErrorLogDetails("transaction sync", error);
+  assert.equal(details.errorSummary, "Transaction account ownership validation failed.");
+  assert.doesNotMatch(JSON.stringify(details), /outside this item/);
 });
 
 test("overview bank-account list escapes values and links additional accounts", () => {
