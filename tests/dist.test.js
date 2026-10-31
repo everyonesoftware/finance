@@ -362,6 +362,40 @@ test("accounts page renders credit and loan balances as negative and red", () =>
   assert.match(html, /href="\/accounts\/account-1"/);
 });
 
+test("institution cards provide a sync action and hide disconnect in the overflow menu", () => {
+  const account = {
+    id: "account-1",
+    itemId: "item-1",
+    institutionName: "Bank One",
+    name: "Checking",
+    officialName: null,
+    type: "depository",
+    subtype: "checking",
+    mask: "1234",
+    currentBalance: 75,
+    availableBalance: 100,
+    currencyCode: "USD",
+    updatedAt: new Date().toISOString(),
+  };
+  const html = renderAccounts([account]);
+  const syncIndex = html.indexOf("sync-institution-button");
+  const menuIndex = html.indexOf('class="institution-actions-menu"');
+  const disconnectIndex = html.indexOf("disconnect-bank");
+
+  assert.ok(syncIndex >= 0, "institution sync button should be rendered");
+  assert.ok(menuIndex > syncIndex, "overflow menu should follow the sync button");
+  assert.ok(disconnectIndex > menuIndex, "disconnect action should be inside the overflow menu");
+  assert.match(html, /aria-label="Synchronize Bank One"/);
+  assert.match(html, /aria-label="More actions for Bank One"/);
+  assert.match(html, /data-item-id="item-1"/);
+});
+
+test("accounts page places sync-all before Connect a bank", () => {
+  const html = renderBankAccountsPage({ displayName: "Test User", username: "test-user" });
+  assert.ok(html.indexOf('id="sync-all-institutions"') >= 0);
+  assert.ok(html.indexOf('id="sync-all-institutions"') < html.indexOf('id="connect-bank"'));
+});
+
 test("account detail page provides a protected-page shell and loading target", () => {
   const html = renderBankAccountDetailPage({ displayName: "<A User>", username: "finance-user" });
   assert.match(html, /id="account-detail-content"/);
@@ -617,12 +651,16 @@ test("transaction migration stores encrypted transaction records and protected s
   database.close();
 });
 
-test("account transaction endpoint requires an authenticated session", async () => {
+test("account sync requires authentication and disconnect removes only after Plaid confirms", async () => {
   const temporaryDirectory = await mkdtemp(join(process.env["TMPDIR"] ?? process.cwd(), "finance-route-test-"));
   const originalEnvironment = {
     DATABASE_PATH: process.env["DATABASE_PATH"],
     BETTER_AUTH_SECRET: process.env["BETTER_AUTH_SECRET"],
     ORIGIN_URL: process.env["ORIGIN_URL"],
+    PLAID_CLIENT_ID: process.env["PLAID_CLIENT_ID"],
+    PLAID_SECRET: process.env["PLAID_SECRET"],
+    PLAID_ENV: process.env["PLAID_ENV"],
+    PLAID_TOKEN_ENCRYPTION_KEY: process.env["PLAID_TOKEN_ENCRYPTION_KEY"],
   };
   process.env["DATABASE_PATH"] = join(temporaryDirectory, "finance.sqlite");
   process.env["BETTER_AUTH_SECRET"] = "test-only-auth-secret-at-least-32-characters-long";
@@ -632,11 +670,99 @@ test("account transaction endpoint requires an authenticated session", async () 
   try {
     const databaseModule = await import("../server-dist/database.js");
     const { bankAccountsRouter } = await import("../server-dist/bank_accounts.js");
+    const { auth } = await import("../server-dist/auth.js");
+    const { PlaidApi } = await import("plaid");
+    const { encryptPlaidValue } = await import("../server-dist/plaid.js");
     closeDatabase = databaseModule.closeDatabase;
     await databaseModule.runMigrations();
     const response = await bankAccountsRouter.request("/account-one/transactions");
     assert.equal(response.status, 401);
     assert.equal(response.headers.get("Cache-Control"), "no-store");
+
+    const syncResponse = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
+      method: "POST",
+      headers: { Origin: "http://localhost:5173" },
+    });
+    assert.equal(syncResponse.status, 401);
+    assert.equal(syncResponse.headers.get("Cache-Control"), "no-store");
+
+    const disconnectResponse = await bankAccountsRouter.request("/items/item-one", {
+      method: "DELETE",
+      headers: { Origin: "http://localhost:5173" },
+    });
+    assert.equal(disconnectResponse.status, 401);
+    assert.equal(disconnectResponse.headers.get("Cache-Control"), "no-store");
+
+    const key = Buffer.alloc(32, 37);
+    process.env["PLAID_CLIENT_ID"] = "test-client-id";
+    process.env["PLAID_SECRET"] = "test-secret";
+    process.env["PLAID_ENV"] = "sandbox";
+    process.env["PLAID_TOKEN_ENCRYPTION_KEY"] = key.toString("base64");
+    databaseModule.sqliteClient.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+      .run("user-one", "User One", "one@example.test");
+    databaseModule.sqliteClient.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
+      .run("item-one", "user-one", encryptPlaidValue("Bank One", key), encryptPlaidValue("mock-access-token", key));
+    databaseModule.sqliteClient.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
+      .run("item-two", "user-one", encryptPlaidValue("Bank Two", key), encryptPlaidValue("other-mock-access-token", key));
+
+    const originalGetSession = auth.api.getSession;
+    const originalItemRemove = PlaidApi.prototype.itemRemove;
+    const originalTransactionsSync = PlaidApi.prototype.transactionsSync;
+    let sessionUserId = "someone-else";
+    let plaidRemoveCalls = 0;
+    const transactionSyncTokens = [];
+    auth.api.getSession = async () => ({ user: { id: sessionUserId } });
+    PlaidApi.prototype.itemRemove = async () => {
+      plaidRemoveCalls += 1;
+      return { data: { request_id: "mock-request" } };
+    };
+    PlaidApi.prototype.transactionsSync = async (request) => {
+      transactionSyncTokens.push(request.access_token);
+      return { data: { added: [], modified: [], removed: [], next_cursor: "fresh-cursor", has_more: false } };
+    };
+    try {
+      const wrongOwnerSync = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
+        method: "POST",
+        headers: { Origin: "http://localhost:5173" },
+      });
+      assert.equal(wrongOwnerSync.status, 404);
+      assert.equal(transactionSyncTokens.length, 0);
+
+      sessionUserId = "user-one";
+      const institutionSync = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
+        method: "POST",
+        headers: { Origin: "http://localhost:5173" },
+      });
+      assert.equal(institutionSync.status, 200);
+      assert.deepEqual(await institutionSync.json(), { synced: true });
+      assert.deepEqual(transactionSyncTokens, ["mock-access-token"]);
+      assert.equal(decryptPlaidValue(databaseModule.sqliteClient.prepare("SELECT encrypted_transaction_cursor AS cursor FROM bank_item WHERE item_id = ?")
+        .get("item-one").cursor, key), "fresh-cursor");
+      assert.equal(databaseModule.sqliteClient.prepare("SELECT encrypted_transaction_cursor FROM bank_item WHERE item_id = ?")
+        .get("item-two").encrypted_transaction_cursor, null);
+
+      sessionUserId = "someone-else";
+      const wrongOwnerResponse = await bankAccountsRouter.request("/items/item-one", {
+        method: "DELETE",
+        headers: { Origin: "http://localhost:5173" },
+      });
+      assert.equal(wrongOwnerResponse.status, 404);
+      assert.equal(plaidRemoveCalls, 0);
+
+      sessionUserId = "user-one";
+      const successfulDisconnect = await bankAccountsRouter.request("/items/item-one", {
+        method: "DELETE",
+        headers: { Origin: "http://localhost:5173" },
+      });
+      assert.equal(successfulDisconnect.status, 204);
+      assert.equal(plaidRemoveCalls, 1);
+      assert.equal(databaseModule.sqliteClient.prepare("SELECT item_id FROM bank_item WHERE item_id = ?")
+        .get("item-one"), undefined);
+    } finally {
+      auth.api.getSession = originalGetSession;
+      PlaidApi.prototype.itemRemove = originalItemRemove;
+      PlaidApi.prototype.transactionsSync = originalTransactionsSync;
+    }
   } finally {
     await closeDatabase?.();
     for (const [name, value] of Object.entries(originalEnvironment)) {

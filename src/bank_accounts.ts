@@ -383,11 +383,21 @@ export function renderAccounts(accounts: BankAccount[]): string {
               <h2>${institutionName}</h2>
               <span class="institution-updated">${updateLabel}</span>
             </div>
-            <button
-              class="text-button disconnect-bank"
-              type="button"
-              data-item-id="${escapeHtml(itemId)}"
-            >Disconnect</button>
+            <div class="institution-actions">
+              <button class="icon-button sync-institution-button" type="button"
+                aria-label="Synchronize ${institutionName}" title="Synchronize ${institutionName}"
+                data-item-id="${escapeHtml(itemId)}" data-institution-name="${institutionName}">
+                <svg class="sync-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.3 8A6.5 6.5 0 0 0 5 4.8L3.5 6.3M3.5 6.3V2.8M3.5 6.3H7M3.7 12a6.5 6.5 0 0 0 11.3 3.2l1.5-1.5m0 0v3.5m0-3.5H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <details class="institution-actions-menu">
+                <summary class="icon-button menu-trigger" aria-label="More actions for ${institutionName}" title="More actions for ${institutionName}">
+                  <span aria-hidden="true">⋯</span>
+                </summary>
+                <div class="institution-actions-menu-panel">
+                  <button class="menu-item disconnect-bank" type="button" data-item-id="${escapeHtml(itemId)}">Disconnect</button>
+                </div>
+              </details>
+            </div>
           </header>
           <div class="connected-account-list">${accountRows}</div>
         </section>
@@ -558,6 +568,8 @@ async function refreshAccounts(): Promise<void> {
     document.querySelector<HTMLDivElement>("#connected-accounts");
   const connectButton: HTMLButtonElement | null =
     document.querySelector<HTMLButtonElement>("#connect-bank");
+  const syncAllButton: HTMLButtonElement | null =
+    document.querySelector<HTMLButtonElement>("#sync-all-institutions");
   if (!container) {
     return;
   }
@@ -582,12 +594,17 @@ async function refreshAccounts(): Promise<void> {
       connectButton.disabled = !payload.configured;
       connectButton.hidden = !payload.configured;
     }
+    if (syncAllButton) {
+      syncAllButton.hidden = !payload.configured || payload.accounts.length === 0;
+      syncAllButton.disabled = syncAllButton.hidden;
+    }
     const setupNotice: HTMLParagraphElement | null =
       document.querySelector<HTMLParagraphElement>("#plaid-setup-notice");
     if (setupNotice) {
       setupNotice.hidden = payload.configured;
     }
     attachDisconnectHandlers();
+    attachInstitutionSyncHandlers();
   } catch (error: unknown) {
     container.innerHTML = `
       <div class="accounts-error">
@@ -648,6 +665,64 @@ function attachDisconnectHandlers(): void {
         }
       });
     });
+}
+
+function attachInstitutionSyncHandlers(): void {
+  document
+    .querySelectorAll<HTMLButtonElement>(".sync-institution-button")
+    .forEach((button): void => {
+      button.addEventListener("click", async (): Promise<void> => {
+        const itemId = button.dataset["itemId"];
+        const institutionName = button.dataset["institutionName"] ?? "institution";
+        if (!itemId) return;
+
+        button.disabled = true;
+        setAccountsMessage(`Syncing ${institutionName}…`, false);
+        try {
+          const response = await fetch(
+            `/api/accounts/items/${encodeURIComponent(itemId)}/transactions/sync`,
+            { method: "POST", credentials: "same-origin" },
+          );
+          const payload: unknown = await readJson(response);
+          if (!response.ok) {
+            throw new Error(getErrorMessage(payload, `Unable to sync ${institutionName}.`));
+          }
+          setAccountsMessage(`${institutionName} synchronized.`, false);
+          await refreshAccounts();
+        } catch (error: unknown) {
+          setAccountsMessage(
+            error instanceof Error ? error.message : `Unable to sync ${institutionName}.`,
+            true,
+          );
+        } finally {
+          if (button.isConnected) button.disabled = false;
+        }
+      });
+    });
+}
+
+async function syncAllInstitutions(button: HTMLButtonElement): Promise<void> {
+  button.disabled = true;
+  setAccountsMessage("Syncing all connected institutions…", false);
+  try {
+    const response = await fetch("/api/accounts/transactions/sync", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    const payload: unknown = await readJson(response);
+    if (!response.ok) {
+      throw new Error(getErrorMessage(payload, "Unable to sync connected institutions."));
+    }
+    setAccountsMessage("All connected institutions synchronized.", false);
+    await refreshAccounts();
+  } catch (error: unknown) {
+    setAccountsMessage(
+      error instanceof Error ? error.message : "Unable to sync connected institutions.",
+      true,
+    );
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
 }
 
 async function completePlaidConnection(publicToken: string): Promise<void> {
@@ -805,9 +880,15 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
             <h1>Accounts</h1>
             <p class="subheading">Bank accounts connected to your Finance profile.</p>
           </div>
-          <button class="primary-button" id="connect-bank" type="button" hidden>
-            <span aria-hidden="true">＋</span> Connect a bank
-          </button>
+          <div class="accounts-page-actions">
+            <button class="secondary-button sync-all-button" id="sync-all-institutions" type="button" hidden>
+              <svg class="sync-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.3 8A6.5 6.5 0 0 0 5 4.8L3.5 6.3M3.5 6.3V2.8M3.5 6.3H7M3.7 12a6.5 6.5 0 0 0 11.3 3.2l1.5-1.5m0 0v3.5m0-3.5H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Sync all
+            </button>
+            <button class="primary-button" id="connect-bank" type="button" hidden>
+              <span aria-hidden="true">＋</span> Connect a bank
+            </button>
+          </div>
         </section>
 
         <section class="panel plaid-setup-notice" id="plaid-setup-notice" hidden>
@@ -959,5 +1040,9 @@ export function initializeBankAccountsPage(): void {
     ?.addEventListener("click", (): void => {
       void connectBank();
     });
+  const syncAllButton = document.querySelector<HTMLButtonElement>("#sync-all-institutions");
+  syncAllButton?.addEventListener("click", (): void => {
+    void syncAllInstitutions(syncAllButton);
+  });
   void refreshAccounts();
 }
