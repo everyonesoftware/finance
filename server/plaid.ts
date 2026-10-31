@@ -12,6 +12,18 @@ export interface PlaidConnection {
 
 export class PlaidConfigurationError extends Error {}
 
+export class UnsupportedPlaidDataFormatError extends Error {
+  constructor() {
+    super("Stored Plaid data has an unsupported encryption format.");
+    this.name = "UnsupportedPlaidDataFormatError";
+  }
+}
+
+export interface PlaidTransactionCursorRead {
+  cursor: string | undefined;
+  recovered: boolean;
+}
+
 export interface PlaidErrorLogContext {
   phase?: string;
   itemNumber?: number;
@@ -229,7 +241,7 @@ export function decryptPlaidValue(value: string, key: Buffer): string {
     !authTagValue ||
     !encryptedValue
   ) {
-    throw new Error("Stored Plaid data has an unsupported encryption format.");
+    throw new UnsupportedPlaidDataFormatError();
   }
 
   const decipher = createDecipheriv(
@@ -243,4 +255,20 @@ export function decryptPlaidValue(value: string, key: Buffer): string {
     decipher.update(Buffer.from(encryptedValue, "base64")),
     decipher.final(),
   ]).toString("utf8");
+}
+
+export function readPlaidTransactionCursor(
+  value: string | null,
+  key: Buffer,
+): PlaidTransactionCursorRead {
+  if (value === null) return { cursor: undefined, recovered: false };
+
+  try {
+    return { cursor: decryptPlaidValue(value, key), recovered: false };
+  } catch (error) {
+    if (error instanceof UnsupportedPlaidDataFormatError) {
+      return { cursor: undefined, recovered: true };
+    }
+    throw error;
+  }
 }

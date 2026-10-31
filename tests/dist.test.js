@@ -7,6 +7,7 @@ import {
   decryptPlaidValue,
   encryptPlaidValue,
   getPlaidErrorLogDetails,
+  readPlaidTransactionCursor,
 } from "../server-dist/plaid.js";
 import { listAccountTransactions, refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
 import { applySqlMigration } from "../server-dist/migration-utils.js";
@@ -197,6 +198,25 @@ test("Plaid data encryption hides values and detects tampering", () => {
   const changedCiphertext = `${ciphertext.startsWith("A") ? "B" : "A"}${ciphertext.slice(1)}`;
   const tampered = [version, iv, authTag, changedCiphertext].join(".");
   assert.throws(() => decryptPlaidValue(tampered, key));
+});
+
+test("an unsupported saved transaction cursor triggers a fresh sync", () => {
+  const result = readPlaidTransactionCursor("legacy-cursor-value", Buffer.alloc(32, 17));
+  assert.deepEqual(result, { cursor: undefined, recovered: true });
+});
+
+test("an encrypted saved transaction cursor is preserved", () => {
+  const key = Buffer.alloc(32, 17);
+  const encrypted = encryptPlaidValue("cursor-123", key);
+  assert.deepEqual(readPlaidTransactionCursor(encrypted, key), {
+    cursor: "cursor-123",
+    recovered: false,
+  });
+});
+
+test("a saved cursor that fails authentication is not treated as a format recovery", () => {
+  const encrypted = encryptPlaidValue("cursor-123", Buffer.alloc(32, 17));
+  assert.throws(() => readPlaidTransactionCursor(encrypted, Buffer.alloc(32, 18)));
 });
 
 test("Plaid failure logs contain diagnostics but omit sensitive response data", () => {

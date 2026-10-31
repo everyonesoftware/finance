@@ -13,6 +13,7 @@ import {
   encryptPlaidValue,
   getPlaidErrorLogDetails,
   getPlaidConnection,
+  readPlaidTransactionCursor,
   PlaidConfigurationError,
   type PlaidErrorLogContext,
 } from "./plaid.js";
@@ -358,9 +359,14 @@ bankAccountsRouter.post("/transactions/sync", async (context) => {
       const access_token = decryptPlaidValue(item.token, connection.encryptionKey);
 
       failureContext = { ...itemContext, phase: "decrypt saved transaction cursor" };
-      const initialCursor = item.cursor
-        ? decryptPlaidValue(item.cursor, connection.encryptionKey)
-        : undefined;
+      const cursorRead = readPlaidTransactionCursor(item.cursor, connection.encryptionKey);
+      const initialCursor = cursorRead.cursor;
+      if (cursorRead.recovered) {
+        console.warn(
+          "Saved transaction cursor format is unsupported; retrying this item from an initial sync.",
+          JSON.stringify(itemContext),
+        );
+      }
 
       failureContext = { ...itemContext, phase: "request Plaid transaction page" };
       const batch = await collectTransactionPages(async ({ cursor }) => {
