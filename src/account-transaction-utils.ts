@@ -7,6 +7,33 @@ interface TransactionAccountMention {
   account: BankAccount;
 }
 
+export function findFidelityAchAccountMention(
+  name: string,
+  accounts: BankAccount[],
+): TransactionAccountMention | null {
+  const referenceMatch = name.match(
+    /^(X\d{4,}(\d{4}))\s+\S+\s+FID\s+BKG\s+SVC\s+LLC\s+ACH\b/i,
+  );
+  if (!referenceMatch?.[1] || !referenceMatch[2] || referenceMatch.index === undefined) return null;
+  const sourceMask = referenceMatch[2];
+
+  const sourceAccounts = accounts.filter((account) => {
+    const accountMask = account.mask?.replace(/\D/g, "");
+    return account.type === "investment" &&
+      /\bfidelity\b/i.test(account.institutionName) &&
+      accountMask?.endsWith(sourceMask);
+  });
+  if (sourceAccounts.length !== 1) return null;
+  const account = sourceAccounts[0];
+  if (!account) return null;
+
+  return {
+    start: referenceMatch.index,
+    end: referenceMatch.index + referenceMatch[1].length,
+    account,
+  };
+}
+
 function getTransactionAccountMentions(
   name: string,
   accounts: BankAccount[],
@@ -51,6 +78,11 @@ export function findReferencedAccount(name: string, accounts: BankAccount[]): Ba
 
 export function renderLinkedTransactionName(name: string, accounts: BankAccount[]): string {
   const candidates = getTransactionAccountMentions(name, accounts);
+  const fidelityAchMention = findFidelityAchAccountMention(name, accounts);
+  if (fidelityAchMention) {
+    candidates.push(fidelityAchMention);
+    candidates.sort((a, b) => a.start - b.start || (b.end - b.start) - (a.end - a.start));
+  }
   let result = "";
   let lastIndex = 0;
   for (const candidate of candidates) {

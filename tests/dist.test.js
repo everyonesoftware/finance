@@ -115,7 +115,7 @@ test("Fidelity ACH deposits referencing a connected brokerage account are groupe
   const html = renderTransactionList([transaction], accounts);
   assert.match(html, /Transfer: Brokerage → Spending/);
   assert.match(html, /class="transfer-pair-amount">\$400\.00/);
-  assert.match(html, /X77621283 708XN FID BKG SVC LLC ACH/);
+  assert.match(html, /<a class="transaction-account-link" href="\/accounts\/fidelity-id">X77621283<\/a> 708XN FID BKG SVC LLC ACH/);
 });
 
 test("Fidelity ACH transfer detection requires an incoming transaction and matching connected Fidelity mask", () => {
@@ -502,8 +502,28 @@ test("account details render a matching Fidelity ACH deposit as a collapsed tran
   assert.match(html, /<details class="transaction-transfer-pair">/);
   assert.match(html, /Transfer: Individual - TOD → Checking/);
   assert.match(html, /class="transfer-pair-amount">\$25,004\.82/);
-  assert.match(html, /class="transfer-pair-rows">[\s\S]*?X77621283 708XN FID BKG SVC LLC ACH/);
+  assert.match(html, /class="transfer-pair-rows">[\s\S]*?<a class="transaction-account-link" href="\/accounts\/fidelity-tod">X77621283<\/a> 708XN FID BKG SVC LLC ACH/);
   assert.doesNotMatch(html, /class="account-transaction-row"/);
+
+  const duplicateFidelityAccount = { ...fidelityAccount, id: "fidelity-duplicate", mask: "51283" };
+  const ambiguousHtml = renderAccountDetail(allyAccount, [transaction], [allyAccount, fidelityAccount, duplicateFidelityAccount]);
+  assert.doesNotMatch(ambiguousHtml, /<a class="transaction-account-link" href="\/accounts\/fidelity-tod">X77621283<\/a>/);
+
+  const unrelatedTransaction = { ...transaction, name: "X77621283 OTHER MERCHANT ACH" };
+  const unrelatedHtml = renderAccountDetail(allyAccount, [unrelatedTransaction], [allyAccount, fidelityAccount]);
+  assert.doesNotMatch(unrelatedHtml, /<a class="transaction-account-link"[^>]*>X77621283<\/a>/);
+
+  const otherFidelityAccount = { ...fidelityAccount, id: "fidelity-2345", mask: "2345" };
+  const misleadingTransaction = {
+    ...transaction,
+    name: "X88882345 unrelated X77621283 708XN FID BKG SVC LLC ACH",
+  };
+  const misleadingHtml = renderAccountDetail(allyAccount, [misleadingTransaction], [
+    allyAccount,
+    fidelityAccount,
+    otherFidelityAccount,
+  ]);
+  assert.doesNotMatch(misleadingHtml, /<a class="transaction-account-link" href="\/accounts\/fidelity-2345">X88882345<\/a>/);
 });
 
 test("bank-account migration creates user-owned encrypted data tables", async () => {

@@ -1,5 +1,10 @@
 import type { BankAccount } from "./bank_accounts.ts";
-import { findReferencedAccount, formatTransactionAmount, renderLinkedTransactionName } from "./account-transaction-utils.ts";
+import {
+  findFidelityAchAccountMention,
+  findReferencedAccount,
+  formatTransactionAmount,
+  renderLinkedTransactionName,
+} from "./account-transaction-utils.ts";
 import { escapeHtml } from "./html-utils.ts";
 
 export type TransactionRecord = Record<string, unknown>;
@@ -49,27 +54,18 @@ function getFidelityAchTransferAccounts(
   const name = stringField(transaction, "name");
   const amount = numberField(transaction, "amount");
   const receivingAccountId = stringField(transaction, "account_id");
-  const referenceMatch = name?.match(/\bX\d{4,}(\d{4})\b/i);
   if (
     !name ||
     !/\bFID\s+BKG\s+SVC\s+LLC\s+ACH\b/i.test(name) ||
-    !referenceMatch?.[1] ||
     amount === null || amount >= 0 ||
     !receivingAccountId
   ) return null;
 
   const toAccount = accountsByPlaidId.get(receivingAccountId);
   if (!toAccount || toAccount.type !== "depository") return null;
-  const sourceMask = referenceMatch[1];
-  const sourceAccounts = accounts.filter((account) => {
-    const accountMask = account.mask?.replace(/\D/g, "");
-    return account.type === "investment" &&
-      /\bfidelity\b/i.test(account.institutionName) &&
-      accountMask?.endsWith(sourceMask);
-  });
-  if (sourceAccounts.length !== 1 || sourceAccounts[0]?.id === toAccount.id) return null;
-  const fromAccount = sourceAccounts[0];
-  return fromAccount ? { fromAccount, toAccount } : null;
+  const sourceMention = findFidelityAchAccountMention(name, accounts);
+  if (!sourceMention || sourceMention.account.id === toAccount.id) return null;
+  return { fromAccount: sourceMention.account, toAccount };
 }
 
 function plausiblePair(
