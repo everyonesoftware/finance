@@ -19,6 +19,7 @@ export interface BankAccount {
   availableBalance: number | null;
   currencyCode: string | null;
   updatedAt: string;
+  lastRetrievedAt?: string;
 }
 
 interface AccountsResponse {
@@ -106,6 +107,7 @@ function isBankAccount(value: unknown): value is BankAccount {
     isNullableString(value.currencyCode) &&
     "updatedAt" in value &&
     typeof value.updatedAt === "string" &&
+    (!("lastRetrievedAt" in value) || typeof value.lastRetrievedAt === "string") &&
     (!("plaidAccountId" in value) || typeof value.plaidAccountId === "string")
   );
 }
@@ -333,14 +335,16 @@ export function renderAccounts(accounts: BankAccount[]): string {
   return [...groups.entries()]
     .map(([itemId, group]): string => {
       const institutionName: string = escapeHtml(group[0]?.institutionName ?? "Bank");
-      const updatedAt: Date = new Date(group[0]?.updatedAt ?? "");
-      const updateLabel: string = Number.isNaN(updatedAt.getTime())
-        ? ""
-        : `Account details retrieved ${escapeHtml(
+      const lastRetrievedAt: Date = new Date(
+        group[0]?.lastRetrievedAt ?? group[0]?.updatedAt ?? "",
+      );
+      const updateLabel: string = Number.isNaN(lastRetrievedAt.getTime())
+        ? "Last retrieved time unavailable"
+        : `Last retrieved ${escapeHtml(
             new Intl.DateTimeFormat(undefined, {
               dateStyle: "medium",
               timeStyle: "short",
-            }).format(updatedAt),
+            }).format(lastRetrievedAt),
           )}`;
       const accountRows: string = group
         .map((account): string => {
@@ -381,9 +385,9 @@ export function renderAccounts(accounts: BankAccount[]): string {
             <div>
               <p class="eyebrow">CONNECTED INSTITUTION</p>
               <h2>${institutionName}</h2>
-              <span class="institution-updated">${updateLabel}</span>
             </div>
             <div class="institution-actions">
+              <span class="institution-last-retrieved">${updateLabel}</span>
               <button class="icon-button sync-institution-button" type="button"
                 aria-label="Synchronize ${institutionName}" title="Synchronize ${institutionName}"
                 data-item-id="${escapeHtml(itemId)}" data-institution-name="${institutionName}">

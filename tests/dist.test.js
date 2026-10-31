@@ -375,7 +375,8 @@ test("institution cards provide a sync action and hide disconnect in the overflo
     currentBalance: 75,
     availableBalance: 100,
     currencyCode: "USD",
-    updatedAt: new Date().toISOString(),
+    updatedAt: "2025-01-05T12:00:00.000Z",
+    lastRetrievedAt: "2026-10-31T12:00:00.000Z",
   };
   const html = renderAccounts([account]);
   const syncIndex = html.indexOf("sync-institution-button");
@@ -387,6 +388,9 @@ test("institution cards provide a sync action and hide disconnect in the overflo
   assert.ok(disconnectIndex > menuIndex, "disconnect action should be inside the overflow menu");
   assert.match(html, /aria-label="Synchronize Bank One"/);
   assert.match(html, /aria-label="More actions for Bank One"/);
+  assert.match(html, /class="institution-last-retrieved">Last retrieved Oct 31, 2026/);
+  assert.ok(html.indexOf("institution-last-retrieved") < syncIndex);
+  assert.doesNotMatch(html, /institution-updated|Jan 5, 2025/);
   assert.match(html, /data-item-id="item-1"/);
 });
 
@@ -740,6 +744,28 @@ test("account sync requires authentication and disconnect removes only after Pla
         .get("item-one").cursor, key), "fresh-cursor");
       assert.equal(databaseModule.sqliteClient.prepare("SELECT encrypted_transaction_cursor FROM bank_item WHERE item_id = ?")
         .get("item-two").encrypted_transaction_cursor, null);
+
+      const snapshotUpdatedAt = Date.parse("2025-01-05T12:00:00.000Z") / 1000;
+      const itemRetrievedAt = Date.parse("2026-10-31T12:00:00.000Z") / 1000;
+      const accountSnapshot = {
+        name: "Checking",
+        officialName: null,
+        type: "depository",
+        subtype: "checking",
+        mask: "1234",
+        currentBalance: 125,
+        availableBalance: 100,
+        currencyCode: "USD",
+      };
+      databaseModule.sqliteClient.prepare("INSERT INTO bank_account (id, plaid_account_id, item_id, user_id, encrypted_data, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
+        .run("account-one", "plaid-account-one", "item-one", "user-one", encryptPlaidValue(JSON.stringify(accountSnapshot), key), snapshotUpdatedAt);
+      databaseModule.sqliteClient.prepare("UPDATE bank_item SET updated_at = ? WHERE item_id = ?")
+        .run(itemRetrievedAt, "item-one");
+      const accountsResponse = await bankAccountsRouter.request("/");
+      assert.equal(accountsResponse.status, 200);
+      const accountPayload = await accountsResponse.json();
+      assert.equal(accountPayload.accounts[0].updatedAt, "2025-01-05T12:00:00.000Z");
+      assert.equal(accountPayload.accounts[0].lastRetrievedAt, "2026-10-31T12:00:00.000Z");
 
       sessionUserId = "someone-else";
       const wrongOwnerResponse = await bankAccountsRouter.request("/items/item-one", {

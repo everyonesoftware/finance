@@ -803,6 +803,14 @@ h1 span {
   gap: 7px;
 }
 
+.institution-last-retrieved {
+  max-width: 190px;
+  color: #7b8379;
+  font-size: 9px;
+  line-height: 1.35;
+  text-align: right;
+}
+
 .institution-actions-menu {
   position: relative;
 }
@@ -1376,6 +1384,10 @@ a.text-button {
   .accounts-page-actions {
     margin-left: auto;
     flex-wrap: wrap;
+  }
+
+  .institution-last-retrieved {
+    max-width: 145px;
   }
 
   .panel {

@@ -38,6 +38,7 @@ interface BankAccountResponse extends AccountSnapshot {
   plaidAccountId: string;
   institutionName: string;
   updatedAt: string;
+  lastRetrievedAt: string;
 }
 
 interface BankItemRecord {
@@ -149,6 +150,7 @@ function getAccountsForUser(userId: string): BankAccountResponse[] {
     encryptedInstitutionName: string;
     encryptedData: string;
     updatedAt: Date;
+    lastRetrievedAt: Date;
   }> = database
     .select({
       id: bankAccount.id,
@@ -157,6 +159,7 @@ function getAccountsForUser(userId: string): BankAccountResponse[] {
       encryptedInstitutionName: bankItem.encryptedInstitutionName,
       encryptedData: bankAccount.encryptedData,
       updatedAt: bankAccount.updatedAt,
+      lastRetrievedAt: bankItem.updatedAt,
     })
     .from(bankAccount)
     .innerJoin(bankItem, eq(bankAccount.itemId, bankItem.itemId))
@@ -187,6 +190,7 @@ function getAccountsForUser(userId: string): BankAccountResponse[] {
         connection.encryptionKey,
       ),
       updatedAt: record.updatedAt.toISOString(),
+      lastRetrievedAt: record.lastRetrievedAt.toISOString(),
     };
   });
 }
