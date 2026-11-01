@@ -116,7 +116,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                 <div class="transaction-filter-popover amount-filter-popover" id="amount-filter-popover" role="dialog" aria-label="Filter by amount" hidden>
                   <div class="transaction-popover-heading">
                     <strong>Amount range</strong>
-                    <button id="reset-amount-filter" type="button">Reset</button>
+                    <button id="reset-amount-filter" class="transaction-popover-action-link" type="button">Reset</button>
                     <button class="transaction-popover-close" id="close-amount-filter" type="button" aria-label="Close amount filters">×</button>
                   </div>
                   <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>

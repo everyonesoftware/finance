@@ -1396,7 +1396,8 @@ a.text-button {
   font-weight: 400;
 }
 
-.transaction-popover-actions button {
+.transaction-popover-actions button,
+.transaction-popover-action-link {
   padding: 0;
   border: 0;
   background: transparent;
@@ -1405,7 +1406,8 @@ a.text-button {
   font-weight: 600;
 }
 
-.transaction-popover-actions button:hover {
+.transaction-popover-actions button:hover,
+.transaction-popover-action-link:hover {
   text-decoration: underline;
 }
 

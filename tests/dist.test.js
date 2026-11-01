@@ -342,7 +342,7 @@ test("transactions page keeps compact account and amount popovers with sort cont
   assert.match(html, /id="account-options"/);
   assert.match(html, /id="amount-filter-trigger"/);
   assert.match(html, /id="amount-filter-popover"[^>]*hidden/);
-  assert.match(html, /id="reset-amount-filter"/);
+  assert.match(html, /id="reset-amount-filter"[^>]*class="transaction-popover-action-link"/);
   assert.equal(formatFilterAmount(-1234.5), "-$1,234.50");
   assert.equal(formatFilterAmount(25), "$25.00");
   assert.match(html, /id="minimum-transaction-amount-slider"[^>]*role="slider"/);
