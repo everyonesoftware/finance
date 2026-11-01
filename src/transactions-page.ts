@@ -116,7 +116,6 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                 <div class="transaction-filter-popover amount-filter-popover" id="amount-filter-popover" role="dialog" aria-label="Filter by amount" hidden>
                   <div class="transaction-popover-heading">
                     <strong>Amount range</strong>
-                    <button id="reset-amount-filter" class="transaction-popover-action-link" type="button">Reset</button>
                     <button class="transaction-popover-close" id="close-amount-filter" type="button" aria-label="Close amount filters">×</button>
                   </div>
                   <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
@@ -126,6 +125,9 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                       <span class="transaction-dual-range-selection" aria-hidden="true"></span>
                       <button class="transaction-dual-range-thumb transaction-dual-range-thumb-minimum" id="minimum-transaction-amount-slider" type="button" role="slider" aria-label="Minimum transaction amount" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="-1" aria-valuetext="-1.00" tabindex="0" disabled></button>
                       <button class="transaction-dual-range-thumb transaction-dual-range-thumb-maximum" id="maximum-transaction-amount-slider" type="button" role="slider" aria-label="Maximum transaction amount" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="1" aria-valuetext="1.00" tabindex="0" disabled></button>
+                    </div>
+                    <div class="transaction-amount-reset-row">
+                      <button id="reset-amount-filter" class="transaction-popover-action-link" type="button">Reset</button>
                     </div>
                     <div class="transaction-amount-inputs">
                       <label class="transaction-amount-input-control" for="minimum-transaction-amount">

@@ -1473,6 +1473,17 @@ a.text-button {
   gap: 12px;
 }
 
+.transaction-amount-reset-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.transaction-amount-reset-row button {
+  grid-column: 2;
+  justify-self: end;
+}
+
 .transaction-dual-range {
   position: relative;
   height: 30px;
