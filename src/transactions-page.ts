@@ -120,14 +120,14 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                   </div>
                   <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
                   <div class="transaction-amount-sliders">
+                    <div class="transaction-amount-reset-row">
+                      <button id="reset-amount-filter" class="transaction-popover-action-link" type="button">Reset</button>
+                    </div>
                     <div class="transaction-dual-range" id="transaction-amount-range" role="group" aria-label="Transaction amount range" style="--range-start: 0%; --range-end: 100%; --minimum-position: 0%; --maximum-position: 100%;">
                       <span class="transaction-dual-range-track" aria-hidden="true"></span>
                       <span class="transaction-dual-range-selection" aria-hidden="true"></span>
                       <button class="transaction-dual-range-thumb transaction-dual-range-thumb-minimum" id="minimum-transaction-amount-slider" type="button" role="slider" aria-label="Minimum transaction amount" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="-1" aria-valuetext="-1.00" tabindex="0" disabled></button>
                       <button class="transaction-dual-range-thumb transaction-dual-range-thumb-maximum" id="maximum-transaction-amount-slider" type="button" role="slider" aria-label="Maximum transaction amount" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="1" aria-valuetext="1.00" tabindex="0" disabled></button>
-                    </div>
-                    <div class="transaction-amount-reset-row">
-                      <button id="reset-amount-filter" class="transaction-popover-action-link" type="button">Reset</button>
                     </div>
                     <div class="transaction-amount-inputs">
                       <label class="transaction-amount-input-control" for="minimum-transaction-amount">
