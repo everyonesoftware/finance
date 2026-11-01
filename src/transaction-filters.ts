@@ -37,6 +37,25 @@ export function updateSelectedAccountIds(
   return [...selected];
 }
 
+export function updateTransactionAmountRange(
+  minimum: number,
+  maximum: number,
+  changedHandle: "minimum" | "maximum",
+  value: number,
+  lowerBound: number,
+  upperBound: number,
+): { minimum: number; maximum: number } {
+  const clampToBounds = (amount: number): number =>
+    Number(Math.min(upperBound, Math.max(lowerBound, amount)).toFixed(2));
+  const currentMinimum = clampToBounds(minimum);
+  const currentMaximum = clampToBounds(maximum);
+  const changedValue = clampToBounds(value);
+  if (changedHandle === "minimum") {
+    return { minimum: changedValue, maximum: Math.max(currentMaximum, changedValue) };
+  }
+  return { minimum: Math.min(currentMinimum, changedValue), maximum: changedValue };
+}
+
 export function getFuzzyMatchPositions(query: string, text: string): number[] | null {
   if (query.trim().length === 0) return [];
 

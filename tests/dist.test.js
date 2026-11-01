@@ -298,6 +298,14 @@ test("dashboard shows only implemented account and transaction features", () => 
   assert.match(html, /class="app-version">Version dev<\/span>/);
 });
 
+test("amount range handles cannot cross and text-entry updates the opposite bound", () => {
+  const updateTransactionAmountRange = transactionFilterUtils.updateTransactionAmountRange;
+  assert.equal(typeof updateTransactionAmountRange, "function");
+  assert.deepEqual(updateTransactionAmountRange(-10, 5, "minimum", 8, -10, 10), { minimum: 8, maximum: 8 });
+  assert.deepEqual(updateTransactionAmountRange(0, 8, "maximum", -3, -10, 10), { minimum: -3, maximum: -3 });
+  assert.deepEqual(updateTransactionAmountRange(-5, 5, "minimum", 99, -10, 10), { minimum: 10, maximum: 10 });
+});
+
 test("transactions page keeps compact account and amount popovers with sort controls", () => {
   const html = renderTransactionsPage({ displayName: "Test", username: "test" });
   assert.ok(html.includes('class="nav-link active" href="/transactions" aria-current="page"'));
@@ -311,8 +319,10 @@ test("transactions page keeps compact account and amount popovers with sort cont
   assert.match(html, /id="account-options"/);
   assert.match(html, /id="amount-filter-trigger"/);
   assert.match(html, /id="amount-filter-popover"[^>]*hidden/);
-  assert.match(html, /id="minimum-transaction-amount" type="range"/);
-  assert.match(html, /id="maximum-transaction-amount" type="range"/);
+  assert.match(html, /id="minimum-transaction-amount-slider" type="range"/);
+  assert.match(html, /id="maximum-transaction-amount-slider" type="range"/);
+  assert.match(html, /id="minimum-transaction-amount" type="number"/);
+  assert.match(html, /id="maximum-transaction-amount" type="number"/);
   for (const value of ["date-desc", "date-asc", "amount-desc", "amount-asc"]) {
     assert.ok(html.includes(`value="${value}"`));
   }

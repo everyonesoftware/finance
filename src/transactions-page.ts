@@ -7,6 +7,7 @@ import {
   getTransactionGroupAmount,
   renderFuzzyHighlightedText,
   updateSelectedAccountIds,
+  updateTransactionAmountRange,
   type TransactionSortOrder,
 } from "./transaction-filters.ts";
 import {
@@ -115,14 +116,22 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                   </div>
                   <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
                   <div class="transaction-amount-sliders">
-                    <label class="transaction-range-control" for="minimum-transaction-amount">
-                      <span>Minimum <output id="minimum-transaction-amount-value">—</output></span>
-                      <input id="minimum-transaction-amount" type="range" min="-1" max="1" step="0.01" value="-1" disabled />
-                    </label>
-                    <label class="transaction-range-control" for="maximum-transaction-amount">
-                      <span>Maximum <output id="maximum-transaction-amount-value">—</output></span>
-                      <input id="maximum-transaction-amount" type="range" min="-1" max="1" step="0.01" value="1" disabled />
-                    </label>
+                    <div class="transaction-dual-range" id="transaction-amount-range" style="--range-start: 0%; --range-end: 100%;">
+                      <span class="transaction-dual-range-track" aria-hidden="true"></span>
+                      <span class="transaction-dual-range-selection" aria-hidden="true"></span>
+                      <input class="transaction-dual-range-thumb transaction-dual-range-thumb-minimum" id="minimum-transaction-amount-slider" type="range" min="-1" max="1" step="0.01" value="-1" aria-label="Minimum transaction amount" disabled />
+                      <input class="transaction-dual-range-thumb transaction-dual-range-thumb-maximum" id="maximum-transaction-amount-slider" type="range" min="-1" max="1" step="0.01" value="1" aria-label="Maximum transaction amount" disabled />
+                    </div>
+                    <div class="transaction-amount-inputs">
+                      <label class="transaction-amount-input-control" for="minimum-transaction-amount">
+                        <span>Minimum</span>
+                        <input id="minimum-transaction-amount" type="number" min="-1" max="1" step="0.01" inputmode="decimal" value="-1" disabled />
+                      </label>
+                      <label class="transaction-amount-input-control" for="maximum-transaction-amount">
+                        <span>Maximum</span>
+                        <input id="maximum-transaction-amount" type="number" min="-1" max="1" step="0.01" inputmode="decimal" value="1" disabled />
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -215,19 +224,22 @@ export async function initializeTransactionsPage(): Promise<void> {
   const amountTriggerSummary = document.querySelector<HTMLSpanElement>("#amount-filter-summary");
   const amountPopover = document.querySelector<HTMLDivElement>("#amount-filter-popover");
   const closeAmountFilter = document.querySelector<HTMLButtonElement>("#close-amount-filter");
+  const amountRange = document.querySelector<HTMLDivElement>("#transaction-amount-range");
+  const minimumSlider = document.querySelector<HTMLInputElement>("#minimum-transaction-amount-slider");
+  const maximumSlider = document.querySelector<HTMLInputElement>("#maximum-transaction-amount-slider");
   const minimumInput = document.querySelector<HTMLInputElement>("#minimum-transaction-amount");
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
-  const minimumOutput = document.querySelector<HTMLOutputElement>("#minimum-transaction-amount-value");
-  const maximumOutput = document.querySelector<HTMLOutputElement>("#maximum-transaction-amount-value");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
   const syncButton = document.querySelector<HTMLButtonElement>("#sync-all-transactions");
-  if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !minimumInput || !maximumInput || !minimumOutput || !maximumOutput || !sortSelect) return;
+  if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
   let hasLoadedTransactions = false;
   let minimumAmount = -1;
   let maximumAmount = 1;
+  let selectedMinimumAmount = -1;
+  let selectedMaximumAmount = 1;
 
   const updateAccountSummary = (): void => {
     accountSelected.textContent = String(getSelectedAccountIds(accountOptions).length);
@@ -256,12 +268,10 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const updateAmountSummary = (): void => {
-    const minimum = Number(minimumInput.value);
-    const maximum = Number(maximumInput.value);
-    const isFullRange = minimum <= minimumAmount && maximum >= maximumAmount;
+    const isFullRange = selectedMinimumAmount <= minimumAmount && selectedMaximumAmount >= maximumAmount;
     amountTriggerSummary.textContent = isFullRange
       ? "Any"
-      : `${formatFilterAmount(minimum)}–${formatFilterAmount(maximum)}`;
+      : `${formatFilterAmount(selectedMinimumAmount)}–${formatFilterAmount(selectedMaximumAmount)}`;
   };
 
   const closeFilterPopovers = (): void => {
@@ -293,8 +303,8 @@ export async function initializeTransactionsPage(): Promise<void> {
     const filtered = filterAndSortTransactionGroups(groups, accounts, {
       includeAccountIds: selectedAccountIds,
       excludeAccountIds: [],
-      minimumAmount: Number(minimumInput.value),
-      maximumAmount: Number(maximumInput.value),
+      minimumAmount: selectedMinimumAmount,
+      maximumAmount: selectedMaximumAmount,
       sort: sortSelect.value as TransactionSortOrder,
     });
     const filteredTransactions = filtered.flatMap((group) => group.transactions);
@@ -333,21 +343,47 @@ export async function initializeTransactionsPage(): Promise<void> {
     renderResults();
   };
 
-  const updateAmountOutputs = (): void => {
-    minimumOutput.value = formatFilterAmount(Number(minimumInput.value));
-    maximumOutput.value = formatFilterAmount(Number(maximumInput.value));
+  const updateAmountControlVisual = (): void => {
+    minimumSlider.value = String(selectedMinimumAmount);
+    maximumSlider.value = String(selectedMaximumAmount);
+    const amountSpan = maximumAmount - minimumAmount;
+    const rangeStart = ((selectedMinimumAmount - minimumAmount) / amountSpan) * 100;
+    const rangeEnd = ((selectedMaximumAmount - minimumAmount) / amountSpan) * 100;
+    amountRange.style.setProperty("--range-start", `${rangeStart}%`);
+    amountRange.style.setProperty("--range-end", `${rangeEnd}%`);
+  };
+
+  const updateAmountRange = (changedHandle: "minimum" | "maximum", value: number): void => {
+    const range = updateTransactionAmountRange(
+      selectedMinimumAmount,
+      selectedMaximumAmount,
+      changedHandle,
+      value,
+      minimumAmount,
+      maximumAmount,
+    );
+    selectedMinimumAmount = range.minimum;
+    selectedMaximumAmount = range.maximum;
+    minimumInput.value = String(selectedMinimumAmount);
+    maximumInput.value = String(selectedMaximumAmount);
+    updateAmountControlVisual();
+    renderResults();
   };
 
   const syncRangeBounds = (): void => {
-    minimumInput.min = String(minimumAmount);
-    minimumInput.max = String(maximumAmount);
-    maximumInput.min = String(minimumAmount);
-    maximumInput.max = String(maximumAmount);
-    minimumInput.value = String(minimumAmount);
-    maximumInput.value = String(maximumAmount);
+    for (const input of [minimumSlider, maximumSlider, minimumInput, maximumInput]) {
+      input.min = String(minimumAmount);
+      input.max = String(maximumAmount);
+    }
+    selectedMinimumAmount = minimumAmount;
+    selectedMaximumAmount = maximumAmount;
+    minimumInput.value = String(selectedMinimumAmount);
+    maximumInput.value = String(selectedMaximumAmount);
+    minimumSlider.disabled = false;
+    maximumSlider.disabled = false;
     minimumInput.disabled = false;
     maximumInput.disabled = false;
-    updateAmountOutputs();
+    updateAmountControlVisual();
   };
 
   const loadTransactions = async (): Promise<void> => {
@@ -417,16 +453,26 @@ export async function initializeTransactionsPage(): Promise<void> {
       (accountWasOpen ? accountTrigger : amountTrigger).focus();
     }
   });
-  minimumInput.addEventListener("input", () => {
-    if (Number(minimumInput.value) > Number(maximumInput.value)) maximumInput.value = minimumInput.value;
-    updateAmountOutputs();
-    renderResults();
-  });
-  maximumInput.addEventListener("input", () => {
-    if (Number(maximumInput.value) < Number(minimumInput.value)) minimumInput.value = maximumInput.value;
-    updateAmountOutputs();
-    renderResults();
-  });
+  const handleAmountInput = (handle: "minimum" | "maximum", input: HTMLInputElement): void => {
+    if (input.value.trim().length === 0) return;
+    const value = Number(input.value);
+    if (Number.isFinite(value)) updateAmountRange(handle, value);
+  };
+
+  const handleAmountInputCommit = (handle: "minimum" | "maximum", input: HTMLInputElement, slider: HTMLInputElement): void => {
+    if (input.value.trim().length === 0 || !Number.isFinite(Number(input.value))) {
+      input.value = slider.value;
+      return;
+    }
+    updateAmountRange(handle, Number(input.value));
+  };
+
+  minimumSlider.addEventListener("input", () => updateAmountRange("minimum", Number(minimumSlider.value)));
+  maximumSlider.addEventListener("input", () => updateAmountRange("maximum", Number(maximumSlider.value)));
+  minimumInput.addEventListener("input", () => handleAmountInput("minimum", minimumInput));
+  maximumInput.addEventListener("input", () => handleAmountInput("maximum", maximumInput));
+  minimumInput.addEventListener("change", () => handleAmountInputCommit("minimum", minimumInput, minimumSlider));
+  maximumInput.addEventListener("change", () => handleAmountInputCommit("maximum", maximumInput, maximumSlider));
 
   if (syncButton) {
     syncButton.addEventListener("click", async () => {

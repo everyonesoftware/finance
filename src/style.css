@@ -1468,37 +1468,144 @@ a.text-button {
 
 .transaction-amount-sliders {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
 }
 
-.transaction-range-control {
+.transaction-dual-range {
+  position: relative;
+  height: 30px;
+  margin: 0 8px;
+  --range-start: 0%;
+  --range-end: 100%;
+}
+
+.transaction-dual-range-track,
+.transaction-dual-range-selection {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  border-radius: 999px;
+  transform: translateY(-50%);
+}
+
+.transaction-dual-range-track {
+  right: 0;
+  left: 0;
+  background: #e2e9e2;
+}
+
+.transaction-dual-range-selection {
+  left: var(--range-start);
+  right: calc(100% - var(--range-end));
+  background: #2e6749;
+}
+
+.transaction-dual-range-thumb {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  appearance: none;
+  background: transparent;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.transaction-dual-range-thumb-minimum {
+  z-index: 2;
+}
+
+.transaction-dual-range-thumb-maximum {
+  z-index: 1;
+}
+
+.transaction-dual-range-thumb::-webkit-slider-runnable-track {
+  height: 4px;
+  background: transparent;
+}
+
+.transaction-dual-range-thumb::-moz-range-track {
+  height: 4px;
+  background: transparent;
+}
+
+.transaction-dual-range-thumb::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  appearance: none;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #2e6749;
+  box-shadow: 0 0 0 1px #2e6749, 0 1px 3px rgb(20 44 29 / 25%);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.transaction-dual-range-thumb:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.transaction-dual-range-thumb::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #2e6749;
+  box-shadow: 0 0 0 1px #2e6749, 0 1px 3px rgb(20 44 29 / 25%);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.transaction-dual-range-thumb:focus-visible {
+  outline: none;
+}
+
+.transaction-dual-range-thumb:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgb(46 103 73 / 24%);
+}
+
+.transaction-dual-range-thumb:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgb(46 103 73 / 24%);
+}
+
+.transaction-amount-inputs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.transaction-amount-input-control {
   display: grid;
   min-width: 0;
-  gap: 9px;
+  gap: 5px;
   color: #51584f;
-  font-size: 10px;
+  font-size: 9px;
 }
 
-.transaction-range-control > span {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.transaction-range-control output {
-  color: #2e6749;
-  font-size: 10px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.transaction-range-control input {
+.transaction-amount-input-control input {
   width: 100%;
   min-width: 0;
-  margin: 0;
-  accent-color: #2e6749;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid #e5e9e3;
+  border-radius: 7px;
+  background: #fff;
+  color: #303730;
+  font: inherit;
+  font-size: 11px;
+}
+
+.transaction-amount-input-control input:focus-visible {
+  border-color: #83a98c;
+  outline: 2px solid rgb(46 103 73 / 18%);
+  outline-offset: 1px;
+}
+
+.transaction-amount-input-control input:disabled,
+.transaction-dual-range-thumb:disabled {
+  cursor: not-allowed;
 }
 
 .transaction-sort-control {
