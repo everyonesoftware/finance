@@ -15,7 +15,7 @@ import { collectTransactionPages, getRecentTransactions } from "../server-dist/t
 import { groupInternalTransfers, renderTransactionList } from "../src/transaction-list.ts";
 import { filterAndSortTransactionGroups } from "../src/transaction-filters.ts";
 import * as transactionFilterUtils from "../src/transaction-filters.ts";
-import { renderTransactionsPage, getTransactionAmountBounds } from "../src/transactions-page.ts";
+import { renderTransactionsPage, getTransactionAmountBounds, formatFilterAmount } from "../src/transactions-page.ts";
 import { renderDashboard } from "../src/dashboard.ts";
 import {
   formatTransactionAmount,
@@ -342,6 +342,9 @@ test("transactions page keeps compact account and amount popovers with sort cont
   assert.match(html, /id="account-options"/);
   assert.match(html, /id="amount-filter-trigger"/);
   assert.match(html, /id="amount-filter-popover"[^>]*hidden/);
+  assert.match(html, /id="reset-amount-filter"/);
+  assert.equal(formatFilterAmount(-1234.5), "-$1,234.50");
+  assert.equal(formatFilterAmount(25), "$25.00");
   assert.match(html, /id="minimum-transaction-amount-slider"[^>]*role="slider"/);
   assert.match(html, /id="maximum-transaction-amount-slider"[^>]*role="slider"/);
   assert.match(html, /id="minimum-transaction-amount" type="text" inputmode="decimal"/);

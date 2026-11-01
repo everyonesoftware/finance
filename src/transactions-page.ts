@@ -31,11 +31,12 @@ interface TransactionsResponse {
   configured: boolean;
 }
 
-function formatFilterAmount(value: number): string {
-  return new Intl.NumberFormat("en-US", {
+export function formatFilterAmount(value: number): string {
+  const formatted = new Intl.NumberFormat("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
+  }).format(Math.abs(value));
+  return `${value < 0 ? "-" : ""}$${formatted}`;
 }
 
 export function renderTransactionsPage(user: TransactionsPageUser): string {
@@ -115,6 +116,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                 <div class="transaction-filter-popover amount-filter-popover" id="amount-filter-popover" role="dialog" aria-label="Filter by amount" hidden>
                   <div class="transaction-popover-heading">
                     <strong>Amount range</strong>
+                    <button id="reset-amount-filter" type="button">Reset</button>
                     <button class="transaction-popover-close" id="close-amount-filter" type="button" aria-label="Close amount filters">×</button>
                   </div>
                   <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
@@ -227,6 +229,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   const amountTriggerSummary = document.querySelector<HTMLSpanElement>("#amount-filter-summary");
   const amountPopover = document.querySelector<HTMLDivElement>("#amount-filter-popover");
   const closeAmountFilter = document.querySelector<HTMLButtonElement>("#close-amount-filter");
+  const resetAmountFilter = document.querySelector<HTMLButtonElement>("#reset-amount-filter");
   const amountRange = document.querySelector<HTMLDivElement>("#transaction-amount-range");
   const minimumSlider = document.querySelector<HTMLButtonElement>("#minimum-transaction-amount-slider");
   const maximumSlider = document.querySelector<HTMLButtonElement>("#maximum-transaction-amount-slider");
@@ -234,7 +237,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
   const syncButton = document.querySelector<HTMLButtonElement>("#sync-all-transactions");
-  if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
+  if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !resetAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
@@ -469,6 +472,14 @@ export async function initializeTransactionsPage(): Promise<void> {
   closeAmountFilter.addEventListener("click", () => {
     closeFilterPopovers();
     amountTrigger.focus();
+  });
+  resetAmountFilter.addEventListener("click", () => {
+    selectedMinimumAmount = minimumAmount;
+    selectedMaximumAmount = maximumAmount;
+    minimumInput.value = String(minimumAmount);
+    maximumInput.value = String(maximumAmount);
+    updateAmountControlVisual();
+    renderResults();
   });
   selectAllAccounts.addEventListener("click", () => updateAccountSelection(true));
   deselectAllAccounts.addEventListener("click", () => updateAccountSelection(false));
