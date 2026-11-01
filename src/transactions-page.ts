@@ -3,7 +3,9 @@ import { escapeHtml } from "./html-utils.ts";
 import {
   filterAndSortTransactionGroups,
   getAccountSelectionOnLoad,
+  getFuzzyMatchPositions,
   getTransactionGroupAmount,
+  renderFuzzyHighlightedText,
   type TransactionSortOrder,
 } from "./transaction-filters.ts";
 import {
@@ -90,6 +92,9 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                     <strong>Accounts</strong>
                     <button class="transaction-popover-close" id="close-accounts-filter" type="button" aria-label="Close account filters">×</button>
                   </div>
+                  <label class="transaction-account-search">
+                    <input id="account-filter-search" type="search" placeholder="Search accounts…" aria-label="Search accounts" aria-controls="account-options" autocomplete="off" />
+                  </label>
                   <div class="transaction-popover-actions">
                     <button id="select-all-accounts" type="button">Select all</button>
                     <button id="deselect-all-accounts" type="button">Deselect all</button>
@@ -147,16 +152,18 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
 
 function renderAccountOptions(accounts: BankAccount[]): string {
   if (accounts.length === 0) return `<span class="transaction-filter-empty">No connected accounts.</span>`;
-  return accounts.map((account) => {
+  const options = accounts.map((account) => {
     const mask = account.mask ? ` · •••• ${escapeHtml(account.mask)}` : "";
     const id = escapeHtml(account.id);
+    const label = `${account.institutionName} · ${account.name}${mask}`;
     return `
       <label class="transaction-filter-account">
         <input type="checkbox" data-account-filter value="${id}" />
-        <span>${escapeHtml(account.institutionName)} · ${escapeHtml(account.name)}${mask}</span>
+        <span data-account-label>${escapeHtml(label)}</span>
       </label>
     `;
   }).join("");
+  return `${options}<span class="transaction-filter-empty account-filter-no-results" hidden>No accounts match your search.</span>`;
 }
 
 function getSelectedAccountIds(container: HTMLElement): string[] {
@@ -198,6 +205,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   const accountTrigger = document.querySelector<HTMLButtonElement>("#accounts-filter-trigger");
   const accountSelected = document.querySelector<HTMLSpanElement>("#accounts-filter-selected");
   const accountTotal = document.querySelector<HTMLSpanElement>("#accounts-filter-total");
+  const accountSearch = document.querySelector<HTMLInputElement>("#account-filter-search");
   const accountPopover = document.querySelector<HTMLDivElement>("#accounts-filter-popover");
   const selectAllAccounts = document.querySelector<HTMLButtonElement>("#select-all-accounts");
   const deselectAllAccounts = document.querySelector<HTMLButtonElement>("#deselect-all-accounts");
@@ -212,7 +220,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   const maximumOutput = document.querySelector<HTMLOutputElement>("#maximum-transaction-amount-value");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
   const syncButton = document.querySelector<HTMLButtonElement>("#sync-all-transactions");
-  if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !minimumInput || !maximumInput || !minimumOutput || !maximumOutput || !sortSelect) return;
+  if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !minimumInput || !maximumInput || !minimumOutput || !maximumOutput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
@@ -222,6 +230,21 @@ export async function initializeTransactionsPage(): Promise<void> {
 
   const updateAccountSummary = (): void => {
     accountSelected.textContent = String(getSelectedAccountIds(accountOptions).length);
+  };
+
+  const applyAccountSearch = (): void => {
+    let visibleCount = 0;
+    for (const row of accountOptions.querySelectorAll<HTMLLabelElement>(".transaction-filter-account")) {
+      const label = row.querySelector<HTMLSpanElement>("[data-account-label]");
+      if (!label) continue;
+      const text = label.textContent ?? "";
+      const positions = getFuzzyMatchPositions(accountSearch.value, text);
+      row.hidden = positions === null;
+      label.innerHTML = renderFuzzyHighlightedText(text, positions ?? []);
+      if (positions !== null) visibleCount++;
+    }
+    const noResults = accountOptions.querySelector<HTMLSpanElement>(".account-filter-no-results");
+    if (noResults) noResults.hidden = accounts.length === 0 || visibleCount > 0;
   };
 
   const updateAmountSummary = (): void => {
@@ -326,6 +349,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) {
       input.checked = selectedAccountIdSet.has(input.value);
     }
+    applyAccountSearch();
     hasLoadedTransactions = true;
     const bounds = allTransactionAmountBounds(transactions, accounts);
     minimumAmount = bounds.minimum;
@@ -357,6 +381,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     renderResults();
   });
   accountOptions.addEventListener("change", renderResults);
+  accountSearch.addEventListener("input", applyAccountSearch);
   sortSelect.addEventListener("change", renderResults);
   document.addEventListener("click", (event: MouseEvent) => {
     const target = event.target;

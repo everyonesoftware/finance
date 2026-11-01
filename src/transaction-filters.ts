@@ -1,3 +1,4 @@
+import { escapeHtml } from "./html-utils.ts";
 import type { BankAccount } from "./bank_accounts.ts";
 import type { TransactionGroup } from "./transaction-list.ts";
 
@@ -21,6 +22,68 @@ export function getAccountSelectionOnLoad(
     return [...accountIds];
   }
   return accountIds.filter((id) => previouslySelected.has(id));
+}
+
+export function getFuzzyMatchPositions(query: string, text: string): number[] | null {
+  if (query.trim().length === 0) return [];
+
+  const isSearchCharacter = (character: string): boolean => /[\p{L}\p{N}]/u.test(character);
+  const queryCharacters = Array.from(query.toLowerCase()).filter(isSearchCharacter);
+  if (queryCharacters.length === 0) return null;
+
+  const textCharacters = Array.from(text);
+  const searchableText: { character: string; textIndex: number }[] = [];
+  textCharacters.forEach((character, textIndex) => {
+    if (!isSearchCharacter(character)) return;
+    for (const normalizedCharacter of Array.from(character.toLowerCase())) {
+      searchableText.push({ character: normalizedCharacter, textIndex });
+    }
+  });
+
+  let bestPositions: number[] | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let start = 0; start < searchableText.length; start++) {
+    if (searchableText[start].character !== queryCharacters[0]) continue;
+    const positions = [start];
+    let cursor = start + 1;
+    let matched = true;
+    for (let queryIndex = 1; queryIndex < queryCharacters.length; queryIndex++) {
+      while (cursor < searchableText.length && searchableText[cursor].character !== queryCharacters[queryIndex]) cursor++;
+      if (cursor === searchableText.length) {
+        matched = false;
+        break;
+      }
+      positions.push(cursor++);
+    }
+    if (!matched) continue;
+
+    const firstTextIndex = searchableText[start].textIndex;
+    const previousCharacter = textCharacters[firstTextIndex - 1] ?? "";
+    const startsAtWord = firstTextIndex === 0 || !isSearchCharacter(previousCharacter);
+    const gaps = positions.at(-1)! - positions[0] - queryCharacters.length + 1;
+    const score = gaps * 100 + start - (startsAtWord ? 2 : 0);
+    if (score < bestScore) {
+      bestScore = score;
+      bestPositions = positions.map((position) => searchableText[position].textIndex);
+    }
+  }
+  return bestPositions;
+}
+
+export function renderFuzzyHighlightedText(text: string, positions: number[]): string {
+  const matchedPositions = new Set(positions);
+  const characters = Array.from(text);
+  let output = "";
+  let highlighting = false;
+  characters.forEach((character, index) => {
+    const shouldHighlight = matchedPositions.has(index);
+    if (shouldHighlight && !highlighting) output += "<mark>";
+    if (!shouldHighlight && highlighting) output += "</mark>";
+    output += escapeHtml(character);
+    highlighting = shouldHighlight;
+  });
+  if (highlighting) output += "</mark>";
+  return output;
 }
 
 export function getTransactionGroupAmount(group: TransactionGroup): number | null {

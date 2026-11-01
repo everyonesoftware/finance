@@ -1366,6 +1366,24 @@ a.text-button {
   background: #f1f4f0;
 }
 
+.transaction-account-search input {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 9px;
+  border: 1px solid #e5e9e3;
+  border-radius: 7px;
+  background: #fff;
+  color: #303730;
+  font: inherit;
+  font-size: 10px;
+}
+
+.transaction-account-search input:focus-visible {
+  border-color: #83a98c;
+  outline: 2px solid rgb(46 103 73 / 18%);
+  outline-offset: 1px;
+}
+
 .transaction-sort-control select {
   min-width: 0;
   min-height: 30px;
@@ -1419,6 +1437,18 @@ a.text-button {
 
 .transaction-filter-account:hover {
   background: #f2f7f2;
+}
+
+.transaction-filter-account[hidden] {
+  display: none;
+}
+
+.transaction-filter-account mark {
+  padding: 0 1px;
+  border-radius: 2px;
+  background: #dcefe0;
+  color: #245b3d;
+  font-weight: 700;
 }
 
 .transaction-filter-account input {

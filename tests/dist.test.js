@@ -174,6 +174,23 @@ test("account selection defaults to all on first load and preserves choices on r
   );
 });
 
+test("account search matches fuzzy subsequences and highlights only matched characters", () => {
+  const getFuzzyMatchPositions = transactionFilterUtils.getFuzzyMatchPositions;
+  const renderFuzzyHighlightedText = transactionFilterUtils.renderFuzzyHighlightedText;
+  assert.equal(typeof getFuzzyMatchPositions, "function");
+  assert.equal(typeof renderFuzzyHighlightedText, "function");
+  const label = "Ally · Checking · •••• 1234";
+  const positions = getFuzzyMatchPositions("Ally Chk", label);
+  assert.deepEqual(positions, [0, 1, 2, 3, 7, 8, 11]);
+  assert.equal(
+    renderFuzzyHighlightedText(label, positions),
+    "<mark>Ally</mark> · <mark>Ch</mark>ec<mark>k</mark>ing · •••• 1234",
+  );
+  assert.equal(getFuzzyMatchPositions("zzz", label), null);
+  assert.deepEqual(getFuzzyMatchPositions("", label), []);
+  assert.equal(renderFuzzyHighlightedText("<Ally>", [1, 2, 3, 4]), "&lt;<mark>Ally</mark>&gt;");
+});
+
 test("transaction lists can show the owning institution and account for each row", () => {
   const account = {
     id: "checking-id",
@@ -278,6 +295,7 @@ test("transactions page keeps compact account and amount popovers with sort cont
   assert.doesNotMatch(html, /id="account-filter-mode"/);
   assert.match(html, /id="select-all-accounts"/);
   assert.match(html, /id="deselect-all-accounts"/);
+  assert.match(html, /id="account-filter-search" type="search"/);
   assert.match(html, /id="account-options"/);
   assert.match(html, /id="amount-filter-trigger"/);
   assert.match(html, /id="amount-filter-popover"[^>]*hidden/);
