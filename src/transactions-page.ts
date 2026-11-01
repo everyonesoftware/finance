@@ -82,25 +82,18 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <div class="transaction-filter-controls">
               <div class="transaction-filter-anchor">
                 <button class="transaction-filter-trigger" id="accounts-filter-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="accounts-filter-popover">
-                  Accounts: <span id="accounts-filter-total">0</span><span class="transaction-trigger-summary" id="accounts-filter-summary">All accounts</span><span class="transaction-trigger-chevron" aria-hidden="true">▾</span>
+                  Accounts: <span id="accounts-filter-selected">0</span> / <span id="accounts-filter-total">0</span> selected<span class="transaction-trigger-chevron" aria-hidden="true">▾</span>
                 </button>
                 <div class="transaction-filter-popover accounts-filter-popover" id="accounts-filter-popover" role="dialog" aria-label="Filter by account" hidden>
                   <div class="transaction-popover-heading">
                     <strong>Accounts</strong>
                     <button class="transaction-popover-close" id="close-accounts-filter" type="button" aria-label="Close account filters">×</button>
                   </div>
-                  <label class="transaction-popover-mode" for="account-filter-mode">
-                    <span>Show transactions</span>
-                    <select id="account-filter-mode">
-                      <option value="include">from selected accounts</option>
-                      <option value="exclude">not from selected accounts</option>
-                    </select>
-                  </label>
                   <div class="transaction-popover-actions">
                     <button id="select-all-accounts" type="button">Select all</button>
                     <button id="deselect-all-accounts" type="button">Deselect all</button>
                   </div>
-                  <p class="transaction-popover-help">Select one or more accounts. Transfers involving an excluded account are hidden.</p>
+                  <p class="transaction-popover-help">Select accounts to show only their transactions. Leave all unchecked to show every account.</p>
                   <div id="account-options" class="transaction-filter-account-list"><span>Loading accounts…</span></div>
                 </div>
               </div>
@@ -202,10 +195,9 @@ export async function initializeTransactionsPage(): Promise<void> {
   const status = document.querySelector<HTMLParagraphElement>("#all-transactions-status");
   const accountOptions = document.querySelector<HTMLDivElement>("#account-options");
   const accountTrigger = document.querySelector<HTMLButtonElement>("#accounts-filter-trigger");
-  const accountTriggerSummary = document.querySelector<HTMLSpanElement>("#accounts-filter-summary");
+  const accountSelected = document.querySelector<HTMLSpanElement>("#accounts-filter-selected");
   const accountTotal = document.querySelector<HTMLSpanElement>("#accounts-filter-total");
   const accountPopover = document.querySelector<HTMLDivElement>("#accounts-filter-popover");
-  const accountMode = document.querySelector<HTMLSelectElement>("#account-filter-mode");
   const selectAllAccounts = document.querySelector<HTMLButtonElement>("#select-all-accounts");
   const deselectAllAccounts = document.querySelector<HTMLButtonElement>("#deselect-all-accounts");
   const closeAccountsFilter = document.querySelector<HTMLButtonElement>("#close-accounts-filter");
@@ -219,7 +211,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   const maximumOutput = document.querySelector<HTMLOutputElement>("#maximum-transaction-amount-value");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
   const syncButton = document.querySelector<HTMLButtonElement>("#sync-all-transactions");
-  if (!list || !count || !accountOptions || !accountTrigger || !accountTriggerSummary || !accountTotal || !accountPopover || !accountMode || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !minimumInput || !maximumInput || !minimumOutput || !maximumOutput || !sortSelect) return;
+  if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !minimumInput || !maximumInput || !minimumOutput || !maximumOutput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
@@ -227,10 +219,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   let maximumAmount = 1;
 
   const updateAccountSummary = (): void => {
-    const selectedCount = getSelectedAccountIds(accountOptions).length;
-    accountTriggerSummary.textContent = selectedCount === 0
-      ? "All accounts"
-      : `${selectedCount} ${accountMode.value === "exclude" ? "excluded" : "selected"}`;
+    accountSelected.textContent = String(getSelectedAccountIds(accountOptions).length);
   };
 
   const updateAmountSummary = (): void => {
@@ -266,12 +255,10 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const renderResults = (): void => {
-    const selectedAccountIds = getSelectedAccountIds(accountOptions);
-    const isIncluding = accountMode.value === "include";
     const groups = groupInternalTransfers(transactions, accounts);
     const filtered = filterAndSortTransactionGroups(groups, accounts, {
-      includeAccountIds: isIncluding ? selectedAccountIds : [],
-      excludeAccountIds: isIncluding ? [] : selectedAccountIds,
+      includeAccountIds: getSelectedAccountIds(accountOptions),
+      excludeAccountIds: [],
       minimumAmount: Number(minimumInput.value),
       maximumAmount: Number(maximumInput.value),
       sort: sortSelect.value as TransactionSortOrder,
@@ -311,7 +298,6 @@ export async function initializeTransactionsPage(): Promise<void> {
 
   const loadTransactions = async (): Promise<void> => {
     const previousAccountIds = getSelectedAccountIds(accountOptions);
-    const previousAccountMode = accountMode.value;
     const response = await fetch("/api/accounts/transactions/all", {
       cache: "no-store",
       credentials: "same-origin",
@@ -329,7 +315,6 @@ export async function initializeTransactionsPage(): Promise<void> {
     for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) {
       input.checked = previousAccountIdSet.has(input.value);
     }
-    accountMode.value = previousAccountMode;
     const bounds = allTransactionAmountBounds(transactions, accounts);
     minimumAmount = bounds.minimum;
     maximumAmount = bounds.maximum;
@@ -360,7 +345,6 @@ export async function initializeTransactionsPage(): Promise<void> {
     renderResults();
   });
   accountOptions.addEventListener("change", renderResults);
-  accountMode.addEventListener("change", renderResults);
   sortSelect.addEventListener("change", renderResults);
   document.addEventListener("click", (event: MouseEvent) => {
     const target = event.target;

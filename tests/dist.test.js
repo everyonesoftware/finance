@@ -250,9 +250,9 @@ test("transactions page keeps compact account and amount popovers with sort cont
   const html = renderTransactionsPage({ displayName: "Test", username: "test" });
   assert.ok(html.includes('class="nav-link active" href="/transactions" aria-current="page"'));
   assert.match(html, /class="transaction-filter-label"[^>]*>Filter<\/span>/);
-  assert.match(html, /id="accounts-filter-trigger"[^>]*>\s*Accounts: <span id="accounts-filter-total">0<\/span>/);
+  assert.match(html, /id="accounts-filter-trigger"[^>]*>\s*Accounts: <span id="accounts-filter-selected">0<\/span> \/ <span id="accounts-filter-total">0<\/span> selected/);
   assert.match(html, /id="accounts-filter-popover"[^>]*hidden/);
-  assert.match(html, /id="account-filter-mode"/);
+  assert.doesNotMatch(html, /id="account-filter-mode"/);
   assert.match(html, /id="select-all-accounts"/);
   assert.match(html, /id="deselect-all-accounts"/);
   assert.match(html, /id="account-options"/);
