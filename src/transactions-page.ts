@@ -77,43 +77,65 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
         <p id="all-transactions-status" class="auth-message" role="status" aria-live="polite" hidden></p>
 
         <section class="panel transaction-filters" aria-labelledby="transaction-filters-title">
-          <div class="panel-heading">
-            <div><h2 id="transaction-filters-title">Filter and sort</h2><p>Adjust the results below.</p></div>
-          </div>
-          <div class="transaction-filter-grid">
-            <fieldset class="transaction-account-filter">
-              <legend>Include accounts</legend>
-              <p>Show transactions involving any selected account. Leave unchecked to include all.</p>
-              <div id="include-account-options" class="transaction-filter-account-list"><span>Loading accounts…</span></div>
-            </fieldset>
-            <fieldset class="transaction-account-filter">
-              <legend>Exclude accounts</legend>
-              <p>Excluded accounts take precedence; transfers involving an excluded account are hidden.</p>
-              <div id="exclude-account-options" class="transaction-filter-account-list"><span>Loading accounts…</span></div>
-            </fieldset>
-            <fieldset class="transaction-amount-filter">
-              <legend>Amount range</legend>
-              <p>Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
-              <div class="transaction-amount-sliders">
-                <label class="transaction-range-control" for="minimum-transaction-amount">
-                  <span>Minimum <output id="minimum-transaction-amount-value">—</output></span>
-                  <input id="minimum-transaction-amount" type="range" min="-1" max="1" step="0.01" value="-1" disabled />
-                </label>
-                <label class="transaction-range-control" for="maximum-transaction-amount">
-                  <span>Maximum <output id="maximum-transaction-amount-value">—</output></span>
-                  <input id="maximum-transaction-amount" type="range" min="-1" max="1" step="0.01" value="1" disabled />
-                </label>
+          <div class="transaction-filter-toolbar">
+            <span id="transaction-filters-title" class="transaction-filter-label">Filter</span>
+            <div class="transaction-filter-controls">
+              <div class="transaction-filter-anchor">
+                <button class="transaction-filter-trigger" id="accounts-filter-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="accounts-filter-popover">
+                  Accounts: <span id="accounts-filter-total">0</span><span class="transaction-trigger-summary" id="accounts-filter-summary">All accounts</span><span class="transaction-trigger-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="transaction-filter-popover accounts-filter-popover" id="accounts-filter-popover" role="dialog" aria-label="Filter by account" hidden>
+                  <div class="transaction-popover-heading">
+                    <strong>Accounts</strong>
+                    <button class="transaction-popover-close" id="close-accounts-filter" type="button" aria-label="Close account filters">×</button>
+                  </div>
+                  <label class="transaction-popover-mode" for="account-filter-mode">
+                    <span>Show transactions</span>
+                    <select id="account-filter-mode">
+                      <option value="include">from selected accounts</option>
+                      <option value="exclude">not from selected accounts</option>
+                    </select>
+                  </label>
+                  <div class="transaction-popover-actions">
+                    <button id="select-all-accounts" type="button">Select all</button>
+                    <button id="deselect-all-accounts" type="button">Deselect all</button>
+                  </div>
+                  <p class="transaction-popover-help">Select one or more accounts. Transfers involving an excluded account are hidden.</p>
+                  <div id="account-options" class="transaction-filter-account-list"><span>Loading accounts…</span></div>
+                </div>
               </div>
-            </fieldset>
-            <label class="transaction-sort-control" for="transaction-sort-order">
-              <span>Sort by</span>
-              <select id="transaction-sort-order">
-                <option value="date-desc">Date · newest first</option>
-                <option value="date-asc">Date · oldest first</option>
-                <option value="amount-desc">Amount · highest first</option>
-                <option value="amount-asc">Amount · lowest first</option>
-              </select>
-            </label>
+              <div class="transaction-filter-anchor">
+                <button class="transaction-filter-trigger" id="amount-filter-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="amount-filter-popover">
+                  Amount: <span id="amount-filter-summary">Any</span><span class="transaction-trigger-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="transaction-filter-popover amount-filter-popover" id="amount-filter-popover" role="dialog" aria-label="Filter by amount" hidden>
+                  <div class="transaction-popover-heading">
+                    <strong>Amount range</strong>
+                    <button class="transaction-popover-close" id="close-amount-filter" type="button" aria-label="Close amount filters">×</button>
+                  </div>
+                  <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
+                  <div class="transaction-amount-sliders">
+                    <label class="transaction-range-control" for="minimum-transaction-amount">
+                      <span>Minimum <output id="minimum-transaction-amount-value">—</output></span>
+                      <input id="minimum-transaction-amount" type="range" min="-1" max="1" step="0.01" value="-1" disabled />
+                    </label>
+                    <label class="transaction-range-control" for="maximum-transaction-amount">
+                      <span>Maximum <output id="maximum-transaction-amount-value">—</output></span>
+                      <input id="maximum-transaction-amount" type="range" min="-1" max="1" step="0.01" value="1" disabled />
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <label class="transaction-sort-control" for="transaction-sort-order">
+                <span>Sort</span>
+                <select id="transaction-sort-order">
+                  <option value="date-desc">Date · newest</option>
+                  <option value="date-asc">Date · oldest</option>
+                  <option value="amount-desc">Amount · highest</option>
+                  <option value="amount-asc">Amount · lowest</option>
+                </select>
+              </label>
+            </div>
           </div>
         </section>
 
@@ -129,22 +151,22 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
   `;
 }
 
-function renderAccountOptions(accounts: BankAccount[], mode: "include" | "exclude"): string {
+function renderAccountOptions(accounts: BankAccount[]): string {
   if (accounts.length === 0) return `<span class="transaction-filter-empty">No connected accounts.</span>`;
   return accounts.map((account) => {
     const mask = account.mask ? ` · •••• ${escapeHtml(account.mask)}` : "";
     const id = escapeHtml(account.id);
     return `
       <label class="transaction-filter-account">
-        <input type="checkbox" data-account-filter="${mode}" value="${id}" />
+        <input type="checkbox" data-account-filter value="${id}" />
         <span>${escapeHtml(account.institutionName)} · ${escapeHtml(account.name)}${mask}</span>
       </label>
     `;
   }).join("");
 }
 
-function getSelectedAccountIds(container: HTMLElement, mode: "include" | "exclude"): string[] {
-  return [...container.querySelectorAll<HTMLInputElement>(`input[data-account-filter="${mode}"]:checked`)]
+function getSelectedAccountIds(container: HTMLElement): string[] {
+  return [...container.querySelectorAll<HTMLInputElement>("input[data-account-filter]:checked")]
     .map((input) => input.value);
 }
 
@@ -178,27 +200,78 @@ export async function initializeTransactionsPage(): Promise<void> {
   const list = document.querySelector<HTMLDivElement>("#all-transactions-list");
   const count = document.querySelector<HTMLParagraphElement>("#all-transactions-count");
   const status = document.querySelector<HTMLParagraphElement>("#all-transactions-status");
-  const includeOptions = document.querySelector<HTMLDivElement>("#include-account-options");
-  const excludeOptions = document.querySelector<HTMLDivElement>("#exclude-account-options");
+  const accountOptions = document.querySelector<HTMLDivElement>("#account-options");
+  const accountTrigger = document.querySelector<HTMLButtonElement>("#accounts-filter-trigger");
+  const accountTriggerSummary = document.querySelector<HTMLSpanElement>("#accounts-filter-summary");
+  const accountTotal = document.querySelector<HTMLSpanElement>("#accounts-filter-total");
+  const accountPopover = document.querySelector<HTMLDivElement>("#accounts-filter-popover");
+  const accountMode = document.querySelector<HTMLSelectElement>("#account-filter-mode");
+  const selectAllAccounts = document.querySelector<HTMLButtonElement>("#select-all-accounts");
+  const deselectAllAccounts = document.querySelector<HTMLButtonElement>("#deselect-all-accounts");
+  const closeAccountsFilter = document.querySelector<HTMLButtonElement>("#close-accounts-filter");
+  const amountTrigger = document.querySelector<HTMLButtonElement>("#amount-filter-trigger");
+  const amountTriggerSummary = document.querySelector<HTMLSpanElement>("#amount-filter-summary");
+  const amountPopover = document.querySelector<HTMLDivElement>("#amount-filter-popover");
+  const closeAmountFilter = document.querySelector<HTMLButtonElement>("#close-amount-filter");
   const minimumInput = document.querySelector<HTMLInputElement>("#minimum-transaction-amount");
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
   const minimumOutput = document.querySelector<HTMLOutputElement>("#minimum-transaction-amount-value");
   const maximumOutput = document.querySelector<HTMLOutputElement>("#maximum-transaction-amount-value");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
   const syncButton = document.querySelector<HTMLButtonElement>("#sync-all-transactions");
-  if (!list || !count || !includeOptions || !excludeOptions || !minimumInput || !maximumInput || !minimumOutput || !maximumOutput || !sortSelect) return;
+  if (!list || !count || !accountOptions || !accountTrigger || !accountTriggerSummary || !accountTotal || !accountPopover || !accountMode || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !minimumInput || !maximumInput || !minimumOutput || !maximumOutput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
   let minimumAmount = -1;
   let maximumAmount = 1;
 
+  const updateAccountSummary = (): void => {
+    const selectedCount = getSelectedAccountIds(accountOptions).length;
+    accountTriggerSummary.textContent = selectedCount === 0
+      ? "All accounts"
+      : `${selectedCount} ${accountMode.value === "exclude" ? "excluded" : "selected"}`;
+  };
+
+  const updateAmountSummary = (): void => {
+    const minimum = Number(minimumInput.value);
+    const maximum = Number(maximumInput.value);
+    const isFullRange = minimum <= minimumAmount && maximum >= maximumAmount;
+    amountTriggerSummary.textContent = isFullRange
+      ? "Any"
+      : `${formatFilterAmount(minimum)}–${formatFilterAmount(maximum)}`;
+  };
+
+  const closeFilterPopovers = (): void => {
+    accountPopover.hidden = true;
+    amountPopover.hidden = true;
+    accountPopover.style.transform = "";
+    amountPopover.style.transform = "";
+    accountTrigger.setAttribute("aria-expanded", "false");
+    amountTrigger.setAttribute("aria-expanded", "false");
+  };
+
+  const toggleFilterPopover = (trigger: HTMLButtonElement, popover: HTMLDivElement): void => {
+    const shouldOpen = popover.hidden;
+    closeFilterPopovers();
+    if (shouldOpen) {
+      popover.hidden = false;
+      trigger.setAttribute("aria-expanded", "true");
+      const bounds = popover.getBoundingClientRect();
+      const horizontalShift = bounds.right > window.innerWidth - 8
+        ? window.innerWidth - 8 - bounds.right
+        : bounds.left < 8 ? 8 - bounds.left : 0;
+      if (horizontalShift !== 0) popover.style.transform = `translateX(${horizontalShift}px)`;
+    }
+  };
+
   const renderResults = (): void => {
-    if (!list || !count || !includeOptions || !excludeOptions || !minimumInput || !maximumInput || !sortSelect) return;
+    const selectedAccountIds = getSelectedAccountIds(accountOptions);
+    const isIncluding = accountMode.value === "include";
     const groups = groupInternalTransfers(transactions, accounts);
     const filtered = filterAndSortTransactionGroups(groups, accounts, {
-      includeAccountIds: getSelectedAccountIds(includeOptions, "include"),
-      excludeAccountIds: getSelectedAccountIds(excludeOptions, "exclude"),
+      includeAccountIds: isIncluding ? selectedAccountIds : [],
+      excludeAccountIds: isIncluding ? [] : selectedAccountIds,
       minimumAmount: Number(minimumInput.value),
       maximumAmount: Number(maximumInput.value),
       sort: sortSelect.value as TransactionSortOrder,
@@ -206,6 +279,8 @@ export async function initializeTransactionsPage(): Promise<void> {
     const filteredTransactions = filtered.flatMap((group) => group.transactions);
     const visibleTransactionCount = filtered.reduce((total, group) => total + group.transactions.length, 0);
     count.textContent = `Showing ${visibleTransactionCount} transaction${visibleTransactionCount === 1 ? "" : "s"} in ${filtered.length} row${filtered.length === 1 ? "" : "s"}`;
+    updateAccountSummary();
+    updateAmountSummary();
     if (filtered.length === 0) {
       list.className = "transaction-empty";
       list.textContent = transactions.length === 0
@@ -235,6 +310,8 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const loadTransactions = async (): Promise<void> => {
+    const previousAccountIds = getSelectedAccountIds(accountOptions);
+    const previousAccountMode = accountMode.value;
     const response = await fetch("/api/accounts/transactions/all", {
       cache: "no-store",
       credentials: "same-origin",
@@ -246,8 +323,13 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
     transactions = payload.transactions;
     accounts = payload.accounts;
-    includeOptions.innerHTML = renderAccountOptions(accounts, "include");
-    excludeOptions.innerHTML = renderAccountOptions(accounts, "exclude");
+    accountTotal.textContent = String(accounts.length);
+    accountOptions.innerHTML = renderAccountOptions(accounts);
+    const previousAccountIdSet = new Set(previousAccountIds);
+    for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) {
+      input.checked = previousAccountIdSet.has(input.value);
+    }
+    accountMode.value = previousAccountMode;
     const bounds = allTransactionAmountBounds(transactions, accounts);
     minimumAmount = bounds.minimum;
     maximumAmount = bounds.maximum;
@@ -259,9 +341,41 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
   };
 
-  includeOptions.addEventListener("change", renderResults);
-  excludeOptions.addEventListener("change", renderResults);
+  accountTrigger.addEventListener("click", () => toggleFilterPopover(accountTrigger, accountPopover));
+  amountTrigger.addEventListener("click", () => toggleFilterPopover(amountTrigger, amountPopover));
+  closeAccountsFilter.addEventListener("click", () => {
+    closeFilterPopovers();
+    accountTrigger.focus();
+  });
+  closeAmountFilter.addEventListener("click", () => {
+    closeFilterPopovers();
+    amountTrigger.focus();
+  });
+  selectAllAccounts.addEventListener("click", () => {
+    for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) input.checked = true;
+    renderResults();
+  });
+  deselectAllAccounts.addEventListener("click", () => {
+    for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) input.checked = false;
+    renderResults();
+  });
+  accountOptions.addEventListener("change", renderResults);
+  accountMode.addEventListener("change", renderResults);
   sortSelect.addEventListener("change", renderResults);
+  document.addEventListener("click", (event: MouseEvent) => {
+    const target = event.target;
+    if (!(target instanceof Node)) return;
+    if (!accountPopover.contains(target) && !accountTrigger.contains(target) && !amountPopover.contains(target) && !amountTrigger.contains(target)) {
+      closeFilterPopovers();
+    }
+  });
+  document.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (event.key === "Escape" && (!accountPopover.hidden || !amountPopover.hidden)) {
+      const accountWasOpen = !accountPopover.hidden;
+      closeFilterPopovers();
+      (accountWasOpen ? accountTrigger : amountTrigger).focus();
+    }
+  });
   minimumInput.addEventListener("input", () => {
     if (Number(minimumInput.value) > Number(maximumInput.value)) maximumInput.value = minimumInput.value;
     updateAmountOutputs();

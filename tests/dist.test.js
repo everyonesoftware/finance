@@ -246,11 +246,18 @@ test("dashboard shows only implemented account and transaction features", () => 
   assert.match(html, /class="app-version">Version dev<\/span>/);
 });
 
-test("transactions page exposes account, amount, and sort filters with active navigation", () => {
+test("transactions page keeps compact account and amount popovers with sort controls", () => {
   const html = renderTransactionsPage({ displayName: "Test", username: "test" });
-  assert.match(html, /class="nav-link active" href="\/transactions" aria-current="page"/);
-  assert.match(html, /id="include-account-options"/);
-  assert.match(html, /id="exclude-account-options"/);
+  assert.ok(html.includes('class="nav-link active" href="/transactions" aria-current="page"'));
+  assert.match(html, /class="transaction-filter-label"[^>]*>Filter<\/span>/);
+  assert.match(html, /id="accounts-filter-trigger"[^>]*>\s*Accounts: <span id="accounts-filter-total">0<\/span>/);
+  assert.match(html, /id="accounts-filter-popover"[^>]*hidden/);
+  assert.match(html, /id="account-filter-mode"/);
+  assert.match(html, /id="select-all-accounts"/);
+  assert.match(html, /id="deselect-all-accounts"/);
+  assert.match(html, /id="account-options"/);
+  assert.match(html, /id="amount-filter-trigger"/);
+  assert.match(html, /id="amount-filter-popover"[^>]*hidden/);
   assert.match(html, /id="minimum-transaction-amount" type="range"/);
   assert.match(html, /id="maximum-transaction-amount" type="range"/);
   for (const value of ["date-desc", "date-asc", "amount-desc", "amount-asc"]) {
