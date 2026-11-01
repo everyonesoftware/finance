@@ -37,6 +37,17 @@ export function updateSelectedAccountIds(
   return [...selected];
 }
 
+export function clampTransactionAmountRange(
+  minimum: number,
+  maximum: number,
+  lowerBound: number,
+  upperBound: number,
+): { minimum: number; maximum: number } {
+  const clampToBounds = (amount: number): number =>
+    Number(Math.min(upperBound, Math.max(lowerBound, amount)).toFixed(2));
+  return { minimum: clampToBounds(minimum), maximum: clampToBounds(maximum) };
+}
+
 export function updateTransactionAmountRange(
   minimum: number,
   maximum: number,
@@ -45,15 +56,23 @@ export function updateTransactionAmountRange(
   lowerBound: number,
   upperBound: number,
 ): { minimum: number; maximum: number } {
-  const clampToBounds = (amount: number): number =>
-    Number(Math.min(upperBound, Math.max(lowerBound, amount)).toFixed(2));
-  const currentMinimum = clampToBounds(minimum);
-  const currentMaximum = clampToBounds(maximum);
-  const changedValue = clampToBounds(value);
+  const currentRange = clampTransactionAmountRange(minimum, maximum, lowerBound, upperBound);
+  const changedValue = clampTransactionAmountRange(value, value, lowerBound, upperBound).minimum;
   if (changedHandle === "minimum") {
-    return { minimum: changedValue, maximum: Math.max(currentMaximum, changedValue) };
+    return { minimum: changedValue, maximum: Math.max(currentRange.maximum, changedValue) };
   }
-  return { minimum: Math.min(currentMinimum, changedValue), maximum: changedValue };
+  return { minimum: Math.min(currentRange.minimum, changedValue), maximum: changedValue };
+}
+
+export function parseAmountRangeInput(value: string): number | null {
+  const normalized = value.trim();
+  if (!/^-?(?:\d+(?:\.\d*)?|\.\d+)$/.test(normalized)) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) ? amount : null;
+}
+
+export function reconcileAmountRangeInput(value: string, appliedValue: number): string {
+  return parseAmountRangeInput(value) === appliedValue ? value : String(appliedValue);
 }
 
 export function getFuzzyMatchPositions(query: string, text: string): number[] | null {

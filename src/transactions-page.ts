@@ -2,9 +2,12 @@ import { appVersion } from "./app-version.ts";
 import { escapeHtml } from "./html-utils.ts";
 import {
   filterAndSortTransactionGroups,
+  clampTransactionAmountRange,
   getAccountSelectionOnLoad,
   getFuzzyMatchPositions,
   getTransactionGroupAmount,
+  parseAmountRangeInput,
+  reconcileAmountRangeInput,
   renderFuzzyHighlightedText,
   updateSelectedAccountIds,
   updateTransactionAmountRange,
@@ -116,20 +119,20 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                   </div>
                   <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
                   <div class="transaction-amount-sliders">
-                    <div class="transaction-dual-range" id="transaction-amount-range" style="--range-start: 0%; --range-end: 100%;">
+                    <div class="transaction-dual-range" id="transaction-amount-range" role="group" aria-label="Transaction amount range" style="--range-start: 0%; --range-end: 100%; --minimum-position: 0%; --maximum-position: 100%;">
                       <span class="transaction-dual-range-track" aria-hidden="true"></span>
                       <span class="transaction-dual-range-selection" aria-hidden="true"></span>
-                      <input class="transaction-dual-range-thumb transaction-dual-range-thumb-minimum" id="minimum-transaction-amount-slider" type="range" min="-1" max="1" step="0.01" value="-1" aria-label="Minimum transaction amount" disabled />
-                      <input class="transaction-dual-range-thumb transaction-dual-range-thumb-maximum" id="maximum-transaction-amount-slider" type="range" min="-1" max="1" step="0.01" value="1" aria-label="Maximum transaction amount" disabled />
+                      <button class="transaction-dual-range-thumb transaction-dual-range-thumb-minimum" id="minimum-transaction-amount-slider" type="button" role="slider" aria-label="Minimum transaction amount" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="-1" aria-valuetext="-1.00" tabindex="0" disabled></button>
+                      <button class="transaction-dual-range-thumb transaction-dual-range-thumb-maximum" id="maximum-transaction-amount-slider" type="button" role="slider" aria-label="Maximum transaction amount" aria-valuemin="-1" aria-valuemax="1" aria-valuenow="1" aria-valuetext="1.00" tabindex="0" disabled></button>
                     </div>
                     <div class="transaction-amount-inputs">
                       <label class="transaction-amount-input-control" for="minimum-transaction-amount">
                         <span>Minimum</span>
-                        <input id="minimum-transaction-amount" type="number" min="-1" max="1" step="0.01" inputmode="decimal" value="-1" disabled />
+                        <input id="minimum-transaction-amount" type="text" inputmode="decimal" autocomplete="off" value="-1" disabled />
                       </label>
                       <label class="transaction-amount-input-control" for="maximum-transaction-amount">
                         <span>Maximum</span>
-                        <input id="maximum-transaction-amount" type="number" min="-1" max="1" step="0.01" inputmode="decimal" value="1" disabled />
+                        <input id="maximum-transaction-amount" type="text" inputmode="decimal" autocomplete="off" value="1" disabled />
                       </label>
                     </div>
                   </div>
@@ -225,8 +228,8 @@ export async function initializeTransactionsPage(): Promise<void> {
   const amountPopover = document.querySelector<HTMLDivElement>("#amount-filter-popover");
   const closeAmountFilter = document.querySelector<HTMLButtonElement>("#close-amount-filter");
   const amountRange = document.querySelector<HTMLDivElement>("#transaction-amount-range");
-  const minimumSlider = document.querySelector<HTMLInputElement>("#minimum-transaction-amount-slider");
-  const maximumSlider = document.querySelector<HTMLInputElement>("#maximum-transaction-amount-slider");
+  const minimumSlider = document.querySelector<HTMLButtonElement>("#minimum-transaction-amount-slider");
+  const maximumSlider = document.querySelector<HTMLButtonElement>("#maximum-transaction-amount-slider");
   const minimumInput = document.querySelector<HTMLInputElement>("#minimum-transaction-amount");
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
@@ -279,6 +282,11 @@ export async function initializeTransactionsPage(): Promise<void> {
     amountPopover.hidden = true;
     accountPopover.style.transform = "";
     amountPopover.style.transform = "";
+    for (const popover of [accountPopover, amountPopover]) {
+      popover.style.position = "";
+      popover.style.left = "";
+      popover.style.top = "";
+    }
     accountTrigger.setAttribute("aria-expanded", "false");
     amountTrigger.setAttribute("aria-expanded", "false");
   };
@@ -289,11 +297,27 @@ export async function initializeTransactionsPage(): Promise<void> {
     if (shouldOpen) {
       popover.hidden = false;
       trigger.setAttribute("aria-expanded", "true");
-      const bounds = popover.getBoundingClientRect();
-      const horizontalShift = bounds.right > window.innerWidth - 8
-        ? window.innerWidth - 8 - bounds.right
-        : bounds.left < 8 ? 8 - bounds.left : 0;
-      if (horizontalShift !== 0) popover.style.transform = `translateX(${horizontalShift}px)`;
+      const isNarrowViewport = window.matchMedia("(max-width: 520px)").matches;
+      if (isNarrowViewport) {
+        const triggerBounds = trigger.getBoundingClientRect();
+        popover.style.position = "fixed";
+        popover.style.left = "8px";
+        popover.style.top = `${triggerBounds.bottom + 7}px`;
+        popover.style.transform = "";
+        const popupBounds = popover.getBoundingClientRect();
+        const left = Math.max(8, Math.min(triggerBounds.left, window.innerWidth - popupBounds.width - 8));
+        const top = triggerBounds.bottom + 7 + popupBounds.height <= window.innerHeight - 8
+          ? triggerBounds.bottom + 7
+          : Math.max(8, triggerBounds.top - popupBounds.height - 7);
+        popover.style.left = `${left}px`;
+        popover.style.top = `${top}px`;
+      } else {
+        const bounds = popover.getBoundingClientRect();
+        const horizontalShift = bounds.right > window.innerWidth - 8
+          ? window.innerWidth - 8 - bounds.right
+          : bounds.left < 8 ? 8 - bounds.left : 0;
+        if (horizontalShift !== 0) popover.style.transform = `translateX(${horizontalShift}px)`;
+      }
     }
   };
 
@@ -344,16 +368,28 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const updateAmountControlVisual = (): void => {
-    minimumSlider.value = String(selectedMinimumAmount);
-    maximumSlider.value = String(selectedMaximumAmount);
     const amountSpan = maximumAmount - minimumAmount;
     const rangeStart = ((selectedMinimumAmount - minimumAmount) / amountSpan) * 100;
     const rangeEnd = ((selectedMaximumAmount - minimumAmount) / amountSpan) * 100;
     amountRange.style.setProperty("--range-start", `${rangeStart}%`);
     amountRange.style.setProperty("--range-end", `${rangeEnd}%`);
+    amountRange.style.setProperty("--minimum-position", `${rangeStart}%`);
+    amountRange.style.setProperty("--maximum-position", `${rangeEnd}%`);
+    amountRange.dataset.coincident = selectedMinimumAmount === selectedMaximumAmount ? "true" : "false";
+    // Crossing moves the other thumb, so both controls can still reach the full transaction bounds.
+    for (const [slider, value] of [[minimumSlider, selectedMinimumAmount], [maximumSlider, selectedMaximumAmount]] as const) {
+      slider.setAttribute("aria-valuemin", String(minimumAmount));
+      slider.setAttribute("aria-valuemax", String(maximumAmount));
+      slider.setAttribute("aria-valuenow", String(value));
+      slider.setAttribute("aria-valuetext", formatFilterAmount(value));
+    }
   };
 
-  const updateAmountRange = (changedHandle: "minimum" | "maximum", value: number): void => {
+  const updateAmountRange = (
+    changedHandle: "minimum" | "maximum",
+    value: number,
+    editingInput?: HTMLInputElement,
+  ): void => {
     const range = updateTransactionAmountRange(
       selectedMinimumAmount,
       selectedMaximumAmount,
@@ -364,19 +400,18 @@ export async function initializeTransactionsPage(): Promise<void> {
     );
     selectedMinimumAmount = range.minimum;
     selectedMaximumAmount = range.maximum;
-    minimumInput.value = String(selectedMinimumAmount);
-    maximumInput.value = String(selectedMaximumAmount);
+    if (editingInput !== minimumInput) minimumInput.value = String(selectedMinimumAmount);
+    if (editingInput !== maximumInput) maximumInput.value = String(selectedMaximumAmount);
     updateAmountControlVisual();
     renderResults();
   };
 
-  const syncRangeBounds = (): void => {
-    for (const input of [minimumSlider, maximumSlider, minimumInput, maximumInput]) {
-      input.min = String(minimumAmount);
-      input.max = String(maximumAmount);
-    }
-    selectedMinimumAmount = minimumAmount;
-    selectedMaximumAmount = maximumAmount;
+  const syncRangeBounds = (preserveSelection: boolean): void => {
+    const range = preserveSelection
+      ? clampTransactionAmountRange(selectedMinimumAmount, selectedMaximumAmount, minimumAmount, maximumAmount)
+      : { minimum: minimumAmount, maximum: maximumAmount };
+    selectedMinimumAmount = range.minimum;
+    selectedMaximumAmount = range.maximum;
     minimumInput.value = String(selectedMinimumAmount);
     maximumInput.value = String(selectedMaximumAmount);
     minimumSlider.disabled = false;
@@ -387,6 +422,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const loadTransactions = async (): Promise<void> => {
+    const preserveAmountSelection = hasLoadedTransactions;
     const previousAvailableAccountIds = hasLoadedTransactions ? accounts.map((account) => account.id) : null;
     const previousSelectedAccountIds = getSelectedAccountIds(accountOptions);
     const response = await fetch("/api/accounts/transactions/all", {
@@ -416,7 +452,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     const bounds = allTransactionAmountBounds(transactions, accounts);
     minimumAmount = bounds.minimum;
     maximumAmount = bounds.maximum;
-    syncRangeBounds();
+    syncRangeBounds(preserveAmountSelection);
     renderResults();
     if (payload.configured === false && status) {
       status.hidden = false;
@@ -453,26 +489,115 @@ export async function initializeTransactionsPage(): Promise<void> {
       (accountWasOpen ? accountTrigger : amountTrigger).focus();
     }
   });
-  const handleAmountInput = (handle: "minimum" | "maximum", input: HTMLInputElement): void => {
-    if (input.value.trim().length === 0) return;
-    const value = Number(input.value);
-    if (Number.isFinite(value)) updateAmountRange(handle, value);
+  const setActiveAmountHandle = (handle: "minimum" | "maximum"): void => {
+    const active = handle === "minimum" ? minimumSlider : maximumSlider;
+    const inactive = handle === "minimum" ? maximumSlider : minimumSlider;
+    active.style.zIndex = "3";
+    inactive.style.zIndex = "2";
   };
 
-  const handleAmountInputCommit = (handle: "minimum" | "maximum", input: HTMLInputElement, slider: HTMLInputElement): void => {
-    if (input.value.trim().length === 0 || !Number.isFinite(Number(input.value))) {
-      input.value = slider.value;
+  const getAmountAtPointer = (event: PointerEvent): number => {
+    const bounds = amountRange.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - bounds.left) / Math.max(1, bounds.width)));
+    return minimumAmount + ratio * (maximumAmount - minimumAmount);
+  };
+
+  let activeAmountPointer: { pointerId: number; handle: "minimum" | "maximum" } | null = null;
+  const bindAmountSlider = (slider: HTMLButtonElement, handle: "minimum" | "maximum"): void => {
+    slider.addEventListener("focus", () => setActiveAmountHandle(handle));
+    slider.addEventListener("pointerdown", (event: PointerEvent) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      setActiveAmountHandle(handle);
+      slider.focus({ preventScroll: true });
+      activeAmountPointer = { pointerId: event.pointerId, handle };
+      slider.setPointerCapture(event.pointerId);
+      updateAmountRange(handle, getAmountAtPointer(event));
+    });
+    slider.addEventListener("keydown", (event: KeyboardEvent) => {
+      const currentValue = handle === "minimum" ? selectedMinimumAmount : selectedMaximumAmount;
+      const largeStep = Math.max(0.01, Number(((maximumAmount - minimumAmount) * 0.1).toFixed(2)));
+      let nextValue: number | null = null;
+      switch (event.key) {
+        case "ArrowLeft":
+        case "ArrowDown":
+          nextValue = currentValue - 0.01;
+          break;
+        case "ArrowRight":
+        case "ArrowUp":
+          nextValue = currentValue + 0.01;
+          break;
+        case "PageDown":
+          nextValue = currentValue - largeStep;
+          break;
+        case "PageUp":
+          nextValue = currentValue + largeStep;
+          break;
+        case "Home":
+          nextValue = minimumAmount;
+          break;
+        case "End":
+          nextValue = maximumAmount;
+          break;
+        default:
+          return;
+      }
+      event.preventDefault();
+      updateAmountRange(handle, nextValue);
+    });
+  };
+
+  const handleAmountInput = (handle: "minimum" | "maximum", input: HTMLInputElement): void => {
+    const value = parseAmountRangeInput(input.value);
+    if (value === null) return;
+    updateAmountRange(handle, value, input);
+    const appliedValue = handle === "minimum" ? selectedMinimumAmount : selectedMaximumAmount;
+    input.value = reconcileAmountRangeInput(input.value, appliedValue);
+  };
+
+  const handleAmountInputCommit = (handle: "minimum" | "maximum", input: HTMLInputElement): void => {
+    const value = parseAmountRangeInput(input.value);
+    if (value === null) {
+      input.value = String(handle === "minimum" ? selectedMinimumAmount : selectedMaximumAmount);
       return;
     }
-    updateAmountRange(handle, Number(input.value));
+    updateAmountRange(handle, value);
   };
 
-  minimumSlider.addEventListener("input", () => updateAmountRange("minimum", Number(minimumSlider.value)));
-  maximumSlider.addEventListener("input", () => updateAmountRange("maximum", Number(maximumSlider.value)));
+  bindAmountSlider(minimumSlider, "minimum");
+  bindAmountSlider(maximumSlider, "maximum");
+  amountRange.addEventListener("pointerdown", (event: PointerEvent) => {
+    if (event.defaultPrevented || event.target instanceof HTMLButtonElement) return;
+    const amount = getAmountAtPointer(event);
+    const handle = Math.abs(amount - selectedMinimumAmount) <= Math.abs(amount - selectedMaximumAmount)
+      ? "minimum"
+      : "maximum";
+    const slider = handle === "minimum" ? minimumSlider : maximumSlider;
+    event.preventDefault();
+    setActiveAmountHandle(handle);
+    activeAmountPointer = { pointerId: event.pointerId, handle };
+    slider.focus({ preventScroll: true });
+    slider.setPointerCapture(event.pointerId);
+    updateAmountRange(handle, amount);
+  });
+  amountRange.addEventListener("pointermove", (event: PointerEvent) => {
+    if (activeAmountPointer?.pointerId === event.pointerId) {
+      updateAmountRange(activeAmountPointer.handle, getAmountAtPointer(event));
+    }
+  });
+  const finishAmountPointer = (event: PointerEvent): void => {
+    const activePointer = activeAmountPointer;
+    if (activePointer?.pointerId !== event.pointerId) return;
+    const slider = activePointer.handle === "minimum" ? minimumSlider : maximumSlider;
+    if (slider.hasPointerCapture(event.pointerId)) slider.releasePointerCapture(event.pointerId);
+    activeAmountPointer = null;
+  };
+  amountRange.addEventListener("pointerup", finishAmountPointer);
+  amountRange.addEventListener("pointercancel", finishAmountPointer);
   minimumInput.addEventListener("input", () => handleAmountInput("minimum", minimumInput));
   maximumInput.addEventListener("input", () => handleAmountInput("maximum", maximumInput));
-  minimumInput.addEventListener("change", () => handleAmountInputCommit("minimum", minimumInput, minimumSlider));
-  maximumInput.addEventListener("change", () => handleAmountInputCommit("maximum", maximumInput, maximumSlider));
+  minimumInput.addEventListener("change", () => handleAmountInputCommit("minimum", minimumInput));
+  maximumInput.addEventListener("change", () => handleAmountInputCommit("maximum", maximumInput));
 
   if (syncButton) {
     syncButton.addEventListener("click", async () => {

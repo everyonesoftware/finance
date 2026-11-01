@@ -298,6 +298,29 @@ test("dashboard shows only implemented account and transaction features", () => 
   assert.match(html, /class="app-version">Version dev<\/span>/);
 });
 
+test("amount range input accepts complete decimals and ignores incomplete edits", () => {
+  const parseAmountRangeInput = transactionFilterUtils.parseAmountRangeInput;
+  assert.equal(typeof parseAmountRangeInput, "function");
+  assert.equal(parseAmountRangeInput("1."), 1);
+  assert.equal(parseAmountRangeInput(".25"), 0.25);
+  assert.equal(parseAmountRangeInput("-4.50"), -4.5);
+  assert.equal(parseAmountRangeInput("-"), null);
+  assert.equal(parseAmountRangeInput(""), null);
+  const reconcileAmountRangeInput = transactionFilterUtils.reconcileAmountRangeInput;
+  assert.equal(typeof reconcileAmountRangeInput, "function");
+  assert.equal(reconcileAmountRangeInput("1.", 1), "1.");
+  assert.equal(reconcileAmountRangeInput("1.234", 1.23), "1.23");
+  assert.equal(reconcileAmountRangeInput("99", 4.5), "4.5");
+});
+
+test("amount range stays within refreshed transaction bounds", () => {
+  const clampTransactionAmountRange = transactionFilterUtils.clampTransactionAmountRange;
+  assert.equal(typeof clampTransactionAmountRange, "function");
+  assert.deepEqual(clampTransactionAmountRange(-4, 8, -10, 10), { minimum: -4, maximum: 8 });
+  assert.deepEqual(clampTransactionAmountRange(-12, -8, -5, 5), { minimum: -5, maximum: -5 });
+  assert.deepEqual(clampTransactionAmountRange(8, 12, -5, 5), { minimum: 5, maximum: 5 });
+});
+
 test("amount range handles cannot cross and text-entry updates the opposite bound", () => {
   const updateTransactionAmountRange = transactionFilterUtils.updateTransactionAmountRange;
   assert.equal(typeof updateTransactionAmountRange, "function");
@@ -319,10 +342,10 @@ test("transactions page keeps compact account and amount popovers with sort cont
   assert.match(html, /id="account-options"/);
   assert.match(html, /id="amount-filter-trigger"/);
   assert.match(html, /id="amount-filter-popover"[^>]*hidden/);
-  assert.match(html, /id="minimum-transaction-amount-slider" type="range"/);
-  assert.match(html, /id="maximum-transaction-amount-slider" type="range"/);
-  assert.match(html, /id="minimum-transaction-amount" type="number"/);
-  assert.match(html, /id="maximum-transaction-amount" type="number"/);
+  assert.match(html, /id="minimum-transaction-amount-slider"[^>]*role="slider"/);
+  assert.match(html, /id="maximum-transaction-amount-slider"[^>]*role="slider"/);
+  assert.match(html, /id="minimum-transaction-amount" type="text" inputmode="decimal"/);
+  assert.match(html, /id="maximum-transaction-amount" type="text" inputmode="decimal"/);
   for (const value of ["date-desc", "date-asc", "amount-desc", "amount-asc"]) {
     assert.ok(html.includes(`value="${value}"`));
   }
