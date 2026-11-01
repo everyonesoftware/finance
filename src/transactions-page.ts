@@ -6,6 +6,7 @@ import {
   getFuzzyMatchPositions,
   getTransactionGroupAmount,
   renderFuzzyHighlightedText,
+  updateSelectedAccountIds,
   type TransactionSortOrder,
 } from "./transaction-filters.ts";
 import {
@@ -232,6 +233,12 @@ export async function initializeTransactionsPage(): Promise<void> {
     accountSelected.textContent = String(getSelectedAccountIds(accountOptions).length);
   };
 
+  const updateAccountActionLabels = (): void => {
+    const searchIsActive = accountSearch.value.trim().length > 0;
+    selectAllAccounts.textContent = searchIsActive ? "Select Filtered" : "Select all";
+    deselectAllAccounts.textContent = searchIsActive ? "Deselect Filtered" : "Deselect all";
+  };
+
   const applyAccountSearch = (): void => {
     let visibleCount = 0;
     for (const row of accountOptions.querySelectorAll<HTMLLabelElement>(".transaction-filter-account")) {
@@ -245,6 +252,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
     const noResults = accountOptions.querySelector<HTMLSpanElement>(".account-filter-no-results");
     if (noResults) noResults.hidden = accounts.length === 0 || visibleCount > 0;
+    updateAccountActionLabels();
   };
 
   const updateAmountSummary = (): void => {
@@ -305,6 +313,24 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
     list.className = "transaction-list all-transactions-list";
     list.innerHTML = renderTransactionList(filteredTransactions, accounts, { showAccount: true });
+  };
+
+  const updateAccountSelection = (shouldSelect: boolean): void => {
+    const targetAccountIds = accountSearch.value.trim().length > 0
+      ? [...accountOptions.querySelectorAll<HTMLLabelElement>(".transaction-filter-account:not([hidden])")]
+        .map((row) => row.querySelector<HTMLInputElement>("input[data-account-filter]")?.value)
+        .filter((id): id is string => id !== undefined)
+      : accounts.map((account) => account.id);
+    const selectedAccountIds = updateSelectedAccountIds(
+      getSelectedAccountIds(accountOptions),
+      targetAccountIds,
+      shouldSelect,
+    );
+    const selectedAccountIdSet = new Set(selectedAccountIds);
+    for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) {
+      input.checked = selectedAccountIdSet.has(input.value);
+    }
+    renderResults();
   };
 
   const updateAmountOutputs = (): void => {
@@ -372,14 +398,8 @@ export async function initializeTransactionsPage(): Promise<void> {
     closeFilterPopovers();
     amountTrigger.focus();
   });
-  selectAllAccounts.addEventListener("click", () => {
-    for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) input.checked = true;
-    renderResults();
-  });
-  deselectAllAccounts.addEventListener("click", () => {
-    for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) input.checked = false;
-    renderResults();
-  });
+  selectAllAccounts.addEventListener("click", () => updateAccountSelection(true));
+  deselectAllAccounts.addEventListener("click", () => updateAccountSelection(false));
   accountOptions.addEventListener("change", renderResults);
   accountSearch.addEventListener("input", applyAccountSearch);
   sortSelect.addEventListener("change", renderResults);

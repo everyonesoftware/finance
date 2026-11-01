@@ -174,6 +174,18 @@ test("account selection defaults to all on first load and preserves choices on r
   );
 });
 
+test("bulk account selection changes only filtered accounts and preserves other selections", () => {
+  const updateSelectedAccountIds = transactionFilterUtils.updateSelectedAccountIds;
+  assert.equal(typeof updateSelectedAccountIds, "function");
+  const current = ["outside-filter", "already-selected"];
+  assert.deepEqual(
+    updateSelectedAccountIds(current, ["already-selected", "new-match"], true),
+    ["outside-filter", "already-selected", "new-match"],
+  );
+  assert.deepEqual(updateSelectedAccountIds(current, ["already-selected"], false), ["outside-filter"]);
+  assert.deepEqual(updateSelectedAccountIds(current, [], false), current);
+});
+
 test("account search matches fuzzy subsequences and highlights only matched characters", () => {
   const getFuzzyMatchPositions = transactionFilterUtils.getFuzzyMatchPositions;
   const renderFuzzyHighlightedText = transactionFilterUtils.renderFuzzyHighlightedText;

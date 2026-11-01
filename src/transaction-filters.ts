@@ -24,6 +24,19 @@ export function getAccountSelectionOnLoad(
   return accountIds.filter((id) => previouslySelected.has(id));
 }
 
+export function updateSelectedAccountIds(
+  selectedAccountIds: string[],
+  targetAccountIds: string[],
+  shouldSelect: boolean,
+): string[] {
+  const selected = new Set(selectedAccountIds);
+  for (const accountId of targetAccountIds) {
+    if (shouldSelect) selected.add(accountId);
+    else selected.delete(accountId);
+  }
+  return [...selected];
+}
+
 export function getFuzzyMatchPositions(query: string, text: string): number[] | null {
   if (query.trim().length === 0) return [];
 
