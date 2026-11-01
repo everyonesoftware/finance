@@ -14,6 +14,7 @@ import { applySqlMigration } from "../server-dist/migration-utils.js";
 import { collectTransactionPages, getRecentTransactions } from "../server-dist/transaction-sync.js";
 import { groupInternalTransfers, renderTransactionList } from "../src/transaction-list.ts";
 import { filterAndSortTransactionGroups } from "../src/transaction-filters.ts";
+import * as transactionFilterUtils from "../src/transaction-filters.ts";
 import { renderTransactionsPage, getTransactionAmountBounds } from "../src/transactions-page.ts";
 import { renderDashboard } from "../src/dashboard.ts";
 import {
@@ -129,8 +130,15 @@ test("transaction filters include, exclude, and sort grouped transactions by amo
   });
   assert.deepEqual(multiIncluded.map((group) => group.transactions[0].transaction_id), ["transfer-out", "checking-five", "savings-ten"]);
 
+  const noneSelected = filterAndSortTransactionGroups(groups, [checking, savings], {
+    ...sharedFilters,
+    sort: "date-desc",
+  });
+  assert.deepEqual(noneSelected, []);
+
   const amountRange = filterAndSortTransactionGroups(groups, [checking, savings], {
     ...sharedFilters,
+    includeAccountIds: ["checking-id", "savings-id"],
     minimumAmount: -15,
     maximumAmount: -5,
     sort: "amount-asc",
@@ -139,6 +147,7 @@ test("transaction filters include, exclude, and sort grouped transactions by amo
 
   const excluded = filterAndSortTransactionGroups(groups, [checking, savings], {
     ...sharedFilters,
+    includeAccountIds: ["checking-id", "savings-id"],
     excludeAccountIds: ["savings-id"],
     sort: "date-desc",
   });
@@ -146,9 +155,23 @@ test("transaction filters include, exclude, and sort grouped transactions by amo
 
   const byDate = filterAndSortTransactionGroups(groups, [checking, savings], {
     ...sharedFilters,
+    includeAccountIds: ["checking-id", "savings-id"],
     sort: "date-desc",
   });
   assert.deepEqual(byDate.map((group) => group.transactions[0].transaction_id), ["savings-ten", "transfer-out", "checking-five"]);
+});
+
+test("account selection defaults to all on first load and preserves choices on refresh", () => {
+  const getAccountSelectionOnLoad = transactionFilterUtils.getAccountSelectionOnLoad;
+  assert.equal(typeof getAccountSelectionOnLoad, "function");
+  const currentAccountIds = ["checking-id", "savings-id", "investment-id"];
+  assert.deepEqual(getAccountSelectionOnLoad(currentAccountIds, null, []), currentAccountIds);
+  assert.deepEqual(getAccountSelectionOnLoad(currentAccountIds, ["checking-id", "savings-id"], []), []);
+  assert.deepEqual(getAccountSelectionOnLoad(currentAccountIds, ["checking-id", "savings-id"], ["savings-id"]), ["savings-id"]);
+  assert.deepEqual(
+    getAccountSelectionOnLoad(currentAccountIds, ["checking-id", "savings-id"], ["checking-id", "savings-id"]),
+    currentAccountIds,
+  );
 });
 
 test("transaction lists can show the owning institution and account for each row", () => {

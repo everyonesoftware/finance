@@ -11,6 +11,18 @@ export interface TransactionListFilters {
   sort: TransactionSortOrder;
 }
 
+export function getAccountSelectionOnLoad(
+  accountIds: string[],
+  previouslyAvailableAccountIds: string[] | null,
+  previouslySelectedAccountIds: string[],
+): string[] {
+  const previouslySelected = new Set(previouslySelectedAccountIds);
+  if (previouslyAvailableAccountIds === null || previouslyAvailableAccountIds.every((id) => previouslySelected.has(id))) {
+    return [...accountIds];
+  }
+  return accountIds.filter((id) => previouslySelected.has(id));
+}
+
 export function getTransactionGroupAmount(group: TransactionGroup): number | null {
   const transaction = group.transactions.find((candidate) =>
     typeof candidate.amount === "number" && Number.isFinite(candidate.amount),
@@ -52,7 +64,7 @@ export function filterAndSortTransactionGroups(
   const excluded = new Set(filters.excludeAccountIds);
   const matches = groups.flatMap((group, index) => {
     const accountIds = getTransactionGroupAccountIds(group, accountsByPlaidId);
-    if (included.size > 0 && !accountIds.some((id) => included.has(id))) return [];
+    if (included.size === 0 || !accountIds.some((id) => included.has(id))) return [];
     if (accountIds.some((id) => excluded.has(id))) return [];
 
     const amount = getTransactionGroupAmount(group);

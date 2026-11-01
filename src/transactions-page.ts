@@ -2,6 +2,7 @@ import { appVersion } from "./app-version.ts";
 import { escapeHtml } from "./html-utils.ts";
 import {
   filterAndSortTransactionGroups,
+  getAccountSelectionOnLoad,
   getTransactionGroupAmount,
   type TransactionSortOrder,
 } from "./transaction-filters.ts";
@@ -93,7 +94,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                     <button id="select-all-accounts" type="button">Select all</button>
                     <button id="deselect-all-accounts" type="button">Deselect all</button>
                   </div>
-                  <p class="transaction-popover-help">Select accounts to show only their transactions. Leave all unchecked to show every account.</p>
+                  <p class="transaction-popover-help">All accounts are selected by default. Deselect accounts to hide their transactions.</p>
                   <div id="account-options" class="transaction-filter-account-list"><span>Loading accounts…</span></div>
                 </div>
               </div>
@@ -215,6 +216,7 @@ export async function initializeTransactionsPage(): Promise<void> {
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
+  let hasLoadedTransactions = false;
   let minimumAmount = -1;
   let maximumAmount = 1;
 
@@ -255,9 +257,10 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const renderResults = (): void => {
+    const selectedAccountIds = getSelectedAccountIds(accountOptions);
     const groups = groupInternalTransfers(transactions, accounts);
     const filtered = filterAndSortTransactionGroups(groups, accounts, {
-      includeAccountIds: getSelectedAccountIds(accountOptions),
+      includeAccountIds: selectedAccountIds,
       excludeAccountIds: [],
       minimumAmount: Number(minimumInput.value),
       maximumAmount: Number(maximumInput.value),
@@ -270,9 +273,11 @@ export async function initializeTransactionsPage(): Promise<void> {
     updateAmountSummary();
     if (filtered.length === 0) {
       list.className = "transaction-empty";
-      list.textContent = transactions.length === 0
-        ? "No transactions are available yet. Sync transactions to load activity."
-        : "No transactions match these filters.";
+      list.textContent = selectedAccountIds.length === 0
+        ? "No accounts are selected. Select one or more accounts to view transactions."
+        : transactions.length === 0
+          ? "No transactions are available yet. Sync transactions to load activity."
+          : "No transactions match these filters.";
       return;
     }
     list.className = "transaction-list all-transactions-list";
@@ -297,7 +302,8 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const loadTransactions = async (): Promise<void> => {
-    const previousAccountIds = getSelectedAccountIds(accountOptions);
+    const previousAvailableAccountIds = hasLoadedTransactions ? accounts.map((account) => account.id) : null;
+    const previousSelectedAccountIds = getSelectedAccountIds(accountOptions);
     const response = await fetch("/api/accounts/transactions/all", {
       cache: "no-store",
       credentials: "same-origin",
@@ -311,10 +317,16 @@ export async function initializeTransactionsPage(): Promise<void> {
     accounts = payload.accounts;
     accountTotal.textContent = String(accounts.length);
     accountOptions.innerHTML = renderAccountOptions(accounts);
-    const previousAccountIdSet = new Set(previousAccountIds);
+    const accountIdsToSelect = getAccountSelectionOnLoad(
+      accounts.map((account) => account.id),
+      previousAvailableAccountIds,
+      previousSelectedAccountIds,
+    );
+    const selectedAccountIdSet = new Set(accountIdsToSelect);
     for (const input of accountOptions.querySelectorAll<HTMLInputElement>("input[data-account-filter]")) {
-      input.checked = previousAccountIdSet.has(input.value);
+      input.checked = selectedAccountIdSet.has(input.value);
     }
+    hasLoadedTransactions = true;
     const bounds = allTransactionAmountBounds(transactions, accounts);
     minimumAmount = bounds.minimum;
     maximumAmount = bounds.maximum;
