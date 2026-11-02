@@ -2,6 +2,7 @@ import { appVersion } from "./app-version.ts";
 import { escapeHtml } from "./html-utils.ts";
 import { renderMainNavigation } from "./navigation.ts";
 import { renderTransactionList } from "./transaction-list.ts";
+import { initializeRealEstateConnections, renderRealEstateCards } from "./real-estate.ts";
 export {
   findReferencedAccount,
   formatTransactionAmount,
@@ -349,7 +350,7 @@ export function renderConnectionsPage(user: BankAccountsPageUser): string {
   const displayName = escapeHtml(user.displayName);
   const username = escapeHtml(user.username);
   const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
-  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div>${renderMainNavigation("connections")}<div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Connections</h1><p class="subheading">Plaid integrations and the accounts they provide.</p></div></section><div id="connected-integrations" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading your connections…</div></div><footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer></main></div>`;
+  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div>${renderMainNavigation("connections")}<div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Connections</h1><p class="subheading">Plaid integrations and real-estate connections.</p></div><button class="primary-button" id="add-connection" type="button">＋ Add Connection</button></section><dialog id="connection-dialog" class="connection-dialog"><div class="panel"><button class="icon-button" id="close-connection-dialog" type="button" aria-label="Close">×</button><h2 id="connection-dialog-title">Add Connection</h2><section id="connection-choices"><button class="secondary-button" id="choose-plaid" type="button">Plaid · Connect a bank</button><button class="secondary-button" id="choose-real-estate" type="button">Real Estate</button></section><section id="real-estate-wizard" hidden><div id="real-estate-step-address"><button id="real-estate-choice-back" class="text-button" type="button">← Back</button><h3>Choose property</h3><label>Address <input id="property-address" autocomplete="off" placeholder="Enter an address"></label><div id="address-suggestions" role="listbox"></div><div id="property-map-preview"></div><button id="real-estate-next" class="primary-button" type="button" disabled>Next</button></div><div id="real-estate-step-provider" hidden><button id="real-estate-back" class="text-button" type="button">← Back</button><h3>Choose estimate provider</h3><button type="button" aria-label="Zillow unavailable" disabled>Zillow · Unavailable</button><button type="button" aria-label="Redfin unavailable" disabled>Redfin · Unavailable</button><button id="choose-manual" type="button">Manual</button><div id="manual-estimate-step" hidden><label>Estimated value <input id="manual-estimate" type="number" min="0" step="0.01"></label><button id="save-real-estate" class="primary-button" type="button">Done</button></div></div></section><p id="connection-dialog-message" role="status"></p></div></dialog><div id="connected-integrations" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading your connections…</div></div><footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer></main></div>`;
 }
 
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
@@ -942,18 +943,28 @@ export function initializeBankAccountsPage(): void {
     void syncAllInstitutions(syncAllButton);
   });
   void refreshAccounts();
+  if (new URLSearchParams(location.search).get("connect") === "plaid") {
+    history.replaceState(null, "", "/accounts");
+    void connectBank();
+  }
 }
 
 export async function initializeConnectionsPage(): Promise<void> {
   const container = document.querySelector<HTMLDivElement>("#connected-integrations");
   if (!container) return;
+  initializeRealEstateConnections(() => void initializeConnectionsPage());
   try {
-    const response = await fetch("/api/accounts/items", { cache: "no-store", credentials: "same-origin" });
-    const payload: unknown = await readJson(response);
-    if (!response.ok || typeof payload !== "object" || payload === null || !("connections" in payload) || !Array.isArray(payload.connections)) {
-      throw new Error(getErrorMessage(payload, "Unable to load Plaid connections."));
-    }
-    container.innerHTML = renderConnections(payload.connections as PlaidConnection[]);
+    const [plaidResponse, estateResponse] = await Promise.all([
+      fetch("/api/accounts/items", { cache: "no-store", credentials: "same-origin" }),
+      fetch("/api/real-estate", { cache: "no-store", credentials: "same-origin" }),
+    ]);
+    const plaidPayload: unknown = await readJson(plaidResponse);
+    const estatePayload: unknown = await readJson(estateResponse);
+    if (!plaidResponse.ok || typeof plaidPayload !== "object" || plaidPayload === null || !("connections" in plaidPayload) || !Array.isArray(plaidPayload.connections)) throw new Error(getErrorMessage(plaidPayload, "Unable to load Plaid connections."));
+    if (!estateResponse.ok || typeof estatePayload !== "object" || estatePayload === null || !("properties" in estatePayload) || !Array.isArray(estatePayload.properties)) throw new Error(getErrorMessage(estatePayload, "Unable to load real-estate connections."));
+    const plaidHtml = renderConnections(plaidPayload.connections as PlaidConnection[]);
+    const estateHtml = renderRealEstateCards(estatePayload.properties as Parameters<typeof renderRealEstateCards>[0]);
+    container.innerHTML = [...(plaidPayload.connections.length ? [plaidHtml] : []), ...(estatePayload.properties.length ? [estateHtml] : [])].join("") || `<div class="accounts-empty"><strong>No connections yet</strong><span>Add a bank or real-estate property to get started.</span></div>`;
   } catch {
     container.innerHTML = `<div class="accounts-error"><strong>We couldn't load your connections.</strong><button class="text-button" id="retry-connections" type="button">Try again</button></div>`;
     container.querySelector<HTMLButtonElement>("#retry-connections")?.addEventListener("click", () => void initializeConnectionsPage());

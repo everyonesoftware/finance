@@ -15,6 +15,7 @@ import { collectTransactionPages, getRecentTransactions } from "../server-dist/t
 import { groupInternalTransfers, renderTransactionList } from "../src/transaction-list.ts";
 import { filterAndSortTransactionGroups } from "../src/transaction-filters.ts";
 import * as transactionFilterUtils from "../src/transaction-filters.ts";
+import { renderRealEstateCards } from "../src/real-estate.ts";
 import { renderTransactionsPage, getTransactionAmountBounds, formatFilterAmount } from "../src/transactions-page.ts";
 import { renderDashboard } from "../src/dashboard.ts";
 import { renderMainNavigation } from "../src/navigation.ts";
@@ -648,6 +649,48 @@ test("connections page groups integrations by Plaid item and collapses yielded a
   assert.match(page, /class="nav-link active" href="\/connections" aria-current="page"/);
   assert.match(page, /id="connected-integrations"/);
   assert.doesNotMatch(page, /logout-button/);
+});
+
+test("real-estate cards show the latest manual value, full history, and escaped address", () => {
+  const html = renderRealEstateCards([{ id: "home-1", address: "<script>alert(1)</script>", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 750000, createdAt: 1790900000 }, { amount: 700000, createdAt: 1788000000 }] }]);
+  assert.match(html, /Current estimate/);
+  assert.match(html, /\$750,000/);
+  assert.match(html, /\$700,000/);
+  assert.match(html, /Manual estimate history/);
+  assert.match(html, /maps\.google\.com/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /<script>alert/);
+});
+
+test("connections page offers Plaid and real-estate choices with disabled external providers", () => {
+  const html = renderConnectionsPage({ displayName: "Test", username: "test" });
+  assert.match(html, /id="add-connection"/);
+  assert.match(html, /Real Estate/);
+  assert.match(html, /Zillow[^>]*disabled|disabled[^>]*Zillow/);
+  assert.match(html, /Redfin[^>]*disabled|disabled[^>]*Redfin/);
+  assert.match(html, /Manual/);
+});
+
+test("real-estate migration persists owned connections and timestamped estimate history", async () => {
+  const database = new Database(":memory:");
+  database.pragma("foreign_keys = ON");
+  for (const migrationName of (await readdir(migrationsDirectory)).filter((name) => name.endsWith(".sql")).sort()) {
+    applySqlMigration(database, await readFile(new URL(migrationName, migrationsDirectory), "utf8"));
+  }
+  const tables = database.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((row) => row.name);
+  assert.ok(tables.includes("real_estate_connection"));
+  assert.ok(tables.includes("real_estate_estimate"));
+  const connectionColumns = database.prepare("PRAGMA table_info(real_estate_connection)").all().map((column) => column.name);
+  assert.ok(connectionColumns.includes("user_id"));
+  assert.ok(connectionColumns.includes("latitude"));
+  assert.ok(connectionColumns.includes("longitude"));
+  database.prepare("INSERT INTO user(id,name,email) VALUES('owner-a','Owner A','a@example.test'),('owner-b','Owner B','b@example.test')").run();
+  database.prepare("INSERT INTO real_estate_connection(id,user_id,address,latitude,longitude) VALUES('property-a','owner-a','123 Main St',47.6,-122.3)").run();
+  database.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount,created_at) VALUES('estimate-old','property-a','owner-a','manual',700000,1788000000000),('estimate-new','property-a','owner-a','manual',750000,1790900000000)").run();
+  const estimates = database.prepare("SELECT amount,created_at AS createdAt FROM real_estate_estimate WHERE user_id=? AND connection_id=? ORDER BY created_at DESC").all("owner-a","property-a");
+  assert.deepEqual(estimates.map((estimate) => estimate.amount), [750000,700000]);
+  assert.throws(() => database.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount) VALUES('foreign-estimate','property-a','owner-b','manual',1)").run(), /FOREIGN KEY/);
+  database.close();
 });
 
 test("logout action is placed in a Settings section after Change password", async () => {
