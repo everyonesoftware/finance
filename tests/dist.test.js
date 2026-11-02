@@ -672,6 +672,13 @@ test("real-estate cards show only the current estimate and an edit control", asy
   assert.match(css, /@media \(max-width: 620px\)[\s\S]*\.real-estate-details[^}]*grid-template-columns: 1fr/);
 });
 
+test("connection dialog keeps a stable height and reserves bounded space for the property map", async () => {
+  const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.connection-dialog\s*>\s*\.panel\s*\{[^}]*height:\s*min\(80vh,\s*620px\)/s);
+  assert.match(css, /#property-map-preview\s*\{[^}]*height:\s*240px/s);
+  assert.match(css, /#property-map-preview iframe\s*\{[^}]*height:\s*100%/s);
+});
+
 test("connections page offers Plaid and real-estate choices with disabled external providers", () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
   assert.match(html, /id="add-connection"/);
