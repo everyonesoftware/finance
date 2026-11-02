@@ -212,7 +212,7 @@ function renderSettings(user: AuthUser): void {
         <div class="mobile-menu-panel">
           <div class="workspace-label">WORKSPACE</div>
           ${renderMainNavigation("settings")}
-          <div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${escapeHtml(initial)}</div><div class="profile-copy"><strong>${escapeHtml(displayName)}</strong><span>@${escapeHtml(username)}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span><button class="text-button logout-button" type="button">Log out</button></div></div>
+          <div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${escapeHtml(initial)}</div><div class="profile-copy"><strong>${escapeHtml(displayName)}</strong><span>@${escapeHtml(username)}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div>
         </div>
       </aside>
       <main class="main-content settings-main">
@@ -258,6 +258,11 @@ function renderSettings(user: AuthUser): void {
             </label>
             <button class="primary-button" type="submit">Update password</button>
           </form>
+        </section>
+        <section class="settings-card settings-logout-section">
+          <h2>Log out</h2>
+          <p>Sign out of your Finance account on this device.</p>
+          <button class="text-button logout-button" type="button">Log out</button>
         </section>
       </section>
       </main>

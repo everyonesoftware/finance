@@ -1730,6 +1730,10 @@ a.text-button {
     margin-left: 210px;
   }
 
+  .settings-main {
+    margin-left: 210px;
+  }
+
   .content-grid {
     grid-template-columns: minmax(0, 1.3fr) minmax(270px, 1fr);
   }
@@ -1804,6 +1808,11 @@ a.text-button {
     padding: 0 24px 26px;
   }
 
+  .settings-main {
+    margin-left: 0;
+    padding: 0 24px 26px;
+  }
+
   .topbar {
     height: 55px;
   }
@@ -1833,6 +1842,11 @@ a.text-button {
     gap: 10px;
   }
   .main-content {
+    padding-right: 16px;
+    padding-left: 16px;
+  }
+
+  .settings-main {
     padding-right: 16px;
     padding-left: 16px;
   }
@@ -2157,6 +2171,12 @@ a.text-button {
 
 .settings-page {
   padding-bottom: 50px;
+}
+
+.settings-main {
+  max-width: 1600px;
+  margin-left: 246px;
+  padding: 0 48px 30px;
 }
 
 .settings-nav,

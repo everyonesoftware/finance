@@ -647,6 +647,17 @@ test("connections page groups integrations by Plaid item and collapses yielded a
   const page = renderConnectionsPage({ displayName: "Test", username: "test" });
   assert.match(page, /class="nav-link active" href="\/connections" aria-current="page"/);
   assert.match(page, /id="connected-integrations"/);
+  assert.doesNotMatch(page, /logout-button/);
+});
+
+test("logout action is placed in a Settings section after Change password", async () => {
+  const settingsSource = await readFile(new URL("../src/main.ts", import.meta.url), "utf8");
+  const passwordSection = settingsSource.indexOf("<h2>Change password</h2>");
+  const logoutSection = settingsSource.indexOf('class="settings-card settings-logout-section"');
+  assert.ok(passwordSection >= 0);
+  assert.ok(logoutSection > passwordSection);
+  assert.match(settingsSource.slice(logoutSection), /class="text-button logout-button"/);
+  assert.doesNotMatch(settingsSource.slice(0, logoutSection), /logout-button/);
 });
 
 test("accounts page places sync-all before Connect a bank", () => {

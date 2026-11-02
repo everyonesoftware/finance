@@ -46,7 +46,7 @@ export function renderDashboard(user: DashboardUser): string {
           <strong>${displayName}</strong>
           <span>@${username}</span>
           <span class="app-version">Version ${escapeHtml(appVersion)}</span>
-          <button class="text-button logout-button" type="button">Log out</button>
+
         </div>
       </div>
       </div>
