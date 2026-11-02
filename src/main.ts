@@ -2,6 +2,7 @@ import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
 import { renderMainNavigation } from "./navigation.ts";
+import { appVersion } from "./app-version.ts";
 import { renderDashboard } from "./dashboard";
 import { initializeTransactionsPage, renderTransactionsPage } from "./transactions-page";
 import {
@@ -211,11 +212,10 @@ function renderSettings(user: AuthUser): void {
         <div class="mobile-menu-panel">
           <div class="workspace-label">WORKSPACE</div>
           ${renderMainNavigation("settings")}
-          <div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${escapeHtml(initial)}</div><div class="profile-copy"><strong>${escapeHtml(displayName)}</strong><span>@${escapeHtml(username)}</span></div></div>
+          <div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${escapeHtml(initial)}</div><div class="profile-copy"><strong>${escapeHtml(displayName)}</strong><span>@${escapeHtml(username)}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span><button class="text-button logout-button" type="button">Log out</button></div></div>
         </div>
       </aside>
       <main class="main-content settings-main">
-        <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Settings</div><button class="text-button logout-button" type="button">Log out</button></header>
       <section class="settings-content">
         <p class="eyebrow">YOUR ACCOUNT</p>
         <h1>Settings</h1>

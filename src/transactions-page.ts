@@ -61,19 +61,13 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <strong>${displayName}</strong>
             <span>@${username}</span>
             <span class="app-version">Version ${escapeHtml(appVersion)}</span>
+            <button class="text-button logout-button" type="button">Log out</button>
           </div>
         </div>
         </div>
       </aside>
       <main class="main-content transactions-content">
-        <header class="topbar">
-          <div class="breadcrumb">Workspace <span>/</span> Transactions</div>
-          <div class="header-actions">
-            <a class="settings-shortcut" href="/accounts">Accounts</a>
-            <a class="settings-shortcut" href="/settings">Settings</a>
-            <button class="text-button logout-button" type="button">Log out</button>
-          </div>
-        </header>
+
         <section class="page-heading transactions-page-heading">
           <div>
             <p class="eyebrow">ALL ACCOUNTS</p>

@@ -770,19 +770,14 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
             <strong>${displayName}</strong>
             <span>@${username}</span>
             <span class="app-version">Version ${escapeHtml(appVersion)}</span>
+            <button class="text-button logout-button" type="button">Log out</button>
           </div>
         </div>
         </div>
       </aside>
 
       <main class="main-content accounts-content">
-        <header class="topbar">
-          <div class="breadcrumb">Workspace <span>/</span> Accounts</div>
-          <div class="header-actions">
-            <a class="settings-shortcut" href="/settings">Settings</a>
-            <button class="text-button logout-button" type="button">Log out</button>
-          </div>
-        </header>
+
         <p id="accounts-message" class="auth-message" role="status" hidden></p>
 
         <section class="page-heading accounts-page-heading">
@@ -851,18 +846,12 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
         ${renderMainNavigation("accounts")}
         <div class="sidebar-bottom">
           <div class="profile-avatar" aria-hidden="true">${initial}</div>
-          <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
+          <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span><button class="text-button logout-button" type="button">Log out</button></div>
         </div>
         </div>
       </aside>
       <main class="main-content accounts-content">
-        <header class="topbar">
-          <div class="breadcrumb">Workspace <span>/</span> <a href="/accounts">Accounts</a> <span>/</span> Account details</div>
-          <div class="header-actions">
-            <a class="settings-shortcut" href="/settings">Settings</a>
-            <button class="text-button logout-button" type="button">Log out</button>
-          </div>
-        </header>
+
         <section class="page-heading accounts-page-heading">
           <div><p class="eyebrow">CONNECTED ACCOUNT</p><h1>Account details</h1><p class="subheading">A current snapshot and recent activity for this account.</p></div>
           <div class="account-detail-actions">

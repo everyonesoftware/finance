@@ -46,20 +46,14 @@ export function renderDashboard(user: DashboardUser): string {
           <strong>${displayName}</strong>
           <span>@${username}</span>
           <span class="app-version">Version ${escapeHtml(appVersion)}</span>
+          <button class="text-button logout-button" type="button">Log out</button>
         </div>
       </div>
       </div>
     </aside>
 
     <main class="main-content" id="overview">
-      <header class="topbar">
-        <div class="breadcrumb">Workspace <span>/</span> Overview</div>
-        <div class="header-actions">
-          <a class="settings-shortcut" href="/accounts">Accounts</a>
-          <a class="settings-shortcut" href="/settings">Settings</a>
-          <button class="text-button logout-button" type="button">Log out</button>
-        </div>
-      </header>
+
       <p id="settings-message" class="auth-message" role="status" hidden></p>
 
       <section class="page-heading">
