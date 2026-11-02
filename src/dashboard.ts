@@ -45,6 +45,9 @@ export function renderDashboard(user: DashboardUser): string {
         <a class="nav-link" href="/transactions">
           <span class="nav-icon" aria-hidden="true">↕</span> Transactions
         </a>
+        <a class="nav-link" href="/connections">
+          <span class="nav-icon" aria-hidden="true">↔</span> Connections
+        </a>
         <a class="nav-link" href="/accounts">
           <span class="nav-icon" aria-hidden="true">▣</span> Accounts
         </a>

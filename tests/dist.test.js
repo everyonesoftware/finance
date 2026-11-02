@@ -306,11 +306,13 @@ test("main navigation has an accessible mobile menu toggle on every finance page
     renderTransactionsPage({ displayName: "Test", username: "test" }),
     renderBankAccountsPage({ displayName: "Test", username: "test" }),
     renderBankAccountDetailPage({ displayName: "Test", username: "test" }),
+    renderConnectionsPage({ displayName: "Test", username: "test" }),
   ];
   for (const html of pages) {
     assert.match(html, /class="mobile-menu-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="main-navigation"/);
     assert.match(html, /class="mobile-menu-panel"/);
     assert.match(html, /<nav class="navigation" id="main-navigation">/);
+    assert.match(html, /href="\/connections"[^>]*>[^<]*<span class="nav-icon"[^>]*>↔<\/span> Connections/);
   }
 });
 

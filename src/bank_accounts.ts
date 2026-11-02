@@ -772,6 +772,9 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           <a class="nav-link" href="/dashboard#budgets">
             <span class="nav-icon" aria-hidden="true">▤</span> Budgets
           </a>
+          <a class="nav-link" href="/connections">
+            <span class="nav-icon" aria-hidden="true">↔</span> Connections
+          </a>
           <a class="nav-link active" href="/accounts" aria-current="page">
             <span class="nav-icon" aria-hidden="true">▣</span> Accounts
           </a>
@@ -867,6 +870,7 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
           <a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a>
           <a class="nav-link" href="/dashboard#transactions"><span class="nav-icon" aria-hidden="true">↕</span> Transactions</a>
           <a class="nav-link" href="/dashboard#budgets"><span class="nav-icon" aria-hidden="true">▤</span> Budgets</a>
+          <a class="nav-link" href="/connections"><span class="nav-icon" aria-hidden="true">↔</span> Connections</a>
           <a class="nav-link active" href="/accounts" aria-current="page"><span class="nav-icon" aria-hidden="true">▣</span> Accounts</a>
           <a class="nav-link" href="/settings"><span class="nav-icon" aria-hidden="true">⚙</span> Settings</a>
         </nav>

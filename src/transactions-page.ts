@@ -56,6 +56,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
         <nav class="navigation" id="main-navigation">
           <a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a>
           <a class="nav-link active" href="/transactions" aria-current="page"><span class="nav-icon" aria-hidden="true">↕</span> Transactions</a>
+          <a class="nav-link" href="/connections"><span class="nav-icon" aria-hidden="true">↔</span> Connections</a>
           <a class="nav-link" href="/accounts"><span class="nav-icon" aria-hidden="true">▣</span> Accounts</a>
           <a class="nav-link" href="/settings"><span class="nav-icon" aria-hidden="true">⚙</span> Settings</a>
         </nav>
