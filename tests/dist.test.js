@@ -17,6 +17,7 @@ import { filterAndSortTransactionGroups } from "../src/transaction-filters.ts";
 import * as transactionFilterUtils from "../src/transaction-filters.ts";
 import { renderTransactionsPage, getTransactionAmountBounds, formatFilterAmount } from "../src/transactions-page.ts";
 import { renderDashboard } from "../src/dashboard.ts";
+import { renderMainNavigation } from "../src/navigation.ts";
 import {
   formatTransactionAmount,
   getTotalBalance,
@@ -313,6 +314,27 @@ test("main navigation has an accessible mobile menu toggle on every finance page
     assert.match(html, /class="mobile-menu-panel"/);
     assert.match(html, /<nav class="navigation" id="main-navigation">/);
     assert.match(html, /href="\/connections"[^>]*>[^<]*<span class="nav-icon"[^>]*>↔<\/span> Connections/);
+  }
+});
+
+test("every finance page renders the same navigation destinations in the same order", () => {
+  const pages = [
+    renderDashboard({ displayName: "Test", username: "test" }),
+    renderTransactionsPage({ displayName: "Test", username: "test" }),
+    renderBankAccountsPage({ displayName: "Test", username: "test" }),
+    renderBankAccountDetailPage({ displayName: "Test", username: "test" }),
+    renderConnectionsPage({ displayName: "Test", username: "test" }),
+    renderMainNavigation("settings"),
+  ];
+  const destinations = pages.map((html) => {
+    const navigation = html.match(/<nav class="navigation" id="main-navigation">([\s\S]*?)<\/nav>/)?.[1] ?? "";
+    return [...navigation.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
+  });
+  assert.ok(destinations.every((links) => JSON.stringify(links) === JSON.stringify(destinations[0])));
+  assert.deepEqual(destinations[0], ["/dashboard", "/transactions", "/connections", "/accounts", "/settings"]);
+  for (const [index, html] of pages.entries()) {
+    const activeHref = html.match(/<a class="nav-link active" href="([^"]+)"[^>]*aria-current="page"/)?.[1];
+    assert.equal(activeHref, ["/dashboard", "/transactions", "/accounts", "/accounts", "/connections", "/settings"][index]);
   }
 });
 

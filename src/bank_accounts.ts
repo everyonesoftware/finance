@@ -1,5 +1,6 @@
 import { appVersion } from "./app-version.ts";
 import { escapeHtml } from "./html-utils.ts";
+import { renderMainNavigation } from "./navigation.ts";
 import { renderTransactionList } from "./transaction-list.ts";
 export {
   findReferencedAccount,
@@ -348,7 +349,7 @@ export function renderConnectionsPage(user: BankAccountsPageUser): string {
   const displayName = escapeHtml(user.displayName);
   const username = escapeHtml(user.username);
   const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
-  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div><nav class="navigation" id="main-navigation"><a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a><a class="nav-link" href="/transactions"><span class="nav-icon" aria-hidden="true">↕</span> Transactions</a><a class="nav-link active" href="/connections" aria-current="page"><span class="nav-icon" aria-hidden="true">↔</span> Connections</a><a class="nav-link" href="/accounts"><span class="nav-icon" aria-hidden="true">▣</span> Accounts</a><a class="nav-link" href="/settings"><span class="nav-icon" aria-hidden="true">⚙</span> Settings</a></nav><div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Connections</div><div class="header-actions"><a class="settings-shortcut" href="/settings">Settings</a><button class="text-button logout-button" type="button">Log out</button></div></header><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Connections</h1><p class="subheading">Plaid integrations and the accounts they provide.</p></div></section><div id="connected-integrations" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading your connections…</div></div><footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer></main></div>`;
+  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div>${renderMainNavigation("connections")}<div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Connections</div><div class="header-actions"><a class="settings-shortcut" href="/settings">Settings</a><button class="text-button logout-button" type="button">Log out</button></div></header><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Connections</h1><p class="subheading">Plaid integrations and the accounts they provide.</p></div></section><div id="connected-integrations" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading your connections…</div></div><footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer></main></div>`;
 }
 
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
@@ -762,26 +763,7 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
         <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
         <div class="mobile-menu-panel">
         <div class="workspace-label">WORKSPACE</div>
-        <nav class="navigation" id="main-navigation">
-          <a class="nav-link" href="/dashboard">
-            <span class="nav-icon" aria-hidden="true">◫</span> Overview
-          </a>
-          <a class="nav-link" href="/dashboard#transactions">
-            <span class="nav-icon" aria-hidden="true">↕</span> Transactions
-          </a>
-          <a class="nav-link" href="/dashboard#budgets">
-            <span class="nav-icon" aria-hidden="true">▤</span> Budgets
-          </a>
-          <a class="nav-link" href="/connections">
-            <span class="nav-icon" aria-hidden="true">↔</span> Connections
-          </a>
-          <a class="nav-link active" href="/accounts" aria-current="page">
-            <span class="nav-icon" aria-hidden="true">▣</span> Accounts
-          </a>
-          <a class="nav-link" href="/settings">
-            <span class="nav-icon" aria-hidden="true">⚙</span> Settings
-          </a>
-        </nav>
+        ${renderMainNavigation("accounts")}
         <div class="sidebar-bottom">
           <div class="profile-avatar" aria-hidden="true">${initial}</div>
           <div class="profile-copy">
@@ -866,14 +848,7 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
         <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
         <div class="mobile-menu-panel">
         <div class="workspace-label">WORKSPACE</div>
-        <nav class="navigation" id="main-navigation">
-          <a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a>
-          <a class="nav-link" href="/dashboard#transactions"><span class="nav-icon" aria-hidden="true">↕</span> Transactions</a>
-          <a class="nav-link" href="/dashboard#budgets"><span class="nav-icon" aria-hidden="true">▤</span> Budgets</a>
-          <a class="nav-link" href="/connections"><span class="nav-icon" aria-hidden="true">↔</span> Connections</a>
-          <a class="nav-link active" href="/accounts" aria-current="page"><span class="nav-icon" aria-hidden="true">▣</span> Accounts</a>
-          <a class="nav-link" href="/settings"><span class="nav-icon" aria-hidden="true">⚙</span> Settings</a>
-        </nav>
+        ${renderMainNavigation("accounts")}
         <div class="sidebar-bottom">
           <div class="profile-avatar" aria-hidden="true">${initial}</div>
           <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>

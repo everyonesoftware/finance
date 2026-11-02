@@ -1,6 +1,7 @@
 import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
+import { renderMainNavigation } from "./navigation.ts";
 import { renderDashboard } from "./dashboard";
 import { initializeTransactionsPage, renderTransactionsPage } from "./transactions-page";
 import {
@@ -199,18 +200,22 @@ function renderLanding(): void {
 }
 
 function renderSettings(user: AuthUser): void {
+  const displayName = user.name.trim() || user.username || user.email;
+  const username = user.username ?? "";
+  const initial = displayName.charAt(0).toUpperCase() || "U";
   app.innerHTML = `
-    <main class="settings-page">
-      <header class="settings-header">
-        <a class="brand" href="/dashboard" aria-label="Finance dashboard">
-          <span class="brand-mark" aria-hidden="true">F</span>
-          <span>Finance</span>
-        </a>
-        <nav class="settings-nav" aria-label="Account navigation">
-          <a href="/dashboard">← Back to dashboard</a>
-          <button class="text-button logout-button" type="button">Log out</button>
-        </nav>
-      </header>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a>
+        <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
+        <div class="mobile-menu-panel">
+          <div class="workspace-label">WORKSPACE</div>
+          ${renderMainNavigation("settings")}
+          <div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${escapeHtml(initial)}</div><div class="profile-copy"><strong>${escapeHtml(displayName)}</strong><span>@${escapeHtml(username)}</span></div></div>
+        </div>
+      </aside>
+      <main class="main-content settings-main">
+        <header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Settings</div><button class="text-button logout-button" type="button">Log out</button></header>
       <section class="settings-content">
         <p class="eyebrow">YOUR ACCOUNT</p>
         <h1>Settings</h1>
@@ -255,7 +260,8 @@ function renderSettings(user: AuthUser): void {
           </form>
         </section>
       </section>
-    </main>
+      </main>
+    </div>
   `;
 
   document
