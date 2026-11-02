@@ -29,6 +29,14 @@ export interface BankAccount {
   lastRetrievedAt?: string;
 }
 
+export interface PlaidConnection {
+  itemId: string;
+  institutionName: string;
+  lastRetrievedAt: string;
+  accountCount: number;
+  accounts: BankAccount[];
+}
+
 interface AccountsResponse {
   configured: boolean;
   accounts: BankAccount[];
@@ -319,6 +327,28 @@ export function renderAccounts(accounts: BankAccount[]): string {
       `;
     })
     .join("");
+}
+
+export function renderConnections(connections: PlaidConnection[]): string {
+  if (connections.length === 0) return `<div class="accounts-empty"><strong>No Plaid connections yet</strong><span>Connect an institution to see its integration here.</span></div>`;
+  return connections.map((connection) => {
+    const institutionName = escapeHtml(connection.institutionName);
+    const retrieved = new Date(connection.lastRetrievedAt);
+    const updateLabel = Number.isNaN(retrieved.getTime()) ? "Last retrieved time unavailable" : `Last retrieved ${escapeHtml(new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(retrieved))}`;
+    const accountRows = connection.accounts.map((account) => {
+      const accountType = [account.type, account.subtype].filter((part): part is string => Boolean(part)).join(" · ");
+      const mask = account.mask ? `•••• ${escapeHtml(account.mask)}` : "Account number hidden";
+      return `<a class="connected-account-link" href="/accounts/${escapeHtml(encodeURIComponent(account.id))}"><article class="connected-account"><div class="connected-account-icon" aria-hidden="true">▣</div><div class="connected-account-info"><strong>${escapeHtml(account.name)}</strong><span>${escapeHtml(accountType)} · ${mask}</span></div><strong class="connected-account-balance${isLiabilityAccount(account) && account.currentBalance !== null ? " liability-balance" : ""}">${escapeHtml(formatAccountBalance(account))}</strong></article></a>`;
+    }).join("");
+    return `<details class="connection-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">↔</span><span class="connection-title"><span class="eyebrow">PLAID INTEGRATION</span><strong>${institutionName}</strong><span>${connection.accountCount} ${connection.accountCount === 1 ? "account" : "accounts"} · ${updateLabel}</span></span><span class="connection-chevron" aria-hidden="true">⌄</span></summary><div class="connection-accounts">${accountRows || `<p class="account-empty">No accounts are currently available from this integration.</p>`}</div></details>`;
+  }).join("");
+}
+
+export function renderConnectionsPage(user: BankAccountsPageUser): string {
+  const displayName = escapeHtml(user.displayName);
+  const username = escapeHtml(user.username);
+  const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
+  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div><nav class="navigation" id="main-navigation"><a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a><a class="nav-link" href="/transactions"><span class="nav-icon" aria-hidden="true">↕</span> Transactions</a><a class="nav-link active" href="/connections" aria-current="page"><span class="nav-icon" aria-hidden="true">↔</span> Connections</a><a class="nav-link" href="/accounts"><span class="nav-icon" aria-hidden="true">▣</span> Accounts</a><a class="nav-link" href="/settings"><span class="nav-icon" aria-hidden="true">⚙</span> Settings</a></nav><div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span> Connections</div><div class="header-actions"><a class="settings-shortcut" href="/settings">Settings</a><button class="text-button logout-button" type="button">Log out</button></div></header><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Connections</h1><p class="subheading">Plaid integrations and the accounts they provide.</p></div></section><div id="connected-integrations" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading your connections…</div></div><footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer></main></div>`;
 }
 
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
@@ -944,4 +974,20 @@ export function initializeBankAccountsPage(): void {
     void syncAllInstitutions(syncAllButton);
   });
   void refreshAccounts();
+}
+
+export async function initializeConnectionsPage(): Promise<void> {
+  const container = document.querySelector<HTMLDivElement>("#connected-integrations");
+  if (!container) return;
+  try {
+    const response = await fetch("/api/accounts/items", { cache: "no-store", credentials: "same-origin" });
+    const payload: unknown = await readJson(response);
+    if (!response.ok || typeof payload !== "object" || payload === null || !("connections" in payload) || !Array.isArray(payload.connections)) {
+      throw new Error(getErrorMessage(payload, "Unable to load Plaid connections."));
+    }
+    container.innerHTML = renderConnections(payload.connections as PlaidConnection[]);
+  } catch {
+    container.innerHTML = `<div class="accounts-error"><strong>We couldn't load your connections.</strong><button class="text-button" id="retry-connections" type="button">Try again</button></div>`;
+    container.querySelector<HTMLButtonElement>("#retry-connections")?.addEventListener("click", () => void initializeConnectionsPage());
+  }
 }

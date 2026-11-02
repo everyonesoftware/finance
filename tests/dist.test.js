@@ -23,6 +23,8 @@ import {
   renderAccountDetail,
   renderBankAccountDetailPage,
   renderBankAccountsPage,
+  renderConnections,
+  renderConnectionsPage,
   renderAccounts,
   renderOverviewBankAccounts,
 } from "../src/bank_accounts.ts";
@@ -600,6 +602,27 @@ test("institution cards provide a sync action and hide disconnect in the overflo
   assert.ok(html.indexOf("institution-last-retrieved") < syncIndex);
   assert.doesNotMatch(html, /institution-updated|Jan 5, 2025/);
   assert.match(html, /data-item-id="item-1"/);
+});
+
+test("connections page groups integrations by Plaid item and collapses yielded accounts", () => {
+  const account = {
+    id: "account-1", itemId: "item-1", institutionName: "Bank One",
+    name: "Checking", officialName: null, type: "depository", subtype: "checking",
+    mask: "1234", currentBalance: 75, availableBalance: 100, currencyCode: "USD",
+    updatedAt: "2026-10-31T12:00:00.000Z", lastRetrievedAt: "2026-10-31T12:00:00.000Z",
+  };
+  const html = renderConnections([{ itemId: "item-1", institutionName: "Bank One", lastRetrievedAt: account.lastRetrievedAt, accountCount: 2, accounts: [account, { ...account, id: "account-2", name: "Savings" }] }]);
+  assert.equal((html.match(/class="connection-card"/g) ?? []).length, 1);
+  assert.match(html, /<details class="connection-card">/);
+  assert.match(html, /<summary class="connection-heading"/);
+  assert.match(html, /Bank One/);
+  assert.match(html, /2 accounts/);
+  assert.match(html, /Checking/);
+  assert.match(html, /Savings/);
+  assert.match(renderConnections([]), /No Plaid connections yet/);
+  const page = renderConnectionsPage({ displayName: "Test", username: "test" });
+  assert.match(page, /class="nav-link active" href="\/connections" aria-current="page"/);
+  assert.match(page, /id="connected-integrations"/);
 });
 
 test("accounts page places sync-all before Connect a bank", () => {

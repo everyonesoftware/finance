@@ -6,9 +6,11 @@ import { initializeTransactionsPage, renderTransactionsPage } from "./transactio
 import {
   initializeOverviewBankAccounts,
   initializeBankAccountsPage,
+  initializeConnectionsPage,
   initializeAccountDetailPage,
   renderBankAccountDetailPage,
   renderBankAccountsPage,
+  renderConnectionsPage,
   type BankAccount,
 } from "./bank_accounts";
 import { renderTransactionList } from "./transaction-list";
@@ -396,7 +398,7 @@ function render(): void {
     return;
   }
 
-  if (path === "/dashboard" || path === "/transactions" || path === "/settings" || path === "/accounts" || accountDetailMatch) {
+  if (path === "/dashboard" || path === "/transactions" || path === "/settings" || path === "/accounts" || path === "/connections" || accountDetailMatch) {
     if (!currentUser) {
       authNotice = authNotice || "Log in or create an account to continue.";
       window.history.replaceState(null, "", "/");
@@ -426,6 +428,13 @@ function render(): void {
       });
       attachLogoutHandler();
       initializeBankAccountsPage();
+      return;
+    }
+
+    if (path === "/connections") {
+      app.innerHTML = renderConnectionsPage({ displayName: displayNameFor(currentUser), username: currentUser.username ?? "" });
+      attachLogoutHandler();
+      void initializeConnectionsPage();
       return;
     }
 

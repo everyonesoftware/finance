@@ -515,6 +515,34 @@ bankAccountsRouter.get("/", async (context) => {
   }
 });
 
+bankAccountsRouter.get("/items", async (context) => {
+  context.header("Cache-Control", "no-store");
+  const userId = await getUserId(context);
+  if (!userId) return context.json({ error: "Authentication required." }, 401);
+  try {
+    const connection = getPlaidConnection();
+    const items = sqliteClient.prepare(`
+      SELECT item_id AS itemId, encrypted_institution_name AS encryptedInstitutionName,
+        updated_at AS updatedAt,
+        (SELECT COUNT(*) FROM bank_account WHERE bank_account.item_id = bank_item.item_id AND user_id = ? AND is_active = 1) AS accountCount
+      FROM bank_item WHERE user_id = ? ORDER BY updated_at DESC
+    `).all(userId, userId) as Array<{ itemId: string; encryptedInstitutionName: string; updatedAt: number; accountCount: number }>;
+    if (items.length && !connection) return configurationFailure(context);
+    const accounts = getAccountsForUser(userId);
+    return context.json({ configured: connection !== null, connections: items.map((item) => ({
+      itemId: item.itemId,
+      institutionName: decryptPlaidValue(item.encryptedInstitutionName, connection!.encryptionKey),
+      lastRetrievedAt: new Date(item.updatedAt * 1000).toISOString(),
+      accountCount: item.accountCount,
+      accounts: accounts.filter((account) => account.itemId === item.itemId),
+    })) });
+  } catch (error) {
+    if (error instanceof PlaidConfigurationError) return configurationFailure(context);
+    logPlaidFailure("connection listing", error);
+    return context.json({ error: "Unable to load Plaid connections." }, 500);
+  }
+});
+
 bankAccountsRouter.post("/link-token", async (context) => {
   context.header("Cache-Control", "no-store");
 
