@@ -342,7 +342,7 @@ export function renderConnections(connections: PlaidConnection[]): string {
       const mask = account.mask ? `•••• ${escapeHtml(account.mask)}` : "Account number hidden";
       return `<a class="connected-account-link" href="/accounts/${escapeHtml(encodeURIComponent(account.id))}"><article class="connected-account"><div class="connected-account-icon" aria-hidden="true">▣</div><div class="connected-account-info"><strong>${escapeHtml(account.name)}</strong><span>${escapeHtml(accountType)} · ${mask}</span></div><strong class="connected-account-balance${isLiabilityAccount(account) && account.currentBalance !== null ? " liability-balance" : ""}">${escapeHtml(formatAccountBalance(account))}</strong></article></a>`;
     }).join("");
-    return `<details class="connection-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">↔</span><span class="connection-title"><span class="eyebrow">PLAID INTEGRATION</span><strong>${institutionName}</strong><span>${connection.accountCount} ${connection.accountCount === 1 ? "account" : "accounts"} · ${updateLabel}</span></span><span class="connection-chevron" aria-hidden="true">⌄</span><span class="connection-actions-menu"><button type="button" class="delete-connection-button" data-connection-type="plaid" data-connection-id="${escapeHtml(connection.itemId)}" data-connection-name="${institutionName}" aria-label="Delete ${institutionName}">Delete</button></span></summary><div class="connection-accounts">${accountRows || `<p class="account-empty">No accounts are currently available from this integration.</p>`}</div></details>`;
+    return `<details class="connection-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">↔</span><span class="connection-title"><span class="eyebrow">PLAID INTEGRATION</span><strong>${institutionName}</strong><span>${connection.accountCount} ${connection.accountCount === 1 ? "account" : "accounts"} · ${updateLabel}</span></span></summary><details class="connection-actions-menu"><summary class="connection-menu-trigger" aria-label="More actions for ${institutionName}" title="More actions for ${institutionName}"><span aria-hidden="true">⋯</span></summary><div class="connection-menu-popup"><button type="button" class="delete-connection-button" data-connection-type="plaid" data-connection-id="${escapeHtml(connection.itemId)}" data-connection-name="${institutionName}">Delete</button></div></details><div class="connection-accounts">${accountRows || `<p class="account-empty">No accounts are currently available from this integration.</p>`}</div></details>`;
   }).join("");
 }
 
@@ -978,6 +978,8 @@ export async function initializeConnectionsPage(): Promise<void> {
     const button = target.closest<HTMLButtonElement>(".delete-connection-button");
     if (!button) return;
     event.preventDefault(); event.stopPropagation();
+    const actionMenu = button.closest<HTMLDetailsElement>(".connection-actions-menu");
+    if (actionMenu) actionMenu.open = false;
     pendingDelete = { type: button.dataset.connectionType ?? "", id: button.dataset.connectionId ?? "" };
     if (deleteName) deleteName.textContent = button.dataset.connectionName ?? "this connection";
     deleteDialog?.showModal();

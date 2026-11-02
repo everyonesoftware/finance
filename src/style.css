@@ -720,13 +720,21 @@ h1 span {
   max-width: 1500px;
 }
 
-.connection-card { overflow: hidden; border: 1px solid #e9ebe6; border-radius: 10px; background: #fff; }
-.connection-heading { display: flex; min-height: 88px; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; list-style: none; }
-.connection-actions-menu { position: relative; z-index: 1; margin-left: auto; }
-.delete-connection-button { border: 0; padding: 8px 12px; border-radius: 6px; background: transparent; color: #b42318; cursor: pointer; }
+.connection-card { position: relative; overflow: hidden; border: 1px solid #e9ebe6; border-radius: 10px; background: #fff; }
+.connection-heading { display: flex; min-height: 88px; align-items: center; gap: 14px; padding: 16px 54px 16px 20px; cursor: pointer; list-style: none; }
+.connection-actions-menu { position: absolute; z-index: 3; top: 10px; right: 10px; }
+.connection-menu-trigger { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 6px; color: #59635a; cursor: pointer; list-style: none; }
+.connection-menu-trigger::-webkit-details-marker { display: none; }
+.connection-menu-trigger:hover, .connection-actions-menu[open] > .connection-menu-trigger { background: #f1f4f1; }
+.connection-menu-trigger span { font-size: 22px; line-height: 1; }
+.connection-menu-popup { position: absolute; top: calc(100% + 5px); right: 0; display: none; min-width: 126px; padding: 4px; border: 1px solid #e5e9e1; border-radius: 8px; background: #fff; box-shadow: 0 8px 24px rgba(20, 35, 22, .16); }
+.connection-actions-menu[open] > .connection-menu-popup { display: block; }
+.delete-connection-button { width: 100%; border: 0; padding: 8px 10px; border-radius: 5px; background: transparent; color: #b42318; text-align: left; cursor: pointer; }
 .delete-connection-button:hover { background: #fff1f0; }
-.delete-connection-dialog > .panel { height: auto; min-height: 0; }
-.delete-dialog-actions { display: flex; justify-content: space-between; margin-top: auto; padding-top: 24px; }
+.delete-connection-dialog { width: min(400px, calc(100vw - 32px)); }
+.delete-connection-dialog > .panel { height: auto; min-height: 0; max-height: none; overflow: visible; padding: 22px; }
+.delete-connection-dialog h2 { margin-bottom: 12px; }
+.delete-dialog-actions { display: flex; justify-content: space-between; margin-top: 18px; padding-top: 0; }
 .danger-button { border: 0; border-radius: 7px; padding: 10px 18px; background: #c9362b; color: white; font: inherit; cursor: pointer; }
 .connection-heading::-webkit-details-marker { display: none; }
 .connection-heading:hover { background: #f8faf8; }
@@ -734,8 +742,6 @@ h1 span {
 .connection-title .eyebrow { margin: 0; }
 .connection-title strong { color: #303730; font-size: 14px; }
 .connection-title > span:last-child { color: #7b8379; font-size: 9px; }
-.connection-chevron { margin-left: auto; color: #548166; transition: transform 160ms ease; }
-.connection-card[open] .connection-chevron { transform: rotate(180deg); }
 .connection-accounts { padding: 0 20px 12px; border-top: 1px solid #f0f1ee; }
 .connection-accounts .connected-account-link:first-child { margin-top: 4px; }
 .connection-heading:focus-visible { outline: 2px solid #548166; outline-offset: -3px; }

@@ -684,7 +684,9 @@ test("connection cards render a delete menu and shared confirmation dialog", () 
   const estate = renderRealEstateCards([{ id: "home-delete", address: "42 Main Street", latitude: 47, longitude: -122, estimates: [] }]);
   for (const [html, id, name] of [[plaid, "item-delete", "Bank Delete"], [estate, "home-delete", "42 Main Street"]]) {
     assert.match(html, /class="connection-actions-menu"/);
-    assert.match(html, /class="delete-connection-button"[^>]*>Delete<\/button>/);
+    assert.match(html, /class="connection-menu-trigger"[^>]*>[\s\S]*⋯<\/span>[\s\S]*<\/summary>/);
+    assert.match(html, /class="connection-menu-popup"[^>]*>[\s\S]*class="delete-connection-button"[^>]*>Delete<\/button>/);
+    assert.doesNotMatch(html, /connection-chevron/);
     assert.match(html, new RegExp(`data-connection-id="${id}"`));
     assert.match(html, new RegExp(`data-connection-name="${name}"`));
   }
@@ -722,6 +724,9 @@ test("real-estate cards show only the current estimate and an edit control", asy
 
 test("connection dialog keeps a stable height and reserves bounded space for the property map", async () => {
   const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
+  const deleteDialogRule = css.match(/\.delete-connection-dialog\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(deleteDialogRule, /width:\s*min\(400px,/);
+  assert.match(css, /\.delete-connection-dialog\s*>\s*\.panel\s*\{[^}]*height:\s*auto[^}]*padding:\s*22px/);
   const panelRule = css.match(/\.connection-dialog\s*>\s*\.panel\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(panelRule, /height:\s*min\(80vh,\s*620px\)/);
   assert.match(panelRule, /display:\s*flex/);
