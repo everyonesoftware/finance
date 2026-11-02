@@ -1,7 +1,7 @@
 import { escapeHtml } from "./html-utils.ts";
 
 type Place = { display_name: string; lat: string; lon: string };
-type Estimate = { amount: number; createdAt: number };
+type Estimate = { amount: number; createdAt: number; provider?: "manual" | "zillow" };
 type Property = { id:string; address:string; latitude:number; longitude:number; estimates:Estimate[] };
 
 export function renderRealEstateCards(properties: Property[]): string {
@@ -10,7 +10,7 @@ export function renderRealEstateCards(properties: Property[]): string {
     const latest = property.estimates[0];
     const money=(value:number)=>new Intl.NumberFormat(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0}).format(value);
     const map=`https://maps.google.com/maps?q=${encodeURIComponent(`${property.latitude},${property.longitude}`)}&z=15&output=embed`;
-    return `<details class="connection-card real-estate-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">⌂</span><span class="connection-title"><span class="eyebrow">REAL ESTATE</span><strong>${escapeHtml(property.address)}</strong></span><span class="connection-chevron" aria-hidden="true">⌄</span></summary><div class="real-estate-details"><div class="current-estimate-row"><strong>Estimate:</strong><span class="current-estimate-value">${latest ? money(latest.amount) : "Not provided"}</span><button class="estimate-edit-button" type="button" aria-label="Edit estimate" title="Edit estimate" data-current-value="${latest?.amount ?? ""}">✎</button><form class="estimate-edit-form" data-property-id="${escapeHtml(property.id)}" hidden><input name="amount" type="number" min="0" step="0.01" required aria-label="Updated estimated value" value="${latest?.amount ?? ""}"><button type="submit" class="estimate-confirm-button" aria-label="Confirm estimate" title="Confirm estimate">☑</button><span class="estimate-edit-error" role="alert"></span></form></div><iframe class="property-map-frame" title="Map showing ${escapeHtml(property.address)}" loading="lazy" src="${map}"></iframe></div></details>`;
+    return `<details class="connection-card real-estate-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">⌂</span><span class="connection-title"><span class="eyebrow">REAL ESTATE</span><strong>${escapeHtml(property.address)}</strong></span><span class="connection-chevron" aria-hidden="true">⌄</span></summary><div class="real-estate-details"><div class="current-estimate-row"><strong>Estimate:</strong><span class="current-estimate-value">${latest ? money(latest.amount) : "Not provided"}</span><span class="estimate-source">${latest?.provider === "zillow" ? "Zillow Zestimate" : latest ? "Manual estimate" : ""}</span><button class="estimate-edit-button" type="button" aria-label="Edit estimate" title="Edit estimate" data-current-value="${latest?.amount ?? ""}">✎</button><button class="zillow-refresh-button" type="button" aria-label="Get Zillow Zestimate" title="Get Zillow Zestimate">Zillow</button><form class="zillow-refresh-form" data-property-id="${escapeHtml(property.id)}" hidden><label>Zillow page URL<input name="zillowUrl" type="url" required placeholder="https://www.zillow.com/homedetails/…"></label><button type="submit" class="zillow-refresh-submit">Get Zestimate</button><span class="zillow-refresh-error" role="alert"></span></form><form class="estimate-edit-form" data-property-id="${escapeHtml(property.id)}" hidden><input name="amount" type="number" min="0" step="0.01" required aria-label="Updated estimated value" value="${latest?.amount ?? ""}"><button type="submit" class="estimate-confirm-button" aria-label="Confirm estimate" title="Confirm estimate">☑</button><span class="estimate-edit-error" role="alert"></span></form></div><iframe class="property-map-frame" title="Map showing ${escapeHtml(property.address)}" loading="lazy" src="${map}"></iframe></div></details>`;
   }).join("");
 }
 
@@ -30,21 +30,26 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   const stepAddress=document.querySelector<HTMLElement>("#real-estate-step-address");
   const stepProvider=document.querySelector<HTMLElement>("#real-estate-step-provider");
   const manualStep=document.querySelector<HTMLElement>("#manual-estimate-step");
+  const zillowStep=document.querySelector<HTMLElement>("#zillow-estimate-step");
+  const zillowUrlInput=document.querySelector<HTMLInputElement>("#zillow-property-url");
+  const zillowChoice=document.querySelector<HTMLButtonElement>("#choose-zillow");
   const manualChoice=document.querySelector<HTMLButtonElement>("#choose-manual");
   const estimateInput=document.querySelector<HTMLInputElement>("#manual-estimate");
-  let selected:Place|null=null; let timer=0; let manualSelected=false;
-  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(manualStep)manualStep.hidden=true;manualSelected=false;if(next){next.textContent="Next";next.disabled=!selected;}};
+  let selected:Place|null=null; let timer=0; let manualSelected=false; let zillowSelected=false;
+  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(manualStep)manualStep.hidden=true;if(zillowStep)zillowStep.hidden=true;manualSelected=false;zillowSelected=false;if(next){next.textContent="Next";next.disabled=!selected;}};
   const saveRealEstate=async()=>{
-    const amount=Number(estimateInput?.value);const message=document.querySelector<HTMLElement>("#connection-dialog-message");
-    if(!selected||!estimateInput?.value.trim()||!Number.isFinite(amount)||amount<0){if(message)message.textContent="Select an address and enter a valid estimate.";return;}
+    const amount=Number(estimateInput?.value);const zillowUrl=zillowUrlInput?.value.trim()??"";const message=document.querySelector<HTMLElement>("#connection-dialog-message");
+    if(!selected||(manualSelected&&(!estimateInput?.value.trim()||!Number.isFinite(amount)||amount<0))||(zillowSelected&&!zillowUrl)){if(message)message.textContent=zillowSelected?"Enter a Zillow property-page URL.":"Select an address and enter a valid estimate.";return;}
     if(next)next.disabled=true;
-    try { const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:selected.display_name,latitude:Number(selected.lat),longitude:Number(selected.lon),amount})});const payload=await response.json() as {error?:string};if(!response.ok)throw new Error(payload.error??"Unable to save property.");dialog?.close();onSaved(); }
+    const payload:Record<string,unknown>={address:selected.display_name,latitude:Number(selected.lat),longitude:Number(selected.lon)};
+    if(manualSelected)payload.amount=amount;else payload.zillowUrl=zillowUrl;
+    try { const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json() as {error?:string};if(!response.ok)throw new Error(result.error??"Unable to save property.");dialog?.close();onSaved(); }
     catch(error){if(message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}
     finally {if(next)next.disabled=false;}
   };
   document.querySelector("#add-connection")?.addEventListener("click",()=>{
     if(choices)choices.hidden=false;if(wizard)wizard.hidden=true;resetAddressStep();
-    if(addressInput)addressInput.value="";if(estimateInput)estimateInput.value="";if(suggestions)suggestions.replaceChildren();if(map)map.replaceChildren();selected=null;if(next)next.disabled=true;
+    if(addressInput)addressInput.value="";if(estimateInput)estimateInput.value="";if(zillowUrlInput)zillowUrlInput.value="";if(suggestions)suggestions.replaceChildren();if(map)map.replaceChildren();selected=null;if(next)next.disabled=true;
     dialog?.showModal();
   });
   document.querySelector("#close-connection-dialog")?.addEventListener("click",()=>dialog?.close());
@@ -70,19 +75,31 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   });
   next?.addEventListener("click",()=>{
     if(stepAddress&&!stepAddress.hidden){if(!selected)return;if(stepAddress)stepAddress.hidden=true;if(stepProvider)stepProvider.hidden=false;next.textContent="Next";next.disabled=true;return;}
-    if(manualSelected)void saveRealEstate();
+    if(manualSelected||zillowSelected)void saveRealEstate();
   });
-  manualChoice?.addEventListener("click",()=>{manualSelected=true;if(manualStep)manualStep.hidden=false;if(next){next.textContent="Done";next.disabled=false;}estimateInput?.focus();});
+  manualChoice?.addEventListener("click",()=>{manualSelected=true;zillowSelected=false;if(zillowStep)zillowStep.hidden=true;if(manualStep)manualStep.hidden=false;if(next){next.textContent="Done";next.disabled=false;}estimateInput?.focus();});
+  zillowChoice?.addEventListener("click",()=>{manualSelected=false;zillowSelected=true;if(manualStep)manualStep.hidden=true;if(zillowStep)zillowStep.hidden=false;if(next){next.textContent="Get Zestimate";next.disabled=!(zillowUrlInput?.value.trim());}zillowUrlInput?.focus();});
+  zillowUrlInput?.addEventListener("input",()=>{if(zillowSelected&&next)next.disabled=!zillowUrlInput.value.trim();});
 
   const integrations=document.querySelector<HTMLElement>("#connected-integrations");
   integrations?.addEventListener("click",(event)=>{
     const target=event.target;if(!(target instanceof Element))return;
+    const refreshButton=target.closest<HTMLButtonElement>(".zillow-refresh-button");
+    if(refreshButton){const details=refreshButton.closest<HTMLElement>(".real-estate-details");const refreshForm=details?.querySelector<HTMLFormElement>(".zillow-refresh-form");refreshButton.hidden=true;if(refreshForm){refreshForm.hidden=false;refreshForm.querySelector<HTMLInputElement>("[name=zillowUrl]")?.focus();}return;}
     const editButton=target.closest<HTMLButtonElement>(".estimate-edit-button");if(!editButton)return;
     const details=editButton.closest<HTMLElement>(".real-estate-details");const value=details?.querySelector<HTMLElement>(".current-estimate-value");const form=details?.querySelector<HTMLFormElement>(".estimate-edit-form");
     if(value)value.hidden=true;editButton.hidden=true;if(form){form.hidden=false;form.querySelector<HTMLInputElement>("[name=amount]")?.focus();}
   });
   integrations?.addEventListener("submit",async(event)=>{
-    const form=event.target;if(!(form instanceof HTMLFormElement)||!form.matches(".estimate-edit-form"))return;event.preventDefault();
+    const form=event.target;if(!(form instanceof HTMLFormElement))return;
+    if(form.matches(".zillow-refresh-form")){
+      event.preventDefault();const input=form.querySelector<HTMLInputElement>("[name=zillowUrl]");const zillowUrl=input?.value.trim();if(!zillowUrl)return;
+      const button=form.querySelector<HTMLButtonElement>("button[type=submit]");if(button)button.disabled=true;
+      try{const response=await fetch(`/api/real-estate/${encodeURIComponent(form.dataset.propertyId??"")}/zillow`,{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({zillowUrl})});const payload=await response.json() as {error?:string};if(!response.ok)throw new Error(payload.error??"Unable to retrieve Zillow estimate.");onSaved();}
+      catch(error){const errorNode=form.querySelector<HTMLElement>(".zillow-refresh-error");if(errorNode)errorNode.textContent=error instanceof Error?error.message:"Unable to retrieve Zillow estimate.";if(button)button.disabled=false;}
+      return;
+    }
+    if(!form.matches(".estimate-edit-form"))return;event.preventDefault();
     const input=form.querySelector<HTMLInputElement>("[name=amount]");const amount=Number(input?.value);if(!input?.value.trim()||!Number.isFinite(amount)||amount<0)return;
     const button=form.querySelector<HTMLButtonElement>("button[type=submit]");if(button)button.disabled=true;
     try {

@@ -16,6 +16,7 @@ import { groupInternalTransfers, renderTransactionList } from "../src/transactio
 import { filterAndSortTransactionGroups } from "../src/transaction-filters.ts";
 import * as transactionFilterUtils from "../src/transaction-filters.ts";
 import { renderRealEstateCards } from "../src/real-estate.ts";
+import { parseZillowZestimate, fetchZillowZestimate } from "../server-dist/zillow.js";
 import { renderTransactionsPage, getTransactionAmountBounds, formatFilterAmount } from "../src/transactions-page.ts";
 import { renderDashboard } from "../src/dashboard.ts";
 import { renderMainNavigation } from "../src/navigation.ts";
@@ -651,6 +652,33 @@ test("connections page groups integrations by Plaid item and collapses yielded a
   assert.doesNotMatch(page, /logout-button/);
 });
 
+test("Zillow Zestimate parser reads only the home Zestimate from the Open Graph description", () => {
+  const html = `<meta property="og:description" content="15209 78th Ave NE, Kenmore WA, is a Single Family home.\n\nThe Zestimate for this Single Family is $795,900.The Rent Zestimate for this Single Family is $3,757/mo.">`;
+  assert.equal(parseZillowZestimate(html), 795900);
+});
+
+test("Zillow Zestimate parser handles HTML entities and ignores rent-only estimates", () => {
+  assert.equal(parseZillowZestimate(`<meta property="og:description" content="The Zestimate for this home is $1,234,500.">`), 1234500);
+  assert.equal(parseZillowZestimate(`<meta property="og:description" content="The Rent Zestimate for this home is $3,757/mo.">`), null);
+  assert.equal(parseZillowZestimate(`<meta property="og:description" content="No home valuation is available.">`), null);
+});
+
+test("Zillow page fetch accepts only HTTPS home-details URLs on Zillow", async () => {
+  let fetchCount = 0;
+  const fakeFetch = async () => {
+    fetchCount++;
+    return new Response(`<meta property="og:description" content="The Zestimate is $795,900. The Rent Zestimate is $3,757/mo.">`, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  };
+  assert.equal(await fetchZillowZestimate("https://www.zillow.com/homedetails/example/123_zpid/", fakeFetch), 795900);
+  await assert.rejects(fetchZillowZestimate("https://example.com/homedetails/example", fakeFetch), /Only HTTPS Zillow/);
+  await assert.rejects(fetchZillowZestimate("http://www.zillow.com/homedetails/example", fakeFetch), /Only HTTPS Zillow/);
+  await assert.rejects(fetchZillowZestimate("https://www.zillow.com/search/", fakeFetch), /Only HTTPS Zillow/);
+  assert.equal(fetchCount, 1);
+});
+
 test("real-estate cards show only the current estimate and an edit control", async () => {
   const html = renderRealEstateCards([{ id: "home-1", address: "<script>alert(1)</script>", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 750000, createdAt: 1790900000000 }, { amount: 700000, createdAt: 1788000000000 }] }]);
   assert.match(html, />Estimate:<\/strong>/);
@@ -659,6 +687,11 @@ test("real-estate cards show only the current estimate and an edit control", asy
   assert.doesNotMatch(html, /\$700,000/);
   assert.doesNotMatch(html, /Manual estimate history/);
   assert.match(html, /class="estimate-edit-button"/);
+  assert.match(html, /class="zillow-refresh-button"[^>]*>Zillow<\/button>/);
+  assert.match(html, /class="zillow-refresh-form"[^>]*hidden/);
+  const zillowHtml = renderRealEstateCards([{ id: "home-zillow", address: "123 Main St", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 795900, createdAt: 1791000000000, provider: "zillow" }] }]);
+  assert.match(zillowHtml, /\$795,900/);
+  assert.match(zillowHtml, /class="estimate-source">Zillow Zestimate<\/span>/);
   assert.match(html, /aria-label="Edit estimate"/);
   assert.match(html, /value="750000"/);
   assert.match(html, /aria-label="Confirm estimate"/);
@@ -684,6 +717,7 @@ test("connection dialog keeps a stable height and reserves bounded space for the
   assert.match(wizardRule, /display:\s*flex/);
   assert.match(wizardRule, /flex-direction:\s*column/);
   assert.match(css, /#real-estate-step-provider\s*\{[^}]*flex:\s*1[^}]*align-content:\s*center/s);
+  assert.match(css, /#zillow-estimate-step\[hidden\]/);
   assert.match(css, /\.real-estate-wizard-actions\s*\{[^}]*margin-top:\s*auto/s);
   assert.match(css, /#property-map-preview\s*\{[^}]*height:\s*240px/s);
   assert.match(css, /#property-map-preview iframe\s*\{[^}]*height:\s*100%/s);
@@ -696,7 +730,8 @@ test("connections page offers Plaid and real-estate choices with disabled extern
   assert.ok(html.indexOf('id="real-estate-back"') > html.indexOf('id="real-estate-step-provider"'));
   assert.doesNotMatch(html, /id="real-estate-choice-back"|id="real-estate-step-provider" hidden><button id="real-estate-back"/);
   assert.match(html, /Real Estate/);
-  assert.match(html, /Zillow[^>]*disabled|disabled[^>]*Zillow/);
+  assert.match(html, /id="choose-zillow"[^>]*>Zillow · Get Zestimate/);
+  assert.match(html, /id="zillow-property-url" type="url"/);
   assert.match(html, /Redfin[^>]*disabled|disabled[^>]*Redfin/);
   assert.match(html, /Manual/);
 });
@@ -717,11 +752,13 @@ test("real-estate migration persists owned connections and timestamped estimate 
   database.prepare("INSERT INTO user(id,name,email) VALUES('owner-a','Owner A','a@example.test'),('owner-b','Owner B','b@example.test')").run();
   database.prepare("INSERT INTO real_estate_connection(id,user_id,address,latitude,longitude) VALUES('property-a','owner-a','123 Main St',47.6,-122.3)").run();
   database.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount,created_at) VALUES('estimate-old','property-a','owner-a','manual',700000,1788000000000),('estimate-new','property-a','owner-a','manual',750000,1790900000000)").run();
-  const estimates = database.prepare("SELECT amount,created_at AS createdAt FROM real_estate_estimate WHERE user_id=? AND connection_id=? ORDER BY created_at DESC").all("owner-a","property-a");
-  assert.deepEqual(estimates.map((estimate) => estimate.amount), [750000,700000]);
+  database.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount,created_at) VALUES('estimate-zillow','property-a','owner-a','zillow',795900,1791000000000)").run();
+  const estimates = database.prepare("SELECT amount,provider,created_at AS createdAt FROM real_estate_estimate WHERE user_id=? AND connection_id=? ORDER BY created_at DESC").all("owner-a","property-a");
+  assert.deepEqual(estimates.map((estimate) => [estimate.amount, estimate.provider]), [[795900,"zillow"],[750000,"manual"],[700000,"manual"]]);
   assert.throws(() => database.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount) VALUES('foreign-estimate','property-a','owner-b','manual',1)").run(), /FOREIGN KEY/);
   database.close();
 });
+
 
 test("logout action is placed in a Settings section after Change password", async () => {
   const settingsSource = await readFile(new URL("../src/main.ts", import.meta.url), "utf8");
@@ -1127,6 +1164,7 @@ test("account sync requires authentication and disconnect removes only after Pla
   try {
     const databaseModule = await import("../server-dist/database.js");
     const { bankAccountsRouter } = await import("../server-dist/bank_accounts.js");
+    const { realEstateRouter } = await import("../server-dist/real_estate.js");
     const { auth } = await import("../server-dist/auth.js");
     const { PlaidApi } = await import("plaid");
     const { encryptPlaidValue } = await import("../server-dist/plaid.js");
@@ -1161,6 +1199,8 @@ test("account sync requires authentication and disconnect removes only after Pla
     process.env["PLAID_TOKEN_ENCRYPTION_KEY"] = key.toString("base64");
     databaseModule.sqliteClient.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
       .run("user-one", "User One", "one@example.test");
+    databaseModule.sqliteClient.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
+      .run("user-two", "User Two", "two@example.test");
     databaseModule.sqliteClient.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
       .run("item-one", "user-one", encryptPlaidValue("Bank One", key), encryptPlaidValue("mock-access-token", key));
     databaseModule.sqliteClient.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
@@ -1262,6 +1302,61 @@ test("account sync requires authentication and disconnect removes only after Pla
       assert.equal(plaidRemoveCalls, 1);
       assert.equal(databaseModule.sqliteClient.prepare("SELECT item_id FROM bank_item WHERE item_id = ?")
         .get("item-one"), undefined);
+
+      const originalFetch = globalThis.fetch;
+      let zillowFetchCount = 0;
+      globalThis.fetch = async () => {
+        zillowFetchCount++;
+        return new Response(`<meta property="og:description" content="The Zestimate for this home is $795,900. The Rent Zestimate is $3,757/mo.">`, { status: 200, headers: { "content-type": "text/html" } });
+      };
+      try {
+        const zillowResponse = await realEstateRouter.request("/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://localhost:5173" },
+          body: JSON.stringify({ address: "15209 78th Ave NE, Kenmore, WA 98028", latitude: 47.73, longitude: -122.24, zillowUrl: "https://www.zillow.com/homedetails/example/48971089_zpid/" }),
+        });
+        assert.equal(zillowResponse.status, 201);
+        assert.deepEqual(await zillowResponse.json().then(({provider,amount}) => ({provider,amount})), { provider: "zillow", amount: 795900 });
+        assert.deepEqual(databaseModule.sqliteClient.prepare("SELECT provider,amount FROM real_estate_estimate WHERE user_id=?").get("user-one"), { provider: "zillow", amount: 795900 });
+        const propertyList = await realEstateRouter.request("/");
+        const propertyPayload = await propertyList.json();
+        assert.equal(propertyPayload.properties[0].estimates[0].provider, "zillow");
+        assert.equal(propertyPayload.properties[0].estimates[0].amount, 795900);
+        const limitedZillowResponse = await realEstateRouter.request("/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://localhost:5173" },
+          body: JSON.stringify({ address: "Another home", latitude: 47.73, longitude: -122.24, zillowUrl: "https://www.zillow.com/homedetails/example/123_zpid/" }),
+        });
+        assert.equal(limitedZillowResponse.status, 429);
+        assert.equal(zillowFetchCount, 1);
+
+        sessionUserId = "user-two";
+        const manualPropertyResponse = await realEstateRouter.request("/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://localhost:5173" },
+          body: JSON.stringify({ address: "123 Main St", latitude: 47.6, longitude: -122.3, amount: 700000 }),
+        });
+        assert.equal(manualPropertyResponse.status, 201);
+        const manualProperty = await manualPropertyResponse.json();
+        const updatedEstimateResponse = await realEstateRouter.request(`/${manualProperty.id}/zillow`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://localhost:5173" },
+          body: JSON.stringify({ zillowUrl: "https://www.zillow.com/homedetails/example/48971089_zpid/" }),
+        });
+        assert.equal(updatedEstimateResponse.status, 201);
+        assert.deepEqual(await updatedEstimateResponse.json().then(({provider,amount}) => ({provider,amount})), { provider: "zillow", amount: 795900 });
+        assert.equal(zillowFetchCount, 2);
+        sessionUserId = "user-one";
+        const wrongOwnerEstimate = await realEstateRouter.request(`/${manualProperty.id}/zillow`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Origin: "http://localhost:5173" },
+          body: JSON.stringify({ zillowUrl: "https://www.zillow.com/homedetails/example/48971089_zpid/" }),
+        });
+        assert.equal(wrongOwnerEstimate.status, 404);
+        assert.equal(zillowFetchCount, 2);
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
     } finally {
       auth.api.getSession = originalGetSession;
       PlaidApi.prototype.itemRemove = originalItemRemove;

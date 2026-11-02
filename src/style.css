@@ -2322,7 +2322,7 @@ a.text-button {
 #real-estate-wizard { display: flex; flex: 1; min-height: 0; flex-direction: column; }
 #real-estate-step-address { flex: 1; min-height: 0; overflow-y: auto; }
 #real-estate-step-provider { flex: 1; min-height: 0; align-content: center; }
-#connection-choices[hidden], #real-estate-wizard[hidden], #real-estate-step-address[hidden], #real-estate-step-provider[hidden], #manual-estimate-step[hidden] { display: none; }
+#connection-choices[hidden], #real-estate-wizard[hidden], #real-estate-step-address[hidden], #real-estate-step-provider[hidden], #manual-estimate-step[hidden], #zillow-estimate-step[hidden] { display: none; }
 #real-estate-wizard label, .update-estimate label { display: grid; gap: 7px; margin: 14px 0; font-weight: 600; }
 #real-estate-wizard input, .update-estimate input { width: 100%; padding: 11px 12px; border: 1px solid #cfd7ce; border-radius: 8px; font: inherit; }
 #address-suggestions { display: grid; max-height: 200px; overflow: auto; }
@@ -2338,6 +2338,13 @@ a.text-button {
 .real-estate-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 42%); gap: 18px; align-items: start; padding: 16px 20px 22px; border-top: 1px solid #e9ebe6; }
 .current-estimate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 42px; }
 .current-estimate-value { font-size: 18px; font-weight: 700; }
+.estimate-source { color: #66766a; font-size: 12px; }
+.zillow-refresh-button, .zillow-refresh-submit { padding: 7px 10px; border: 1px solid #dce3d9; border-radius: 8px; background: #f6faf5; color: #245b35; font: inherit; cursor: pointer; }
+.zillow-refresh-form { display: flex; flex-basis: 100%; flex-wrap: wrap; align-items: end; gap: 8px; }
+.zillow-refresh-form[hidden] { display: none; }
+.zillow-refresh-form label { display: grid; flex: 1 1 220px; gap: 6px; color: #35493a; font-size: 13px; }
+.zillow-refresh-form input { min-width: 0; padding: 8px; border: 1px solid #cfd7ce; border-radius: 7px; font: inherit; }
+.zillow-refresh-error { flex-basis: 100%; color: #a12b22; font-size: 12px; }
 .estimate-edit-button, .estimate-confirm-button { display: inline-grid; place-items: center; min-width: 34px; min-height: 34px; padding: 4px 8px; border: 1px solid #dce3d9; border-radius: 8px; background: #f6faf5; color: #245b35; font-size: 18px; cursor: pointer; }
 .estimate-edit-button[hidden] { display: none; }
 .estimate-edit-form { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
