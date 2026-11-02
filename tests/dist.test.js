@@ -651,15 +651,23 @@ test("connections page groups integrations by Plaid item and collapses yielded a
   assert.doesNotMatch(page, /logout-button/);
 });
 
-test("real-estate cards show the latest manual value, full history, and escaped address", () => {
-  const html = renderRealEstateCards([{ id: "home-1", address: "<script>alert(1)</script>", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 750000, createdAt: 1790900000 }, { amount: 700000, createdAt: 1788000000 }] }]);
+test("real-estate cards show only the current estimate and an edit control", async () => {
+  const html = renderRealEstateCards([{ id: "home-1", address: "<script>alert(1)</script>", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 750000, createdAt: 1790900000000 }, { amount: 700000, createdAt: 1788000000000 }] }]);
   assert.match(html, /Current estimate/);
   assert.match(html, /\$750,000/);
-  assert.match(html, /\$700,000/);
-  assert.match(html, /Manual estimate history/);
+  assert.doesNotMatch(html, /\$700,000/);
+  assert.doesNotMatch(html, /Manual estimate history/);
+  assert.match(html, /class="estimate-edit-button"/);
+  assert.match(html, /aria-label="Edit estimate"/);
+  assert.match(html, /value="750000"/);
+  assert.match(html, /aria-label="Confirm estimate"/);
+  assert.match(html, /class="property-map-frame"/);
   assert.match(html, /maps\.google\.com/);
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>alert/);
+  const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.real-estate-details[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(180px, 42%\)/);
+  assert.match(css, /@media \(max-width: 620px\)[\s\S]*\.real-estate-details[^}]*grid-template-columns: 1fr/);
 });
 
 test("connections page offers Plaid and real-estate choices with disabled external providers", () => {

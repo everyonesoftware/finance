@@ -2323,12 +2323,21 @@ a.text-button {
 #address-suggestions { display: grid; max-height: 200px; overflow: auto; }
 #address-suggestions button { padding: 10px; border: 0; border-bottom: 1px solid #e9ebe6; background: #fff; text-align: left; cursor: pointer; }
 #address-suggestions button:hover { background: #f0f7ee; }
-#property-map-preview iframe, .real-estate-details iframe { display: block; width: 100%; height: 190px; border: 0; border-radius: 9px; }
 #real-estate-next { display: block; margin: 18px 0 0 auto; }
 #real-estate-choice-back, #real-estate-back { margin: 0 0 12px; }
 #real-estate-step-provider button[disabled] { opacity: .55; cursor: not-allowed; }
-.real-estate-details { padding: 16px 20px 22px; border-top: 1px solid #e9ebe6; }
-.real-estate-details ol { padding-left: 22px; color: #526254; }
-.update-estimate { display: flex; align-items: end; gap: 12px; max-width: 560px; }
-.update-estimate label { flex: 1; }
-@media (max-width: 600px) { .connection-dialog > .panel { padding: 22px 18px; } .update-estimate { display: block; } }
+#property-map-preview iframe { display: block; width: 100%; aspect-ratio: 1; border: 0; border-radius: 9px; }
+.real-estate-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 42%); gap: 18px; align-items: start; padding: 16px 20px 22px; border-top: 1px solid #e9ebe6; }
+.current-estimate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 42px; }
+.current-estimate-value { font-size: 18px; font-weight: 700; }
+.estimate-edit-button, .estimate-confirm-button { display: inline-grid; place-items: center; min-width: 34px; min-height: 34px; padding: 4px 8px; border: 1px solid #dce3d9; border-radius: 8px; background: #f6faf5; color: #245b35; font-size: 18px; cursor: pointer; }
+.estimate-edit-form { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
+.estimate-edit-form[hidden] { display: none; }
+.estimate-edit-form input { width: 145px; padding: 8px; border: 1px solid #cfd7ce; border-radius: 7px; font: inherit; }
+.estimate-edit-error { flex-basis: 100%; color: #a12b22; font-size: 12px; }
+.property-map-frame { grid-column: 2; grid-row: 1; justify-self: end; width: 100%; max-width: 280px; aspect-ratio: 1; border: 0; border-radius: 9px; }
+@media (max-width: 620px) {
+  .connection-dialog > .panel { padding: 22px 18px; }
+  .real-estate-details { grid-template-columns: 1fr; padding: 14px; }
+  .property-map-frame { grid-column: 1; grid-row: auto; justify-self: stretch; width: 100%; max-width: none; aspect-ratio: 1; }
+}
