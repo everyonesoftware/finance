@@ -2318,6 +2318,7 @@ a.text-button {
 .connection-dialog h2 { margin: 0 44px 20px 0; }
 #close-connection-dialog { position: absolute; right: 16px; top: 14px; }
 #connection-choices, #real-estate-step-provider { display: grid; gap: 12px; }
+#connection-choices[hidden], #real-estate-wizard[hidden], #real-estate-step-address[hidden], #real-estate-step-provider[hidden], #manual-estimate-step[hidden] { display: none; }
 #real-estate-wizard label, .update-estimate label { display: grid; gap: 7px; margin: 14px 0; font-weight: 600; }
 #real-estate-wizard input, .update-estimate input { width: 100%; padding: 11px 12px; border: 1px solid #cfd7ce; border-radius: 8px; font: inherit; }
 #address-suggestions { display: grid; max-height: 200px; overflow: auto; }
