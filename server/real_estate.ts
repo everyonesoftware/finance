@@ -30,6 +30,15 @@ realEstateRouter.get("/", async (context) => {
   return context.json({ properties:[...grouped.values()] });
 });
 
+realEstateRouter.delete("/:id", async (context) => {
+  context.header("Cache-Control", "no-store");
+  const owner = await userId(context.req.raw);
+  if (!owner) return context.json({ error: "Authentication required." }, 401);
+  const result = sqliteClient.prepare("DELETE FROM real_estate_connection WHERE id=? AND user_id=?").run(context.req.param("id"), owner);
+  if (result.changes === 0) return context.json({ error: "Property not found." }, 404);
+  return context.body(null, 204);
+});
+
 realEstateRouter.post("/", async (context) => {
   const owner = await userId(context.req.raw);
   if (!owner) return context.json({ error: "Authentication required." }, 401);

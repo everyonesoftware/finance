@@ -679,6 +679,21 @@ test("Zillow page fetch accepts only HTTPS home-details URLs on Zillow", async (
   assert.equal(fetchCount, 1);
 });
 
+test("connection cards render a delete menu and shared confirmation dialog", () => {
+  const plaid = renderConnections([{ itemId: "item-delete", institutionName: "Bank Delete", lastRetrievedAt: "2026-10-31T12:00:00.000Z", accountCount: 0, accounts: [] }]);
+  const estate = renderRealEstateCards([{ id: "home-delete", address: "42 Main Street", latitude: 47, longitude: -122, estimates: [] }]);
+  for (const [html, id, name] of [[plaid, "item-delete", "Bank Delete"], [estate, "home-delete", "42 Main Street"]]) {
+    assert.match(html, /class="connection-actions-menu"/);
+    assert.match(html, /class="delete-connection-button"[^>]*>Delete<\/button>/);
+    assert.match(html, new RegExp(`data-connection-id="${id}"`));
+    assert.match(html, new RegExp(`data-connection-name="${name}"`));
+  }
+  const page = renderConnectionsPage({ displayName: "Test", username: "test" });
+  assert.match(page, /id="delete-connection-dialog"/);
+  assert.match(page, /id="cancel-delete-connection"/);
+  assert.match(page, /id="confirm-delete-connection"/);
+});
+
 test("real-estate cards show only the current estimate and an edit control", async () => {
   const html = renderRealEstateCards([{ id: "home-1", address: "<script>alert(1)</script>", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 750000, createdAt: 1790900000000 }, { amount: 700000, createdAt: 1788000000000 }] }]);
   assert.match(html, />Estimate:<\/strong>/);

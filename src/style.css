@@ -722,6 +722,12 @@ h1 span {
 
 .connection-card { overflow: hidden; border: 1px solid #e9ebe6; border-radius: 10px; background: #fff; }
 .connection-heading { display: flex; min-height: 88px; align-items: center; gap: 14px; padding: 16px 20px; cursor: pointer; list-style: none; }
+.connection-actions-menu { position: relative; z-index: 1; margin-left: auto; }
+.delete-connection-button { border: 0; padding: 8px 12px; border-radius: 6px; background: transparent; color: #b42318; cursor: pointer; }
+.delete-connection-button:hover { background: #fff1f0; }
+.delete-connection-dialog > .panel { height: auto; min-height: 0; }
+.delete-dialog-actions { display: flex; justify-content: space-between; margin-top: auto; padding-top: 24px; }
+.danger-button { border: 0; border-radius: 7px; padding: 10px 18px; background: #c9362b; color: white; font: inherit; cursor: pointer; }
 .connection-heading::-webkit-details-marker { display: none; }
 .connection-heading:hover { background: #f8faf8; }
 .connection-title { display: grid; min-width: 0; gap: 4px; }
