@@ -26,18 +26,34 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   const suggestions=document.querySelector<HTMLElement>("#address-suggestions");
   const map=document.querySelector<HTMLElement>("#property-map-preview");
   const next=document.querySelector<HTMLButtonElement>("#real-estate-next");
-  let selected:Place|null=null; let timer=0;
+  const back=document.querySelector<HTMLButtonElement>("#real-estate-back");
+  const stepAddress=document.querySelector<HTMLElement>("#real-estate-step-address");
+  const stepProvider=document.querySelector<HTMLElement>("#real-estate-step-provider");
+  const manualStep=document.querySelector<HTMLElement>("#manual-estimate-step");
+  const manualChoice=document.querySelector<HTMLButtonElement>("#choose-manual");
+  const estimateInput=document.querySelector<HTMLInputElement>("#manual-estimate");
+  let selected:Place|null=null; let timer=0; let manualSelected=false;
+  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(manualStep)manualStep.hidden=true;manualSelected=false;if(next){next.textContent="Next";next.disabled=!selected;}};
+  const saveRealEstate=async()=>{
+    const amount=Number(estimateInput?.value);const message=document.querySelector<HTMLElement>("#connection-dialog-message");
+    if(!selected||!estimateInput?.value.trim()||!Number.isFinite(amount)||amount<0){if(message)message.textContent="Select an address and enter a valid estimate.";return;}
+    if(next)next.disabled=true;
+    try { const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:selected.display_name,latitude:Number(selected.lat),longitude:Number(selected.lon),amount})});const payload=await response.json() as {error?:string};if(!response.ok)throw new Error(payload.error??"Unable to save property.");dialog?.close();onSaved(); }
+    catch(error){if(message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}
+    finally {if(next)next.disabled=false;}
+  };
   document.querySelector("#add-connection")?.addEventListener("click",()=>{
-    const first=document.querySelector<HTMLElement>("#real-estate-step-address");const provider=document.querySelector<HTMLElement>("#real-estate-step-provider");const manual=document.querySelector<HTMLElement>("#manual-estimate-step");
-    if(choices)choices.hidden=false;if(wizard)wizard.hidden=true;if(first)first.hidden=false;if(provider)provider.hidden=true;if(manual)manual.hidden=true;
-    if(addressInput)addressInput.value="";if(suggestions)suggestions.replaceChildren();if(map)map.replaceChildren();selected=null;if(next)next.disabled=true;
+    if(choices)choices.hidden=false;if(wizard)wizard.hidden=true;resetAddressStep();
+    if(addressInput)addressInput.value="";if(estimateInput)estimateInput.value="";if(suggestions)suggestions.replaceChildren();if(map)map.replaceChildren();selected=null;if(next)next.disabled=true;
     dialog?.showModal();
   });
   document.querySelector("#close-connection-dialog")?.addEventListener("click",()=>dialog?.close());
   document.querySelector("#choose-plaid")?.addEventListener("click",()=>{dialog?.close(); location.href="/accounts?connect=plaid";});
   document.querySelector("#choose-real-estate")?.addEventListener("click",()=>{if(choices)choices.hidden=true;if(wizard)wizard.hidden=false;});
-  document.querySelector("#real-estate-choice-back")?.addEventListener("click",()=>{if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;});
-  document.querySelector("#real-estate-back")?.addEventListener("click",()=>{const step=document.querySelector<HTMLElement>("#real-estate-step-provider");if(step)step.hidden=true;const first=document.querySelector<HTMLElement>("#real-estate-step-address");if(first)first.hidden=false;});
+  back?.addEventListener("click",()=>{
+    if(stepProvider&&!stepProvider.hidden){resetAddressStep();return;}
+    if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;
+  });
   addressInput?.addEventListener("input",()=>{
     selected=null;if(next)next.disabled=true;if(map)map.innerHTML=""; if(suggestions)suggestions.replaceChildren();
     const query=addressInput.value.trim(); if(query.length<4)return;
@@ -52,17 +68,12 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
       } catch { if(suggestions)suggestions.textContent="Address suggestions are unavailable. You can try again."; }
     },350);
   });
-  next?.addEventListener("click",()=>{if(!selected)return;const first=document.querySelector<HTMLElement>("#real-estate-step-address");const step=document.querySelector<HTMLElement>("#real-estate-step-provider");if(first)first.hidden=true;if(step)step.hidden=false;});
-  document.querySelector("#choose-manual")?.addEventListener("click",()=>{const manual=document.querySelector<HTMLElement>("#manual-estimate-step");if(manual)manual.hidden=false;});
-  document.querySelector("#save-real-estate")?.addEventListener("click",async()=>{
-    const amountInput=document.querySelector<HTMLInputElement>("#manual-estimate");const amount=Number(amountInput?.value);
-    const message=document.querySelector<HTMLElement>("#connection-dialog-message");
-    if(!selected||!amountInput?.value.trim()||!Number.isFinite(amount)||amount<0){if(message)message.textContent="Select an address and enter a valid estimate.";return;}
-    const button=document.querySelector<HTMLButtonElement>("#save-real-estate"); if(button)button.disabled=true;
-    try { const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:selected.display_name,latitude:Number(selected.lat),longitude:Number(selected.lon),amount})});const payload=await response.json() as {error?:string};if(!response.ok)throw new Error(payload.error??"Unable to save property.");dialog?.close();onSaved(); }
-    catch(error){if(message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}
-    finally {if(button)button.disabled=false;}
+  next?.addEventListener("click",()=>{
+    if(stepAddress&&!stepAddress.hidden){if(!selected)return;if(stepAddress)stepAddress.hidden=true;if(stepProvider)stepProvider.hidden=false;next.textContent="Next";next.disabled=true;return;}
+    if(manualSelected)void saveRealEstate();
   });
+  manualChoice?.addEventListener("click",()=>{manualSelected=true;if(manualStep)manualStep.hidden=false;if(next){next.textContent="Done";next.disabled=false;}estimateInput?.focus();});
+
   const integrations=document.querySelector<HTMLElement>("#connected-integrations");
   integrations?.addEventListener("click",(event)=>{
     const target=event.target;if(!(target instanceof Element))return;

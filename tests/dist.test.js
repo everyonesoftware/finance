@@ -675,9 +675,9 @@ test("real-estate cards show only the current estimate and an edit control", asy
 test("connections page offers Plaid and real-estate choices with disabled external providers", () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
   assert.match(html, /id="add-connection"/);
-  assert.match(html, /id="real-estate-choice-back" class="secondary-button"/);
-  assert.match(html, /id="real-estate-next"/);
-  assert.ok(html.indexOf('id="real-estate-choice-back"') > html.indexOf('id="property-map-preview"'));
+  assert.match(html, /class="real-estate-wizard-actions"[\s\S]*id="real-estate-back" class="secondary-button"[\s\S]*id="real-estate-next" class="primary-button"/);
+  assert.ok(html.indexOf('id="real-estate-back"') > html.indexOf('id="real-estate-step-provider"'));
+  assert.doesNotMatch(html, /id="real-estate-choice-back"|id="real-estate-step-provider" hidden><button id="real-estate-back"/);
   assert.match(html, /Real Estate/);
   assert.match(html, /Zillow[^>]*disabled|disabled[^>]*Zillow/);
   assert.match(html, /Redfin[^>]*disabled|disabled[^>]*Redfin/);

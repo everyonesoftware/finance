@@ -2324,10 +2324,10 @@ a.text-button {
 #address-suggestions { display: grid; max-height: 200px; overflow: auto; }
 #address-suggestions button { padding: 10px; border: 0; border-bottom: 1px solid #e9ebe6; background: #fff; text-align: left; cursor: pointer; }
 #address-suggestions button:hover { background: #f0f7ee; }
-#real-estate-next { display: block; margin: 18px 0 0 auto; }
-.real-estate-address-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 18px; }
-.real-estate-address-actions #real-estate-next, .real-estate-address-actions #real-estate-choice-back { margin: 0; }
-#real-estate-choice-back, #real-estate-back { margin: 0 0 12px; }
+.real-estate-wizard-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; }
+.real-estate-wizard-actions [hidden] { display: none; }
+#real-estate-next { margin: 0; }
+#real-estate-back { margin: 0; }
 #real-estate-step-provider button[disabled] { opacity: .55; cursor: not-allowed; }
 #property-map-preview iframe { display: block; width: 100%; aspect-ratio: 1; border: 0; border-radius: 9px; }
 .real-estate-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 42%); gap: 18px; align-items: start; padding: 16px 20px 22px; border-top: 1px solid #e9ebe6; }
