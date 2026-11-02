@@ -298,6 +298,19 @@ test("dashboard shows only implemented account and transaction features", () => 
   assert.match(html, /class="app-version">Version dev<\/span>/);
 });
 
+test("main navigation has an accessible mobile menu toggle on every finance page", () => {
+  const pages = [
+    renderDashboard({ displayName: "Test", username: "test" }),
+    renderTransactionsPage({ displayName: "Test", username: "test" }),
+    renderBankAccountsPage({ displayName: "Test", username: "test" }),
+    renderBankAccountDetailPage({ displayName: "Test", username: "test" }),
+  ];
+  for (const html of pages) {
+    assert.match(html, /class="mobile-menu-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="main-navigation"/);
+    assert.match(html, /<nav class="navigation" id="main-navigation">/);
+  }
+});
+
 test("amount range input accepts complete decimals and ignores incomplete edits", () => {
   const parseAmountRangeInput = transactionFilterUtils.parseAmountRangeInput;
   assert.equal(typeof parseAmountRangeInput, "function");

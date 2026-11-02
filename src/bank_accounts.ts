@@ -729,8 +729,9 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           <span class="brand-mark" aria-hidden="true">F</span>
           <span>Finance</span>
         </a>
+        <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
         <div class="workspace-label">WORKSPACE</div>
-        <nav class="navigation">
+        <nav class="navigation" id="main-navigation">
           <a class="nav-link" href="/dashboard">
             <span class="nav-icon" aria-hidden="true">◫</span> Overview
           </a>
@@ -827,8 +828,9 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
         <a class="brand" href="/dashboard" aria-label="Finance home">
           <span class="brand-mark" aria-hidden="true">F</span><span>Finance</span>
         </a>
+        <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
         <div class="workspace-label">WORKSPACE</div>
-        <nav class="navigation">
+        <nav class="navigation" id="main-navigation">
           <a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a>
           <a class="nav-link" href="/dashboard#transactions"><span class="nav-icon" aria-hidden="true">↕</span> Transactions</a>
           <a class="nav-link" href="/dashboard#budgets"><span class="nav-icon" aria-hidden="true">▤</span> Budgets</a>

@@ -24,6 +24,26 @@ function getAppRoot(): HTMLDivElement {
 
 const app: HTMLDivElement = getAppRoot();
 
+document.addEventListener("click", (event: MouseEvent): void => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const toggle = target.closest<HTMLButtonElement>(".mobile-menu-toggle");
+  if (!toggle) return;
+  const sidebar = toggle.closest<HTMLElement>(".sidebar");
+  const isOpen = sidebar?.classList.toggle("mobile-menu-open") ?? false;
+  toggle.setAttribute("aria-expanded", String(isOpen));
+  toggle.setAttribute("aria-label", isOpen ? "Close navigation menu" : "Open navigation menu");
+});
+
+document.addEventListener("keydown", (event: KeyboardEvent): void => {
+  if (event.key !== "Escape") return;
+  const sidebar = document.querySelector<HTMLElement>(".sidebar.mobile-menu-open");
+  const toggle = sidebar?.querySelector<HTMLButtonElement>(".mobile-menu-toggle");
+  sidebar?.classList.remove("mobile-menu-open");
+  toggle?.setAttribute("aria-expanded", "false");
+  toggle?.setAttribute("aria-label", "Open navigation menu");
+});
+
 const authClient = createAuthClient({
   baseURL: window.location.origin,
   plugins: [usernameClient()],
