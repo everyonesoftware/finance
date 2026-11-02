@@ -307,8 +307,15 @@ test("main navigation has an accessible mobile menu toggle on every finance page
   ];
   for (const html of pages) {
     assert.match(html, /class="mobile-menu-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="main-navigation"/);
+    assert.match(html, /class="mobile-menu-panel"/);
     assert.match(html, /<nav class="navigation" id="main-navigation">/);
   }
+});
+
+test("mobile menu toggle is hidden on desktop and shown at mobile widths", async () => {
+  const stylesheet = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
+  assert.match(stylesheet, /\.mobile-menu-toggle\s*\{\s*display:\s*none;/);
+  assert.match(stylesheet, /@media\s*\(max-width:\s*800px\)[\s\S]*?\.mobile-menu-toggle\s*\{\s*display:\s*grid;/);
 });
 
 test("amount range input accepts complete decimals and ignores incomplete edits", () => {

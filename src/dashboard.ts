@@ -36,6 +36,7 @@ export function renderDashboard(user: DashboardUser): string {
         <span>Finance</span>
       </a>
       <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
+      <div class="mobile-menu-panel">
       <div class="workspace-label">WORKSPACE</div>
       <nav class="navigation" id="main-navigation">
         <a class="nav-link active" href="#overview" aria-current="page">
@@ -58,6 +59,7 @@ export function renderDashboard(user: DashboardUser): string {
           <span>@${username}</span>
           <span class="app-version">Version ${escapeHtml(appVersion)}</span>
         </div>
+      </div>
       </div>
     </aside>
 

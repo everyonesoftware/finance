@@ -730,6 +730,7 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           <span>Finance</span>
         </a>
         <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
+        <div class="mobile-menu-panel">
         <div class="workspace-label">WORKSPACE</div>
         <nav class="navigation" id="main-navigation">
           <a class="nav-link" href="/dashboard">
@@ -755,6 +756,7 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
             <span>@${username}</span>
             <span class="app-version">Version ${escapeHtml(appVersion)}</span>
           </div>
+        </div>
         </div>
       </aside>
 
@@ -829,6 +831,7 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
           <span class="brand-mark" aria-hidden="true">F</span><span>Finance</span>
         </a>
         <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
+        <div class="mobile-menu-panel">
         <div class="workspace-label">WORKSPACE</div>
         <nav class="navigation" id="main-navigation">
           <a class="nav-link" href="/dashboard"><span class="nav-icon" aria-hidden="true">◫</span> Overview</a>
@@ -840,6 +843,7 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
         <div class="sidebar-bottom">
           <div class="profile-avatar" aria-hidden="true">${initial}</div>
           <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
+        </div>
         </div>
       </aside>
       <main class="main-content accounts-content">

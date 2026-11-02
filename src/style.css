@@ -119,6 +119,14 @@ button {
   border-top: 1px solid var(--line);
 }
 
+.mobile-menu-toggle {
+  display: none;
+}
+
+.mobile-menu-panel {
+  display: contents;
+}
+
 .profile-avatar {
   display: grid;
   width: 34px;
@@ -1729,11 +1737,7 @@ a.text-button {
   }
 
   .sidebar.mobile-menu-open {
-    height: auto;
-    min-height: 62px;
-    padding-bottom: 14px;
     background: #fff;
-    box-shadow: 0 12px 24px rgb(25 35 25 / 12%);
   }
 
   .mobile-menu-toggle {
@@ -1750,24 +1754,35 @@ a.text-button {
 
   .workspace-label,
   .navigation,
-  .sidebar-bottom {
+  .sidebar-bottom,
+  .mobile-menu-panel {
     display: none;
+  }
+
+  .sidebar.mobile-menu-open .mobile-menu-panel {
+    position: absolute;
+    z-index: 21;
+    top: 100%;
+    left: 0;
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    padding: 0 22px 14px;
+    background: #fff;
+    box-shadow: 0 12px 24px rgb(25 35 25 / 12%);
   }
 
   .sidebar.mobile-menu-open .workspace-label {
     display: block;
-    flex-basis: 100%;
-    margin: 12px 11px 0;
+    margin: 12px 11px 12px;
   }
 
   .sidebar.mobile-menu-open .navigation {
     display: grid;
-    flex-basis: 100%;
   }
 
   .sidebar.mobile-menu-open .sidebar-bottom {
     display: flex;
-    flex-basis: 100%;
   }
 
   .main-content {
