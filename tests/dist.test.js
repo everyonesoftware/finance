@@ -656,7 +656,7 @@ test("logout action is placed in a Settings section after Change password", asyn
   const logoutSection = settingsSource.indexOf('class="settings-card settings-logout-section"');
   assert.ok(passwordSection >= 0);
   assert.ok(logoutSection > passwordSection);
-  assert.match(settingsSource.slice(logoutSection), /class="text-button logout-button"/);
+  assert.match(settingsSource.slice(logoutSection), /class="primary-button logout-button"/);
   assert.doesNotMatch(settingsSource.slice(0, logoutSection), /logout-button/);
 });
 

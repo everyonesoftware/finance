@@ -2230,10 +2230,6 @@ a.text-button {
   font-size: 13px;
 }
 
-.logout-button {
-  font-size: 10px;
-}
-
 @media (max-width: 800px) {
   .landing-page,
   .settings-page {

@@ -262,7 +262,7 @@ function renderSettings(user: AuthUser): void {
         <section class="settings-card settings-logout-section">
           <h2>Log out</h2>
           <p>Sign out of your Finance account on this device.</p>
-          <button class="text-button logout-button" type="button">Log out</button>
+          <button class="primary-button logout-button" type="button">Log out</button>
         </section>
       </section>
       </main>
