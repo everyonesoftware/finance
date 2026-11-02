@@ -2314,17 +2314,21 @@ a.text-button {
 
 .connection-dialog { width: min(560px, calc(100vw - 32px)); max-height: min(85vh, 760px); padding: 0; border: 0; border-radius: 14px; background: transparent; color: inherit; }
 .connection-dialog::backdrop { background: rgba(18, 30, 22, .48); backdrop-filter: blur(3px); }
-.connection-dialog > .panel { position: relative; height: min(80vh, 620px); max-height: 80vh; overflow: auto; padding: 28px; border: 1px solid #e5e9e1; border-radius: 14px; background: #fff; box-shadow: 0 24px 80px rgba(20, 35, 22, .22); }
+.connection-dialog > .panel { position: relative; display: flex; height: min(80vh, 620px); max-height: 80vh; flex-direction: column; overflow: auto; padding: 28px; border: 1px solid #e5e9e1; border-radius: 14px; background: #fff; box-shadow: 0 24px 80px rgba(20, 35, 22, .22); }
 .connection-dialog h2 { margin: 0 44px 20px 0; }
 #close-connection-dialog { position: absolute; right: 16px; top: 14px; }
 #connection-choices, #real-estate-step-provider { display: grid; gap: 12px; }
+#connection-choices { flex: 1; align-content: center; }
+#real-estate-wizard { display: flex; flex: 1; min-height: 0; flex-direction: column; }
+#real-estate-step-address { flex: 1; min-height: 0; overflow-y: auto; }
+#real-estate-step-provider { flex: 1; min-height: 0; align-content: center; }
 #connection-choices[hidden], #real-estate-wizard[hidden], #real-estate-step-address[hidden], #real-estate-step-provider[hidden], #manual-estimate-step[hidden] { display: none; }
 #real-estate-wizard label, .update-estimate label { display: grid; gap: 7px; margin: 14px 0; font-weight: 600; }
 #real-estate-wizard input, .update-estimate input { width: 100%; padding: 11px 12px; border: 1px solid #cfd7ce; border-radius: 8px; font: inherit; }
 #address-suggestions { display: grid; max-height: 200px; overflow: auto; }
 #address-suggestions button { padding: 10px; border: 0; border-bottom: 1px solid #e9ebe6; background: #fff; text-align: left; cursor: pointer; }
 #address-suggestions button:hover { background: #f0f7ee; }
-.real-estate-wizard-actions { position: sticky; bottom: -1px; display: flex; align-items: center; justify-content: space-between; margin-top: 24px; padding: 10px 0 0; background: #fff; }
+.real-estate-wizard-actions { position: sticky; bottom: -1px; display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 10px 0 0; background: #fff; }
 .real-estate-wizard-actions [hidden] { display: none; }
 #property-map-preview { height: 240px; margin-top: 12px; }
 #property-map-preview iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 9px; }

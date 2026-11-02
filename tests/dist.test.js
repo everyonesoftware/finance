@@ -674,7 +674,17 @@ test("real-estate cards show only the current estimate and an edit control", asy
 
 test("connection dialog keeps a stable height and reserves bounded space for the property map", async () => {
   const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
-  assert.match(css, /\.connection-dialog\s*>\s*\.panel\s*\{[^}]*height:\s*min\(80vh,\s*620px\)/s);
+  const panelRule = css.match(/\.connection-dialog\s*>\s*\.panel\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(panelRule, /height:\s*min\(80vh,\s*620px\)/);
+  assert.match(panelRule, /display:\s*flex/);
+  assert.match(panelRule, /flex-direction:\s*column/);
+  assert.match(css, /#connection-choices\s*\{[^}]*flex:\s*1[^}]*align-content:\s*center/s);
+  const wizardRule = css.match(/#real-estate-wizard\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(wizardRule, /flex:\s*1/);
+  assert.match(wizardRule, /display:\s*flex/);
+  assert.match(wizardRule, /flex-direction:\s*column/);
+  assert.match(css, /#real-estate-step-provider\s*\{[^}]*flex:\s*1[^}]*align-content:\s*center/s);
+  assert.match(css, /\.real-estate-wizard-actions\s*\{[^}]*margin-top:\s*auto/s);
   assert.match(css, /#property-map-preview\s*\{[^}]*height:\s*240px/s);
   assert.match(css, /#property-map-preview iframe\s*\{[^}]*height:\s*100%/s);
 });
