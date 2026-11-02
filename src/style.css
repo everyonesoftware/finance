@@ -2331,6 +2331,7 @@ a.text-button {
 .current-estimate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 42px; }
 .current-estimate-value { font-size: 18px; font-weight: 700; }
 .estimate-edit-button, .estimate-confirm-button { display: inline-grid; place-items: center; min-width: 34px; min-height: 34px; padding: 4px 8px; border: 1px solid #dce3d9; border-radius: 8px; background: #f6faf5; color: #245b35; font-size: 18px; cursor: pointer; }
+.estimate-edit-button[hidden] { display: none; }
 .estimate-edit-form { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; }
 .estimate-edit-form[hidden] { display: none; }
 .estimate-edit-form input { width: 145px; padding: 8px; border: 1px solid #cfd7ce; border-radius: 7px; font: inherit; }
