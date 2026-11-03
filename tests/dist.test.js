@@ -716,8 +716,12 @@ test("real-estate cards render separate provider estimates, manual add, and esti
   assert.match(scaledChart, /2025-01-01/);
   assert.match(scaledChart, /class="estimate-series-zillow"/);
   assert.equal((scaledChart.match(/class="estimate-point-zillow"/g) ?? []).length, 2);
-  assert.match(scaledChart, /<title>2025-01-01 · \$100<\/title>/);
-  assert.match(scaledChart, /<title>2025-01-03 · \$200<\/title>/);
+  assert.match(scaledChart, /data-tooltip-delay="300"/);
+  assert.match(scaledChart, /class="estimate-chart-tooltip"[^>]*hidden/);
+  assert.match(scaledChart, /class="estimate-chart-tooltip-date"/);
+  assert.match(scaledChart, /class="estimate-chart-tooltip-value"/);
+  assert.match(scaledChart, /data-estimate-date="2025-01-01" data-estimate-value="\$100"/);
+  assert.doesNotMatch(scaledChart, /<title>2025-01-01/);
   assert.match(allProvidersHtml, /class="estimate-series-zillow"/);
   assert.match(allProvidersHtml, /class="estimate-series-redfin"/);
   assert.match(allProvidersHtml, /class="estimate-series-manual"/);
@@ -735,6 +739,8 @@ test("real-estate cards render separate provider estimates, manual add, and esti
   assert.match(html, /&lt;script&gt;/);
   assert.doesNotMatch(html, /<script>alert/);
   const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.estimate-chart-tooltip-date[^}]*font-weight:\s*700/);
+  assert.match(css, /\.estimate-chart-tooltip-value[^}]*font-size:/);
   assert.match(css, /\.estimate-edit-button\[hidden\]\s*\{\s*display:\s*none/);
   assert.match(css, /\.real-estate-details[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(180px, 42%\)/);
   assert.match(css, /@media \(max-width: 620px\)[\s\S]*\.real-estate-details[^}]*grid-template-columns: 1fr/);

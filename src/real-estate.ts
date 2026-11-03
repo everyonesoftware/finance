@@ -26,8 +26,8 @@ export function renderRealEstateCards(properties: Property[]): string {
     const yTicks=[0,0.25,0.5,0.75,1].map(ratio=>yMax*ratio);
     const yAxis=yTicks.map(value=>{const y=yFor(value);return `<line class="estimate-chart-grid" x1="${chartLeft}" y1="${y}" x2="${chartRight}" y2="${y}"/><text class="estimate-chart-label" x="${chartLeft-8}" y="${y+4}" text-anchor="end">${money(value)}</text>`;}).join("");
     const dateTicks=allPoints.filter((_,index)=>index===0||index===allPoints.length-1||allPoints.length<=5).map(point=>{const date=new Date(point.createdAt).toISOString().slice(0,10);return `<text class="estimate-chart-label" x="${xFor(point.createdAt)}" y="${chartBottom+22}" text-anchor="middle">${date}</text>`;}).join("");
-    const chartSeries=providers.map(provider=>{const values=points(provider);if(!values.length)return "";const coords=values.map(e=>`${xFor(e.createdAt)},${yFor(e.amount)}`).join(" ");const markers=provider==="zillow"?values.map(e=>{const date=new Date(e.createdAt).toISOString().slice(0,10);return `<circle class="estimate-point-zillow" cx="${xFor(e.createdAt)}" cy="${yFor(e.amount)}" r="4" tabindex="0" aria-label="${date}: ${money(e.amount)}"><title>${date} · ${money(e.amount)}</title></circle>`;}).join(""):"";return `<polyline class="estimate-series-${provider}" points="${coords}"/>${markers}`;}).join("");
-    const chart=`<svg class="estimate-history-chart" viewBox="0 0 410 230" role="img" aria-label="Estimate history by source, values from zero to ${money(yMax)}" data-y-min="0" data-y-max="${yMax}">${yAxis}<line class="estimate-chart-axis" x1="${chartLeft}" y1="${chartTop}" x2="${chartLeft}" y2="${chartBottom}"/><line class="estimate-chart-axis" x1="${chartLeft}" y1="${chartBottom}" x2="${chartRight}" y2="${chartBottom}"/>${chartSeries}${dateTicks}</svg>`;
+    const chartSeries=providers.map(provider=>{const values=points(provider);if(!values.length)return "";const coords=values.map(e=>`${xFor(e.createdAt)},${yFor(e.amount)}`).join(" ");const markers=provider==="zillow"?values.map(e=>{const date=new Date(e.createdAt).toISOString().slice(0,10);return `<circle class="estimate-point-zillow" cx="${xFor(e.createdAt)}" cy="${yFor(e.amount)}" r="4" tabindex="0" aria-label="${date}: ${money(e.amount)}" data-estimate-date="${date}" data-estimate-value="${escapeHtml(money(e.amount))}"/>`;}).join(""):"";return `<polyline class="estimate-series-${provider}" points="${coords}"/>${markers}`;}).join("");
+    const chart=`<div class="estimate-chart-wrap" data-tooltip-delay="300"><svg class="estimate-history-chart" viewBox="0 0 410 230" role="img" aria-label="Estimate history by source, values from zero to ${money(yMax)}" data-y-min="0" data-y-max="${yMax}">${yAxis}<line class="estimate-chart-axis" x1="${chartLeft}" y1="${chartTop}" x2="${chartLeft}" y2="${chartBottom}"/><line class="estimate-chart-axis" x1="${chartLeft}" y1="${chartBottom}" x2="${chartRight}" y2="${chartBottom}"/>${chartSeries}${dateTicks}</svg><div class="estimate-chart-tooltip" role="tooltip" aria-hidden="true" hidden><span class="estimate-chart-tooltip-date"></span><strong class="estimate-chart-tooltip-value"></strong></div></div>`;
     return `<details class="connection-card real-estate-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">⌂</span><span class="connection-title"><span class="eyebrow">REAL ESTATE</span><strong>${escapeHtml(property.address)}</strong></span></summary><details class="connection-actions-menu"><summary class="connection-menu-trigger" aria-label="More actions for ${escapeHtml(property.address)}" title="More actions for ${escapeHtml(property.address)}"><span aria-hidden="true">⋯</span></summary><div class="connection-menu-popup"><button type="button" class="delete-connection-button" data-connection-type="real-estate" data-connection-id="${escapeHtml(property.id)}" data-connection-name="${escapeHtml(property.address)}">Delete</button></div></details><div class="real-estate-details"><section class="estimate-panel"><div class="current-estimate-row"><strong>Estimate:</strong><span class="current-estimate-value">${current?money(current.amount):"Not provided"}</span></div><div class="provider-estimates">${latest.map(e=>`<div class="provider-estimate"><span class="estimate-source">${providerLabel(e.provider??"manual")}</span><span>${money(e.amount)}</span>${e.provider==="zillow"?`<a class="estimate-source-link" href="${escapeHtml(property.zillowUrl||"https://www.zillow.com/")}" target="_blank" rel="noopener noreferrer">Visit Zillow</a>`:e.provider==="redfin"?`<a class="estimate-source-link" href="${escapeHtml(property.redfinUrl||"https://www.redfin.com/")}" target="_blank" rel="noopener noreferrer">Visit Redfin</a>`:""}</div>`).join("")}</div><button type="button" class="manual-estimate-add">+ Add manual estimate</button><form class="manual-estimate-form" data-property-id="${escapeHtml(property.id)}" hidden><label>Amount<input name="amount" type="number" min="0" step="0.01" required></label><label>Comment<input name="sourceNotes" maxlength="2000" type="text" placeholder="Optional comment"></label><div><button type="submit">Save estimate</button><button type="button" class="manual-estimate-cancel">Cancel</button></div><span class="manual-estimate-error" role="alert"></span></form><h3>Estimate history</h3>${chart}</section><iframe class="property-map-frame" title="Map showing ${escapeHtml(property.address)}" loading="lazy" src="${map}"></iframe></div></details>`;
   }).join("");
 }
@@ -104,6 +104,44 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
 
 
   const integrations=document.querySelector<HTMLElement>("#connected-integrations");
+  let chartTooltipTimer=0;
+  const hideChartTooltip=()=>{window.clearTimeout(chartTooltipTimer);integrations?.querySelectorAll<HTMLElement>(".estimate-chart-tooltip").forEach((tooltip)=>{tooltip.hidden=true;tooltip.setAttribute("aria-hidden","true");});};
+  const showChartTooltip=(marker:SVGCircleElement)=>{
+    hideChartTooltip();
+    const wrapper=marker.closest<HTMLElement>(".estimate-chart-wrap");
+    const tooltip=wrapper?.querySelector<HTMLElement>(".estimate-chart-tooltip");
+    if(!wrapper||!tooltip)return;
+    chartTooltipTimer=window.setTimeout(()=>{
+      const date=tooltip.querySelector<HTMLElement>(".estimate-chart-tooltip-date");
+      const value=tooltip.querySelector<HTMLElement>(".estimate-chart-tooltip-value");
+      if(date)date.textContent=marker.dataset.estimateDate??"";
+      if(value)value.textContent=marker.dataset.estimateValue??"";
+      const markerRect=marker.getBoundingClientRect();
+      const wrapperRect=wrapper.getBoundingClientRect();
+      const halfWidth=tooltip.offsetWidth/2;
+      const left=Math.max(halfWidth+4,Math.min(markerRect.left-wrapperRect.left+markerRect.width/2,wrapperRect.width-halfWidth-4));
+      tooltip.style.left=`${left}px`;
+      tooltip.style.top=`${Math.max(4,markerRect.top-wrapperRect.top-8)}px`;
+      tooltip.hidden=false;
+      tooltip.setAttribute("aria-hidden","false");
+    },Number(wrapper.dataset.tooltipDelay)||300);
+  };
+  integrations?.addEventListener("pointerover",(event)=>{
+    const target=event.target;if(!(target instanceof Element))return;
+    const marker=target.closest<SVGCircleElement>(".estimate-point-zillow");
+    if(marker&&!marker.contains(event.relatedTarget as Node|null))showChartTooltip(marker);
+  });
+  integrations?.addEventListener("pointerout",(event)=>{
+    const target=event.target;if(!(target instanceof Element))return;
+    const marker=target.closest<SVGCircleElement>(".estimate-point-zillow");
+    if(marker&&!marker.contains(event.relatedTarget as Node|null))hideChartTooltip();
+  });
+  integrations?.addEventListener("focusin",(event)=>{
+    const target=event.target;if(target instanceof Element){const marker=target.closest<SVGCircleElement>(".estimate-point-zillow");if(marker)showChartTooltip(marker);}
+  });
+  integrations?.addEventListener("focusout",(event)=>{
+    const target=event.target;if(target instanceof Element&&target.closest(".estimate-point-zillow"))hideChartTooltip();
+  });
   integrations?.addEventListener("click",(event)=>{
     const target=event.target;if(!(target instanceof Element))return;
     const manualAdd=target.closest<HTMLButtonElement>(".manual-estimate-add");
