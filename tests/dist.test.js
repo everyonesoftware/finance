@@ -740,7 +740,10 @@ test("real-estate cards render separate provider estimates, manual add, and esti
   assert.doesNotMatch(html, /<script>alert/);
   const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
   assert.match(css, /\.estimate-chart-tooltip-date[^}]*font-weight:\s*700/);
-  assert.match(css, /\.estimate-chart-tooltip-value[^}]*font-size:/);
+  assert.match(css, /\.estimate-point-zillow:focus[^}]*stroke:\s*#153e9c/);
+  const client = await readFile(new URL("../src/real-estate.ts", import.meta.url), "utf8");
+  assert.match(client, /showChartTooltip\(marker,\s*0\)/);
+  assert.match(client, /chartPoint\.focus\(/);
   assert.match(css, /\.estimate-edit-button\[hidden\]\s*\{\s*display:\s*none/);
   assert.match(css, /\.real-estate-details[^}]*grid-template-columns: minmax\(0, 1fr\) minmax\(180px, 42%\)/);
   assert.match(css, /@media \(max-width: 620px\)[\s\S]*\.real-estate-details[^}]*grid-template-columns: 1fr/);

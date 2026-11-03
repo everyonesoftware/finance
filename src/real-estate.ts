@@ -106,12 +106,12 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   const integrations=document.querySelector<HTMLElement>("#connected-integrations");
   let chartTooltipTimer=0;
   const hideChartTooltip=()=>{window.clearTimeout(chartTooltipTimer);integrations?.querySelectorAll<HTMLElement>(".estimate-chart-tooltip").forEach((tooltip)=>{tooltip.hidden=true;tooltip.setAttribute("aria-hidden","true");});};
-  const showChartTooltip=(marker:SVGCircleElement)=>{
+  const showChartTooltip=(marker:SVGCircleElement, delay?:number)=>{
     hideChartTooltip();
     const wrapper=marker.closest<HTMLElement>(".estimate-chart-wrap");
     const tooltip=wrapper?.querySelector<HTMLElement>(".estimate-chart-tooltip");
     if(!wrapper||!tooltip)return;
-    chartTooltipTimer=window.setTimeout(()=>{
+    const reveal=()=>{
       const date=tooltip.querySelector<HTMLElement>(".estimate-chart-tooltip-date");
       const value=tooltip.querySelector<HTMLElement>(".estimate-chart-tooltip-value");
       if(date)date.textContent=marker.dataset.estimateDate??"";
@@ -124,7 +124,10 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
       tooltip.style.top=`${Math.max(4,markerRect.top-wrapperRect.top-8)}px`;
       tooltip.hidden=false;
       tooltip.setAttribute("aria-hidden","false");
-    },Number(wrapper.dataset.tooltipDelay)||300);
+    };
+    const tooltipDelay=delay??(Number(wrapper.dataset.tooltipDelay)||300);
+    if(tooltipDelay===0)reveal();
+    else chartTooltipTimer=window.setTimeout(reveal,tooltipDelay);
   };
   integrations?.addEventListener("pointerover",(event)=>{
     const target=event.target;if(!(target instanceof Element))return;
@@ -137,13 +140,15 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
     if(marker&&!marker.contains(event.relatedTarget as Node|null))hideChartTooltip();
   });
   integrations?.addEventListener("focusin",(event)=>{
-    const target=event.target;if(target instanceof Element){const marker=target.closest<SVGCircleElement>(".estimate-point-zillow");if(marker)showChartTooltip(marker);}
+    const target=event.target;if(target instanceof Element){const marker=target.closest<SVGCircleElement>(".estimate-point-zillow");if(marker)showChartTooltip(marker,0);}
   });
   integrations?.addEventListener("focusout",(event)=>{
     const target=event.target;if(target instanceof Element&&target.closest(".estimate-point-zillow"))hideChartTooltip();
   });
   integrations?.addEventListener("click",(event)=>{
     const target=event.target;if(!(target instanceof Element))return;
+    const chartPoint=target.closest<SVGCircleElement>(".estimate-point-zillow");
+    if(chartPoint){chartPoint.focus({preventScroll:true});return;}
     const manualAdd=target.closest<HTMLButtonElement>(".manual-estimate-add");
     if(manualAdd){const panel=manualAdd.closest<HTMLElement>(".estimate-panel");const form=panel?.querySelector<HTMLFormElement>(".manual-estimate-form");manualAdd.hidden=true;if(form){form.hidden=false;form.querySelector<HTMLInputElement>("[name=amount]")?.focus();}return;}
     const manualCancel=target.closest<HTMLButtonElement>(".manual-estimate-cancel");
