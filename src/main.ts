@@ -409,7 +409,7 @@ function render(): void {
     return;
   }
 
-  if (path === "/dashboard" || path === "/transactions" || path === "/settings" || path === "/accounts" || path === "/connections" || accountDetailMatch) {
+  if (path === "/dashboard" || path === "/transactions" || path === "/settings" || path === "/accounts" || path === "/real-estate" || accountDetailMatch) {
     if (!currentUser) {
       authNotice = authNotice || "Log in or create an account to continue.";
       window.history.replaceState(null, "", "/");
@@ -442,7 +442,7 @@ function render(): void {
       return;
     }
 
-    if (path === "/connections") {
+    if (path === "/real-estate") {
       app.innerHTML = renderConnectionsPage({ displayName: displayNameFor(currentUser), username: currentUser.username ?? "" });
       attachLogoutHandler();
       void initializeConnectionsPage();

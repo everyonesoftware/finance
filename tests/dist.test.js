@@ -315,7 +315,7 @@ test("main navigation has an accessible mobile menu toggle on every finance page
     assert.match(html, /class="mobile-menu-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="main-navigation"/);
     assert.match(html, /class="mobile-menu-panel"/);
     assert.match(html, /<nav class="navigation" id="main-navigation">/);
-    assert.match(html, /href="\/connections"[^>]*>[^<]*<span class="nav-icon"[^>]*>↔<\/span> Connections/);
+    assert.match(html, /href="\/real-estate"[^>]*>[^<]*<span class="nav-icon"[^>]*>⌂<\/span> Real Estate/);
   }
 });
 
@@ -333,10 +333,10 @@ test("every finance page renders the same navigation destinations in the same or
     return [...navigation.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
   });
   assert.ok(destinations.every((links) => JSON.stringify(links) === JSON.stringify(destinations[0])));
-  assert.deepEqual(destinations[0], ["/dashboard", "/transactions", "/connections", "/accounts", "/settings"]);
+  assert.deepEqual(destinations[0], ["/dashboard", "/transactions", "/real-estate", "/accounts", "/settings"]);
   for (const [index, html] of pages.entries()) {
     const activeHref = html.match(/<a class="nav-link active" href="([^"]+)"[^>]*aria-current="page"/)?.[1];
-    assert.equal(activeHref, ["/dashboard", "/transactions", "/accounts", "/accounts", "/connections", "/settings"][index]);
+    assert.equal(activeHref, ["/dashboard", "/transactions", "/accounts", "/accounts", "/real-estate", "/settings"][index]);
   }
 });
 
@@ -630,7 +630,7 @@ test("institution cards provide a sync action and hide disconnect in the overflo
   assert.match(html, /data-item-id="item-1"/);
 });
 
-test("connections page groups integrations by Plaid item and collapses yielded accounts", () => {
+test("real-estate page loads only property cards and excludes Plaid UI", () => {
   const account = {
     id: "account-1", itemId: "item-1", institutionName: "Bank One",
     name: "Checking", officialName: null, type: "depository", subtype: "checking",
@@ -647,9 +647,10 @@ test("connections page groups integrations by Plaid item and collapses yielded a
   assert.match(html, /Savings/);
   assert.match(renderConnections([]), /No Plaid connections yet/);
   const page = renderConnectionsPage({ displayName: "Test", username: "test" });
-  assert.match(page, /class="nav-link active" href="\/connections" aria-current="page"/);
-  assert.match(page, /id="connected-integrations"/);
-  assert.doesNotMatch(page, /logout-button/);
+  assert.match(page, /class="nav-link active" href="\/real-estate" aria-current="page"/);
+  assert.match(page, /id="real-estate-properties"/);
+  assert.match(page, /id="add-property"/);
+  assert.doesNotMatch(page, /api\/accounts|choose-plaid|connection-choices/);
 });
 
 test("Zillow Zestimate parser reads only the home Zestimate from the Open Graph description", () => {
@@ -679,7 +680,7 @@ test("Zillow page fetch accepts only HTTPS home-details URLs on Zillow", async (
   assert.equal(fetchCount, 1);
 });
 
-test("connection cards render a delete menu and shared confirmation dialog", () => {
+test("property cards render a delete menu and the real-estate page omits the old shared dialog", () => {
   const plaid = renderConnections([{ itemId: "item-delete", institutionName: "Bank Delete", lastRetrievedAt: "2026-10-31T12:00:00.000Z", accountCount: 0, accounts: [] }]);
   const estate = renderRealEstateCards([{ id: "home-delete", address: "42 Main Street", latitude: 47, longitude: -122, estimates: [] }]);
   for (const [html, id, name] of [[plaid, "item-delete", "Bank Delete"], [estate, "home-delete", "42 Main Street"]]) {
@@ -691,9 +692,7 @@ test("connection cards render a delete menu and shared confirmation dialog", () 
     assert.match(html, new RegExp(`data-connection-name="${name}"`));
   }
   const page = renderConnectionsPage({ displayName: "Test", username: "test" });
-  assert.match(page, /id="delete-connection-dialog"/);
-  assert.match(page, /id="cancel-delete-connection"/);
-  assert.match(page, /id="confirm-delete-connection"/);
+  assert.doesNotMatch(page, /id="delete-connection-dialog"|id="connection-dialog"/);
 });
 
 test("real-estate cards render separate provider estimates, manual add, and estimate history chart", async () => {
@@ -749,7 +748,7 @@ test("real-estate cards render separate provider estimates, manual add, and esti
   assert.match(css, /@media \(max-width: 620px\)[\s\S]*\.real-estate-details[^}]*grid-template-columns: 1fr/);
 });
 
-test("connection dialog keeps a stable height and reserves bounded space for the property map", async () => {
+test("real-estate page uses an inline address autocomplete and Zillow form", async () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
   const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
   const deleteDialogRule = css.match(/\.delete-connection-dialog\s*\{([^}]*)\}/)?.[1] ?? "";
@@ -771,7 +770,7 @@ test("connection dialog keeps a stable height and reserves bounded space for the
   assert.match(css, /#zillow-estimate-step\[hidden\]/);
   assert.match(css, /\.real-estate-wizard-actions\s*\{[^}]*margin-top:\s*auto/s);
   assert.match(css, /#property-map-preview\s*\{[^}]*height:\s*240px/s);
-  assert.match(html, /id="real-estate-step-address"/);
+  assert.match(html, /id="add-property"/);
   assert.doesNotMatch(html, /<h3>Choose property<\/h3>/);
   assert.match(css, /#real-estate-step-address\s*\{[^}]*overflow:\s*hidden/);
   assert.match(css, /@media \(max-height:\s*700px\)[\s\S]*#property-map-preview\s*\{[^}]*height:\s*180px/);
@@ -780,46 +779,24 @@ test("connection dialog keeps a stable height and reserves bounded space for the
 
 test("connections page offers Plaid and real-estate choices with disabled external providers", () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
-  assert.match(html, /id="add-connection"/);
-  assert.match(html, /class="real-estate-wizard-actions"[\s\S]*id="real-estate-back" class="secondary-button"[\s\S]*id="real-estate-next" class="primary-button"/);
-  assert.ok(html.indexOf('id="real-estate-back"') > html.indexOf('id="real-estate-step-provider"'));
-  assert.doesNotMatch(html, /id="real-estate-choice-back"|id="real-estate-step-provider" hidden><button id="real-estate-back"/);
-  assert.match(html, /Real Estate/);
-  assert.match(html, /label for="zillow-property-url">Zillow<\/label>/);
-  assert.match(html, /id="zillow-property-url" type="url"[^>]*placeholder="Enter Zillow URL for this home"/);
-  assert.match(html, /label for="redfin-property-url">Redfin<\/label>/);
-  assert.match(html, /id="redfin-property-url" type="url"[^>]*placeholder="Enter Redfin URL for this home"/);
-  assert.doesNotMatch(html, /<p>(?:Enter the Zillow URL for this home|URL is saved for future integration)/);
-  assert.match(html, /label for="manual-estimate">Manual<\/label>/);
-  assert.match(html, /id="manual-estimate" type="number"/);
-  assert.match(html, /id="manual-source-notes"/);
+  assert.match(html, /id="add-property"/);
+  assert.match(html, /id="new-property-panel" hidden/);
+  assert.match(html, /id="property-address"[^>]*autocomplete="off"/);
+  assert.match(html, /id="zillow-property-url" name="zillowUrl" type="url"/);
+  assert.match(html, /id="done-property"[^>]*>Done/);
 });
 
-test("real-estate wizard supports independent providers and persists Zillow URL and manual notes", async () => {
+test("real-estate property creation uses selected address and Zillow URL", async () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
-  const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
-  const client = await readFile(new URL("../src/real-estate.ts", import.meta.url), "utf8");
-  assert.match(html, /id="zillow-property-url" type="url"/);
-  assert.match(html, /id="redfin-property-url" type="url"/);
-  assert.match(html, /id="manual-estimate" type="number"/);
-  assert.match(html, /id="connection-dialog-title">Add Connection<\/h2>/);
-  assert.match(html, /id="estimate-sources-heading" hidden>Estimate sources<\/h3>/);
-  assert.ok(html.indexOf('id="connection-dialog-title"') < html.indexOf('id="estimate-sources-heading"'));
-  assert.match(client, /connectionDialogTitle\.textContent="Add Real Estate"/);
-  assert.match(client, /estimateSourcesHeading\.hidden=false/);
-  assert.match(client, /estimateSourcesHeading\.hidden=true/);
-  assert.match(html, /class="manual-estimate-row"[\s\S]*id="manual-estimate"[\s\S]*id="manual-source-notes" type="text"[^>]*placeholder="Comment \(optional\)"/);
-  assert.doesNotMatch(html, /<textarea id="manual-source-notes"/);
-  assert.match(css, /\.estimate-provider\s*\{\s*display:\s*grid;\s*gap:\s*3px;/);
-  assert.match(css, /\.manual-estimate-row\s*\{[^}]*grid-template-columns:\s*2fr\s+3fr/);
-  const migration = await readFile(new URL("../server/migrations/0007_real_estate_sources.sql", import.meta.url), "utf8");
-  assert.match(migration, /zillow_url/);
-  assert.match(migration, /source_notes/);
-  const redfinMigration = await readFile(new URL("../server/migrations/0008_redfin_url.sql", import.meta.url), "utf8");
-  assert.match(redfinMigration, /redfin_url/);
-  const server = await readFile(new URL("../server/real_estate.ts", import.meta.url), "utf8");
-  assert.doesNotMatch(server, /86_400_000|one request per 24 hours/);
+  const client = await readFile(new URL("../src/bank_accounts.ts", import.meta.url), "utf8");
+  assert.match(html, /id="add-property"/);
+  assert.match(html, /id="address-suggestions" role="listbox"/);
+  assert.match(html, /id="zillow-url-field" hidden/);
+  assert.match(client, /nominatim\.openstreetmap\.org\/search/);
+  assert.match(client, /zillowUrl:String\(data\.get\("zillowUrl"\)\?\?""\)/);
+  assert.match(client, /id="done-property"/);
 });
+
 
 test("real-estate source migration adds Redfin URL to databases already on migration 0007", async () => {
   const database = new Database(":memory:");

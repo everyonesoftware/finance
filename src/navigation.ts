@@ -1,10 +1,10 @@
-export type MainNavigationPage = "overview" | "transactions" | "connections" | "accounts" | "settings";
+export type MainNavigationPage = "overview" | "transactions" | "real-estate" | "accounts" | "settings";
 
 const navigationItems: Array<{ page: MainNavigationPage; href: string; icon: string; label: string }> = [
   { page: "overview", href: "/dashboard", icon: "◫", label: "Overview" },
   { page: "transactions", href: "/transactions", icon: "↕", label: "Transactions" },
 
-  { page: "connections", href: "/connections", icon: "↔", label: "Connections" },
+  { page: "real-estate", href: "/real-estate", icon: "⌂", label: "Real Estate" },
   { page: "accounts", href: "/accounts", icon: "▣", label: "Accounts" },
   { page: "settings", href: "/settings", icon: "⚙", label: "Settings" },
 ];

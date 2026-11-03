@@ -2,7 +2,7 @@ import { appVersion } from "./app-version.ts";
 import { escapeHtml } from "./html-utils.ts";
 import { renderMainNavigation } from "./navigation.ts";
 import { renderTransactionList } from "./transaction-list.ts";
-import { initializeRealEstateConnections, renderRealEstateCards } from "./real-estate.ts";
+import { renderRealEstateCards } from "./real-estate.ts";
 export {
   findReferencedAccount,
   formatTransactionAmount,
@@ -347,10 +347,8 @@ export function renderConnections(connections: PlaidConnection[]): string {
 }
 
 export function renderConnectionsPage(user: BankAccountsPageUser): string {
-  const displayName = escapeHtml(user.displayName);
-  const username = escapeHtml(user.username);
-  const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
-  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div>${renderMainNavigation("connections")}<div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Connections</h1><p class="subheading">Plaid integrations and real-estate connections.</p></div><button class="primary-button" id="add-connection" type="button">＋ Add Connection</button></section><dialog id="delete-connection-dialog" class="connection-dialog delete-connection-dialog"><div class="panel"><h2>Delete connection?</h2><p>Delete <strong id="delete-connection-name"></strong>?</p><div class="delete-dialog-actions"><button id="cancel-delete-connection" class="secondary-button" type="button">Cancel</button><button id="confirm-delete-connection" class="danger-button" type="button">Delete</button></div></div></dialog><dialog id="connection-dialog" class="connection-dialog"><div class="panel"><button class="icon-button" id="close-connection-dialog" type="button" aria-label="Close">×</button><h2 id="connection-dialog-title">Add Connection</h2><h3 id="estimate-sources-heading" hidden>Estimate sources</h3><section id="connection-choices"><button class="secondary-button" id="choose-plaid" type="button">Plaid · Connect a bank</button><button class="secondary-button" id="choose-real-estate" type="button">Real Estate</button></section><section id="real-estate-wizard" hidden><div id="real-estate-step-address"><label>Address <input id="property-address" autocomplete="off" placeholder="Enter an address"></label><div id="address-suggestions" role="listbox"></div><div id="property-map-preview"></div></div><section id="real-estate-step-provider" hidden><div class="estimate-provider"><label for="zillow-property-url">Zillow</label><input id="zillow-property-url" type="url" placeholder="Enter Zillow URL for this home" autocomplete="url"></div><div class="estimate-provider"><label for="redfin-property-url">Redfin</label><input id="redfin-property-url" type="url" placeholder="Enter Redfin URL for this home" autocomplete="url"></div><div class="estimate-provider"><label for="manual-estimate">Manual</label><div class="manual-estimate-row"><div><input id="manual-estimate" type="number" min="0" step="0.01" placeholder="$0.00" aria-label="Manual estimate in US dollars"></div><div><input id="manual-source-notes" type="text" maxlength="2000" placeholder="Comment (optional)" aria-label="Manual estimate comment (optional)"></div></div></div></section><div class="real-estate-wizard-actions"><button id="real-estate-back" class="secondary-button" type="button">← Back</button><button id="real-estate-next" class="primary-button" type="button" disabled>Next</button></div></section><p id="connection-dialog-message" role="status"></p></div></dialog><div id="connected-integrations" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading your connections…</div></div><footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer></main></div>`;
+  const displayName = escapeHtml(user.displayName), username = escapeHtml(user.username), initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
+  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div>${renderMainNavigation("real-estate")}<div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Real Estate</h1><p class="subheading">Track property values and estimate history.</p></div><button class="primary-button" id="add-property" type="button">＋ Add Real Estate</button></section><section class="panel inline-property-form" id="new-property-panel" hidden><h2>New property</h2><form id="add-property-form"><label>Address<input id="property-address" name="address" required maxlength="500" autocomplete="off" placeholder="Enter an address"></label><div id="address-suggestions" role="listbox"></div><div id="zillow-url-field" hidden><label>Zillow URL<input id="zillow-property-url" name="zillowUrl" type="url" required placeholder="https://www.zillow.com/homedetails/…"></label></div><div class="property-form-actions"><button class="primary-button" id="done-property" type="submit" disabled>Done</button></div><p id="property-form-message" role="status"></p></form></section><div id="real-estate-properties" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading properties…</div></div><footer class="page-footer">Your finances, in focus.</footer></main></div>`;
 }
 
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
@@ -950,54 +948,12 @@ export function initializeBankAccountsPage(): void {
 }
 
 export async function initializeConnectionsPage(): Promise<void> {
-  const container = document.querySelector<HTMLDivElement>("#connected-integrations");
-  if (!container) return;
-  initializeRealEstateConnections(() => void initializeConnectionsPage());
-  const deleteDialog = document.querySelector<HTMLDialogElement>("#delete-connection-dialog");
-  const deleteName = document.querySelector<HTMLElement>("#delete-connection-name");
-  const confirmDelete = document.querySelector<HTMLButtonElement>("#confirm-delete-connection");
-  let pendingDelete: { type: string; id: string } | null = null;
-  document.querySelector("#cancel-delete-connection")?.addEventListener("click", () => deleteDialog?.close());
-  confirmDelete?.addEventListener("click", async () => {
-    if (!pendingDelete) return;
-    confirmDelete.disabled = true;
-    try {
-      const url = pendingDelete.type === "plaid" ? `/api/accounts/items/${encodeURIComponent(pendingDelete.id)}` : `/api/real-estate/${encodeURIComponent(pendingDelete.id)}`;
-      const response = await fetch(url, { method: "DELETE", credentials: "same-origin" });
-      if (!response.ok) throw new Error("Unable to delete this connection.");
-      deleteDialog?.close();
-      await initializeConnectionsPage();
-    } catch (error) {
-      const message = document.querySelector<HTMLElement>("#connection-dialog-message");
-      if (message) message.textContent = error instanceof Error ? error.message : "Unable to delete this connection.";
-    } finally { confirmDelete.disabled = false; }
-  });
-  document.querySelector("#connected-integrations")?.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const button = target.closest<HTMLButtonElement>(".delete-connection-button");
-    if (!button) return;
-    event.preventDefault(); event.stopPropagation();
-    const actionMenu = button.closest<HTMLDetailsElement>(".connection-actions-menu");
-    if (actionMenu) actionMenu.open = false;
-    pendingDelete = { type: button.dataset.connectionType ?? "", id: button.dataset.connectionId ?? "" };
-    if (deleteName) deleteName.textContent = button.dataset.connectionName ?? "this connection";
-    deleteDialog?.showModal();
-  });
-  try {
-    const [plaidResponse, estateResponse] = await Promise.all([
-      fetch("/api/accounts/items", { cache: "no-store", credentials: "same-origin" }),
-      fetch("/api/real-estate", { cache: "no-store", credentials: "same-origin" }),
-    ]);
-    const plaidPayload: unknown = await readJson(plaidResponse);
-    const estatePayload: unknown = await readJson(estateResponse);
-    if (!plaidResponse.ok || typeof plaidPayload !== "object" || plaidPayload === null || !("connections" in plaidPayload) || !Array.isArray(plaidPayload.connections)) throw new Error(getErrorMessage(plaidPayload, "Unable to load Plaid connections."));
-    if (!estateResponse.ok || typeof estatePayload !== "object" || estatePayload === null || !("properties" in estatePayload) || !Array.isArray(estatePayload.properties)) throw new Error(getErrorMessage(estatePayload, "Unable to load real-estate connections."));
-    const plaidHtml = renderConnections(plaidPayload.connections as PlaidConnection[]);
-    const estateHtml = renderRealEstateCards(estatePayload.properties as Parameters<typeof renderRealEstateCards>[0]);
-    container.innerHTML = [...(plaidPayload.connections.length ? [plaidHtml] : []), ...(estatePayload.properties.length ? [estateHtml] : [])].join("") || `<div class="accounts-empty"><strong>No connections yet</strong><span>Add a bank or real-estate property to get started.</span></div>`;
-  } catch {
-    container.innerHTML = `<div class="accounts-error"><strong>We couldn't load your connections.</strong><button class="text-button" id="retry-connections" type="button">Try again</button></div>`;
-    container.querySelector<HTMLButtonElement>("#retry-connections")?.addEventListener("click", () => void initializeConnectionsPage());
-  }
+ const container=document.querySelector<HTMLDivElement>("#real-estate-properties"); if(!container)return;
+ const refresh=async()=>{const response=await fetch("/api/real-estate",{cache:"no-store",credentials:"same-origin"});const payload=await readJson(response);if(!response.ok||typeof payload!=="object"||payload===null||!("properties" in payload)||!Array.isArray(payload.properties))throw new Error("Unable to load properties.");container.innerHTML=renderRealEstateCards(payload.properties as Parameters<typeof renderRealEstateCards>[0]);};
+ const address=document.querySelector<HTMLInputElement>("#property-address"), suggestions=document.querySelector<HTMLElement>("#address-suggestions"), zillowField=document.querySelector<HTMLElement>("#zillow-url-field"), done=document.querySelector<HTMLButtonElement>("#done-property"), panel=document.querySelector<HTMLElement>("#new-property-panel"); let selected:{address:string;latitude:number;longitude:number}|null=null, timer=0;
+ document.querySelector("#add-property")?.addEventListener("click",()=>{if(panel)panel.hidden=false;address?.focus();});
+ address?.addEventListener("input",()=>{selected=null;if(zillowField)zillowField.hidden=true;if(done)done.disabled=true;if(suggestions)suggestions.replaceChildren();const q=address.value.trim();if(q.length<4)return;window.clearTimeout(timer);timer=window.setTimeout(async()=>{try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(q)}`,{headers:{Accept:"application/json"}});const places=await r.json() as Array<{display_name:string;lat:string;lon:string}>;if(suggestions)suggestions.innerHTML=places.map((p,i)=>`<button type="button" role="option" data-place="${i}">${escapeHtml(p.display_name)}</button>`).join("");suggestions?.querySelectorAll<HTMLButtonElement>("button").forEach(b=>b.addEventListener("click",()=>{const p=places[Number(b.dataset.place)];if(!p)return;selected={address:p.display_name,latitude:Number(p.lat),longitude:Number(p.lon)};if(address)address.value=p.display_name;if(suggestions)suggestions.replaceChildren();if(zillowField)zillowField.hidden=false;}));}catch{if(suggestions)suggestions.textContent="Address suggestions are unavailable.";}},350);});
+ document.querySelector<HTMLInputElement>("#zillow-property-url")?.addEventListener("input",event=>{if(done)done.disabled=!selected||!(event.currentTarget as HTMLInputElement).value.trim();});
+ document.querySelector<HTMLFormElement>("#add-property-form")?.addEventListener("submit",async(event)=>{event.preventDefault();const form=event.currentTarget as HTMLFormElement;const data=new FormData(form);const message=document.querySelector<HTMLElement>("#property-form-message");const submit=form.querySelector<HTMLButtonElement>("button[type=submit]");if(submit)submit.disabled=true;try{const query=String(data.get("address")??"");const geo=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`,{headers:{Accept:"application/json"}});const places=await geo.json() as Array<{display_name:string;lat:string;lon:string}>;if(!places[0])throw new Error("Address not found.");const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:places[0].display_name,latitude:Number(places[0].lat),longitude:Number(places[0].lon),zillowUrl:String(data.get("zillowUrl")??"")})});const result=await readJson(response);if(!response.ok)throw new Error(getErrorMessage(result,"Unable to save property."));form.reset();if(message)message.textContent="Property added.";await refresh();}catch(error){if(message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}finally{if(submit)submit.disabled=false;}});
+ try{await refresh();}catch{container.innerHTML=`<div class="accounts-error">We couldn't load properties. <button id="retry-real-estate" class="text-button" type="button">Try again</button></div>`;container.querySelector("#retry-real-estate")?.addEventListener("click",()=>void initializeConnectionsPage());}
 }

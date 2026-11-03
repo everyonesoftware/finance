@@ -5,7 +5,7 @@ type Estimate = { amount: number; createdAt: number; provider?: "manual" | "zill
 type Property = { id:string; address:string; latitude:number; longitude:number; zillowUrl?:string|null; redfinUrl?:string|null; estimates:Estimate[] };
 
 export function renderRealEstateCards(properties: Property[]): string {
-  if (!properties.length) return `<div class="accounts-empty"><strong>No connections yet</strong><span>Add a bank or real-estate property to get started.</span></div>`;
+  if (!properties.length) return `<div class="accounts-empty"><strong>No properties added yet</strong><span>Add a property to start tracking real-estate estimates.</span></div>`;
   return properties.map((property) => {
     const money=(value:number)=>new Intl.NumberFormat(undefined,{style:"currency",currency:"USD",maximumFractionDigits:0}).format(value);
     const map=`https://maps.google.com/maps?q=${encodeURIComponent(`${property.latitude},${property.longitude}`)}&z=15&output=embed`;
