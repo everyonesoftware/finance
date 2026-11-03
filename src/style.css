@@ -2336,10 +2336,10 @@ a.text-button {
 #estimate-sources-heading[hidden] { display: none; }
 #close-connection-dialog { position: absolute; right: 16px; top: 14px; }
 #connection-choices, #real-estate-step-provider { display: grid; gap: 12px; }
-.estimate-provider { display: grid; gap: 6px; }
+.estimate-provider { display: grid; gap: 3px; }
 .estimate-provider > label { color: #35493a; font-size: 13px; font-weight: 600; }
 .estimate-provider input, .estimate-provider textarea { width: 100%; min-width: 0; padding: 9px 10px; border: 1px solid #cfd7ce; border-radius: 8px; font: inherit; }
-.estimate-provider p { margin: 0; color: #68766a; font-size: 12px; }
+
 .manual-estimate-row { display: grid; grid-template-columns: 2fr 3fr; gap: 10px; align-items: start; }
 .manual-estimate-row > div { display: grid; min-width: 0; gap: 6px; }
 @media (max-width: 620px) { .manual-estimate-row { grid-template-columns: 1fr; } }

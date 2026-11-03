@@ -762,6 +762,7 @@ test("connections page offers Plaid and real-estate choices with disabled extern
   assert.match(html, /id="zillow-property-url" type="url"[^>]*placeholder="Enter Zillow URL for this home"/);
   assert.match(html, /label for="redfin-property-url">Redfin<\/label>/);
   assert.match(html, /id="redfin-property-url" type="url"[^>]*placeholder="Enter Redfin URL for this home"/);
+  assert.doesNotMatch(html, /<p>(?:Enter the Zillow URL for this home|URL is saved for future integration)/);
   assert.match(html, /label for="manual-estimate">Manual<\/label>/);
   assert.match(html, /id="manual-estimate" type="number"/);
   assert.match(html, /id="manual-source-notes"/);
@@ -782,6 +783,7 @@ test("real-estate wizard supports independent providers and persists Zillow URL 
   assert.match(client, /estimateSourcesHeading\.hidden=true/);
   assert.match(html, /class="manual-estimate-row"[\s\S]*id="manual-estimate"[\s\S]*id="manual-source-notes" type="text"[^>]*placeholder="Comment \(optional\)"/);
   assert.doesNotMatch(html, /<textarea id="manual-source-notes"/);
+  assert.match(css, /\.estimate-provider\s*\{\s*display:\s*grid;\s*gap:\s*3px;/);
   assert.match(css, /\.manual-estimate-row\s*\{[^}]*grid-template-columns:\s*2fr\s+3fr/);
   const migration = await readFile(new URL("../server/migrations/0007_real_estate_sources.sql", import.meta.url), "utf8");
   assert.match(migration, /zillow_url/);
