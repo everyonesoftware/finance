@@ -723,6 +723,7 @@ test("real-estate cards show only the current estimate and an edit control", asy
 });
 
 test("connection dialog keeps a stable height and reserves bounded space for the property map", async () => {
+  const html = renderConnectionsPage({ displayName: "Test", username: "test" });
   const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
   const deleteDialogRule = css.match(/\.delete-connection-dialog\s*\{([^}]*)\}/)?.[1] ?? "";
   assert.match(deleteDialogRule, /width:\s*min\(400px,/);
@@ -743,6 +744,10 @@ test("connection dialog keeps a stable height and reserves bounded space for the
   assert.match(css, /#zillow-estimate-step\[hidden\]/);
   assert.match(css, /\.real-estate-wizard-actions\s*\{[^}]*margin-top:\s*auto/s);
   assert.match(css, /#property-map-preview\s*\{[^}]*height:\s*240px/s);
+  assert.match(html, /id="real-estate-step-address"/);
+  assert.doesNotMatch(html, /<h3>Choose property<\/h3>/);
+  assert.match(css, /#real-estate-step-address\s*\{[^}]*overflow:\s*hidden/);
+  assert.match(css, /@media \(max-height:\s*700px\)[\s\S]*#property-map-preview\s*\{[^}]*height:\s*180px/);
   assert.match(css, /#property-map-preview iframe\s*\{[^}]*height:\s*100%/s);
 });
 

@@ -2339,7 +2339,7 @@ a.text-button {
 .estimate-provider p { margin: 0; color: #68766a; font-size: 12px; }
 #connection-choices { flex: 1; align-content: center; }
 #real-estate-wizard { display: flex; flex: 1; min-height: 0; flex-direction: column; }
-#real-estate-step-address { flex: 1; min-height: 0; overflow-y: auto; }
+#real-estate-step-address { flex: 1; min-height: 0; overflow: hidden; }
 #real-estate-step-provider { flex: 1; min-height: 0; align-content: center; }
 #connection-choices[hidden], #real-estate-wizard[hidden], #real-estate-step-address[hidden], #real-estate-step-provider[hidden], #manual-estimate-step[hidden], #zillow-estimate-step[hidden] { display: none; }
 #real-estate-wizard label, .update-estimate label { display: grid; gap: 7px; margin: 14px 0; font-weight: 600; }
@@ -2350,6 +2350,7 @@ a.text-button {
 .real-estate-wizard-actions { position: sticky; bottom: -1px; display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding: 10px 0 0; background: #fff; }
 .real-estate-wizard-actions [hidden] { display: none; }
 #property-map-preview { height: 240px; margin-top: 12px; }
+@media (max-height: 700px) { #property-map-preview { height: 180px; } }
 #property-map-preview iframe { display: block; width: 100%; height: 100%; border: 0; border-radius: 9px; }
 #real-estate-next { margin: 0; }
 #real-estate-back { margin: 0; }
