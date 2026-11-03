@@ -21,6 +21,7 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   realEstateInitialized = true;
   const dialog=document.querySelector<HTMLDialogElement>("#connection-dialog");
   const connectionDialogTitle=document.querySelector<HTMLElement>("#connection-dialog-title");
+  const estimateSourcesHeading=document.querySelector<HTMLElement>("#estimate-sources-heading");
   const choices=document.querySelector<HTMLElement>("#connection-choices");
   const wizard=document.querySelector<HTMLElement>("#real-estate-wizard");
   const addressInput=document.querySelector<HTMLInputElement>("#property-address");
@@ -33,9 +34,9 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   const zillowUrlInput=document.querySelector<HTMLInputElement>("#zillow-property-url");
   const redfinUrlInput=document.querySelector<HTMLInputElement>("#redfin-property-url");
   const estimateInput=document.querySelector<HTMLInputElement>("#manual-estimate");
-  const manualNotes=document.querySelector<HTMLTextAreaElement>("#manual-source-notes");
+  const manualNotes=document.querySelector<HTMLInputElement>("#manual-source-notes");
   let selected:Place|null=null; let timer=0;
-  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(next){next.textContent="Next";next.disabled=!selected;}};
+  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(estimateSourcesHeading)estimateSourcesHeading.hidden=true;if(next){next.textContent="Next";next.disabled=!selected;}};
   const saveRealEstate=async()=>{
     const amount=Number(estimateInput?.value);const manualValue=estimateInput?.value.trim()??"";const zillowUrl=zillowUrlInput?.value.trim()??"";const redfinUrl=redfinUrlInput?.value.trim()??"";const message=document.querySelector<HTMLElement>("#connection-dialog-message");
     const hasSource=manualValue!==""||!!zillowUrl||!!redfinUrl;
@@ -59,7 +60,7 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   document.querySelector("#choose-real-estate")?.addEventListener("click",()=>{if(choices)choices.hidden=true;if(wizard)wizard.hidden=false;if(connectionDialogTitle)connectionDialogTitle.textContent="Add Real Estate";if(dialog)dialog.dataset.step="address";});
   back?.addEventListener("click",()=>{
     if(stepProvider&&!stepProvider.hidden){resetAddressStep();if(dialog)dialog.dataset.step="address";return;}
-    if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;if(connectionDialogTitle)connectionDialogTitle.textContent="Add Connection";if(dialog)dialog.dataset.step="choices";
+    if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;if(connectionDialogTitle)connectionDialogTitle.textContent="Add Connection";if(estimateSourcesHeading)estimateSourcesHeading.hidden=true;if(dialog)dialog.dataset.step="choices";
   });
   addressInput?.addEventListener("input",()=>{
     selected=null;if(next)next.disabled=true;if(map)map.innerHTML=""; if(suggestions)suggestions.replaceChildren();
@@ -76,7 +77,7 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
     },350);
   });
   next?.addEventListener("click",()=>{
-    if(stepAddress&&!stepAddress.hidden){if(!selected)return;if(stepAddress)stepAddress.hidden=true;if(stepProvider)stepProvider.hidden=false;if(dialog)dialog.dataset.step="provider";next.textContent="Done";next.disabled=false;return;}
+    if(stepAddress&&!stepAddress.hidden){if(!selected)return;if(stepAddress)stepAddress.hidden=true;if(stepProvider)stepProvider.hidden=false;if(estimateSourcesHeading)estimateSourcesHeading.hidden=false;if(dialog)dialog.dataset.step="provider";next.textContent="Done";next.disabled=false;return;}
     void saveRealEstate();
   });
   const updateProviderSelections=()=>{if(next){const amount=estimateInput?.value.trim()??"";const zillow=zillowUrlInput?.value.trim()??"";const redfin=redfinUrlInput?.value.trim()??"";next.textContent="Done";next.disabled=(!amount&&!zillow&&!redfin)||(!!amount&&(!Number.isFinite(Number(amount))||Number(amount)<0));}};

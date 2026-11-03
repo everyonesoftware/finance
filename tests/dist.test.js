@@ -775,9 +775,13 @@ test("real-estate wizard supports independent providers and persists Zillow URL 
   assert.match(html, /id="redfin-property-url" type="url"/);
   assert.match(html, /id="manual-estimate" type="number"/);
   assert.match(html, /id="connection-dialog-title">Add Connection<\/h2>/);
-  assert.ok(html.indexOf('id="connection-dialog-title"') < html.indexOf('<h3>Estimate sources</h3>'));
+  assert.match(html, /id="estimate-sources-heading" hidden>Estimate sources<\/h3>/);
+  assert.ok(html.indexOf('id="connection-dialog-title"') < html.indexOf('id="estimate-sources-heading"'));
   assert.match(client, /connectionDialogTitle\.textContent="Add Real Estate"/);
-  assert.match(html, /class="manual-estimate-row"[\s\S]*id="manual-estimate"[\s\S]*id="manual-source-notes"/);
+  assert.match(client, /estimateSourcesHeading\.hidden=false/);
+  assert.match(client, /estimateSourcesHeading\.hidden=true/);
+  assert.match(html, /class="manual-estimate-row"[\s\S]*id="manual-estimate"[\s\S]*id="manual-source-notes" type="text"[^>]*placeholder="Comment \(optional\)"/);
+  assert.doesNotMatch(html, /<textarea id="manual-source-notes"/);
   assert.match(css, /\.manual-estimate-row\s*\{[^}]*grid-template-columns:\s*2fr\s+3fr/);
   const migration = await readFile(new URL("../server/migrations/0007_real_estate_sources.sql", import.meta.url), "utf8");
   assert.match(migration, /zillow_url/);

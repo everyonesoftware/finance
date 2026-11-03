@@ -2331,6 +2331,9 @@ a.text-button {
 #connection-dialog[data-step="address"] > .panel { --connection-dialog-height: min(72vh, 540px); }
 #connection-dialog[data-step="provider"] > .panel { --connection-dialog-height: min(72vh, 540px); }
 .connection-dialog h2 { margin: 0 44px 20px 0; }
+#connection-dialog-title { margin-bottom: 4px; }
+#estimate-sources-heading { margin: 0 44px 14px 0; font-size: 15px; }
+#estimate-sources-heading[hidden] { display: none; }
 #close-connection-dialog { position: absolute; right: 16px; top: 14px; }
 #connection-choices, #real-estate-step-provider { display: grid; gap: 12px; }
 .estimate-provider { display: grid; gap: 6px; }
