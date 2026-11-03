@@ -710,6 +710,11 @@ test("real-estate cards render separate provider estimates, manual add, and esti
   const allProvidersHtml = renderRealEstateCards([{ id: "home-all", address: "123 Main St", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 795900, createdAt: 1791000000000, provider: "zillow" }, { amount: 780000, createdAt: 1790900000000, provider: "redfin" }, { amount: 750000, createdAt: 1790800000000, provider: "manual" }] }]);
   assert.match(allProvidersHtml, /class="estimate-source-link"[^>]*href="https:\/\/www\.zillow\.com/);
   assert.match(allProvidersHtml, /class="estimate-source-link"[^>]*href="https:\/\/www\.redfin\.com/);
+  const scaledChart = renderRealEstateCards([{ id: "home-scale", address: "Chart Home", latitude: 0, longitude: 0, estimates: [{ amount: 100, createdAt: Date.UTC(2025, 0, 1), provider: "zillow" }, { amount: 200, createdAt: Date.UTC(2025, 0, 3), provider: "zillow" }] }]);
+  assert.match(scaledChart, /data-y-min="0"/);
+  assert.match(scaledChart, /data-y-max="220"/);
+  assert.match(scaledChart, /2025-01-01/);
+  assert.match(scaledChart, /2025-01-03/);
   assert.match(allProvidersHtml, /class="estimate-series-zillow"/);
   assert.match(allProvidersHtml, /class="estimate-series-redfin"/);
   assert.match(allProvidersHtml, /class="estimate-series-manual"/);

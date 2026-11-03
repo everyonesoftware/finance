@@ -2373,7 +2373,10 @@ a.text-button {
 .manual-estimate-form input { padding: 8px; border: 1px solid #cfd7ce; border-radius: 7px; font: inherit; }
 .manual-estimate-form > div { display: flex; gap: 8px; }
 .manual-estimate-error { color: #a12b22; font-size: 12px; }
-.estimate-history-chart { display: block; width: 100%; max-width: 480px; height: 150px; overflow: visible; border-bottom: 1px solid #e9ebe6; border-left: 1px solid #e9ebe6; }
+.estimate-history-chart { display: block; width: 100%; max-width: 600px; height: auto; aspect-ratio: 410 / 230; overflow: visible; }
+.estimate-chart-grid { stroke: #e9ebe6; stroke-width: 1; }
+.estimate-chart-axis { stroke: #87948a; stroke-width: 1; }
+.estimate-chart-label { fill: #66766a; font-size: 9px; }
 .estimate-history-chart polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .estimate-series-zillow { stroke: #2563eb; }
 .estimate-series-redfin { stroke: #dc2626; }
