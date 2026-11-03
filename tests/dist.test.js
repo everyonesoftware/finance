@@ -750,10 +750,20 @@ test("connections page offers Plaid and real-estate choices with disabled extern
   assert.ok(html.indexOf('id="real-estate-back"') > html.indexOf('id="real-estate-step-provider"'));
   assert.doesNotMatch(html, /id="real-estate-choice-back"|id="real-estate-step-provider" hidden><button id="real-estate-back"/);
   assert.match(html, /Real Estate/);
-  assert.match(html, /id="choose-zillow"[^>]*>Zillow · Get Zestimate/);
+  assert.match(html, /name="providers"[^>]*value="zillow"/);
   assert.match(html, /id="zillow-property-url" type="url"/);
-  assert.match(html, /Redfin[^>]*disabled|disabled[^>]*Redfin/);
+  assert.match(html, /value="redfin" disabled/);
   assert.match(html, /Manual/);
+});
+
+test("real-estate wizard supports independent providers and persists Zillow URL and manual notes", async () => {
+  const html = renderConnectionsPage({ displayName: "Test", username: "test" });
+  assert.match(html, /name="providers"[^>]*value="zillow"/);
+  assert.match(html, /name="providers"[^>]*value="redfin"[^>]*disabled/);
+  assert.match(html, /name="providers"[^>]*value="manual"/);
+  const migration = await readFile(new URL("../server/migrations/0007_real_estate_sources.sql", import.meta.url), "utf8");
+  assert.match(migration, /zillow_url/);
+  assert.match(migration, /source_notes/);
 });
 
 test("real-estate migration persists owned connections and timestamped estimate history", async () => {

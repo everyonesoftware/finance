@@ -35,14 +35,17 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   const zillowChoice=document.querySelector<HTMLButtonElement>("#choose-zillow");
   const manualChoice=document.querySelector<HTMLButtonElement>("#choose-manual");
   const estimateInput=document.querySelector<HTMLInputElement>("#manual-estimate");
+  const manualNotes=document.querySelector<HTMLTextAreaElement>("#manual-source-notes");
+  const manualCheckbox=document.querySelector<HTMLInputElement>("#provider-manual");
+  const zillowCheckbox=document.querySelector<HTMLInputElement>("#provider-zillow");
   let selected:Place|null=null; let timer=0; let manualSelected=false; let zillowSelected=false;
-  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(manualStep)manualStep.hidden=true;if(zillowStep)zillowStep.hidden=true;manualSelected=false;zillowSelected=false;if(next){next.textContent="Next";next.disabled=!selected;}};
+  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(manualStep)manualStep.hidden=true;if(zillowStep)zillowStep.hidden=true;manualSelected=false;zillowSelected=false;if(manualCheckbox)manualCheckbox.checked=false;if(zillowCheckbox)zillowCheckbox.checked=false;if(next){next.textContent="Next";next.disabled=!selected;}};
   const saveRealEstate=async()=>{
     const amount=Number(estimateInput?.value);const zillowUrl=zillowUrlInput?.value.trim()??"";const message=document.querySelector<HTMLElement>("#connection-dialog-message");
     if(!selected||(manualSelected&&(!estimateInput?.value.trim()||!Number.isFinite(amount)||amount<0))||(zillowSelected&&!zillowUrl)){if(message)message.textContent=zillowSelected?"Enter a Zillow property-page URL.":"Select an address and enter a valid estimate.";return;}
     if(next)next.disabled=true;
     const payload:Record<string,unknown>={address:selected.display_name,latitude:Number(selected.lat),longitude:Number(selected.lon)};
-    if(manualSelected)payload.amount=amount;else payload.zillowUrl=zillowUrl;
+    if(manualSelected)payload.amount=amount;if(manualSelected&&manualNotes?.value.trim())payload.sourceNotes=manualNotes.value.trim();if(zillowSelected)payload.zillowUrl=zillowUrl;
     try { const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json() as {error?:string};if(!response.ok)throw new Error(result.error??"Unable to save property.");dialog?.close();onSaved(); }
     catch(error){if(message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}
     finally {if(next)next.disabled=false;}
@@ -77,9 +80,12 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
     if(stepAddress&&!stepAddress.hidden){if(!selected)return;if(stepAddress)stepAddress.hidden=true;if(stepProvider)stepProvider.hidden=false;next.textContent="Next";next.disabled=true;return;}
     if(manualSelected||zillowSelected)void saveRealEstate();
   });
-  manualChoice?.addEventListener("click",()=>{manualSelected=true;zillowSelected=false;if(zillowStep)zillowStep.hidden=true;if(manualStep)manualStep.hidden=false;if(next){next.textContent="Done";next.disabled=false;}estimateInput?.focus();});
-  zillowChoice?.addEventListener("click",()=>{manualSelected=false;zillowSelected=true;if(manualStep)manualStep.hidden=true;if(zillowStep)zillowStep.hidden=false;if(next){next.textContent="Get Zestimate";next.disabled=!(zillowUrlInput?.value.trim());}zillowUrlInput?.focus();});
-  zillowUrlInput?.addEventListener("input",()=>{if(zillowSelected&&next)next.disabled=!zillowUrlInput.value.trim();});
+  const updateProviderSelections=()=>{manualSelected=!!manualCheckbox?.checked;zillowSelected=!!zillowCheckbox?.checked;if(manualStep)manualStep.hidden=!manualSelected;if(zillowStep)zillowStep.hidden=!zillowSelected;if(next){next.textContent="Done";next.disabled=(!manualSelected&&!zillowSelected)||(manualSelected&&(!estimateInput?.value.trim()||!Number.isFinite(Number(estimateInput.value))||Number(estimateInput.value)<0))||(zillowSelected&&!zillowUrlInput?.value.trim());}};
+  manualCheckbox?.addEventListener("change",updateProviderSelections);zillowCheckbox?.addEventListener("change",updateProviderSelections);
+  manualChoice?.addEventListener("click",()=>{if(manualCheckbox)manualCheckbox.checked=!manualCheckbox.checked;updateProviderSelections();});
+  zillowChoice?.addEventListener("click",()=>{if(zillowCheckbox)zillowCheckbox.checked=!zillowCheckbox.checked;updateProviderSelections();zillowUrlInput?.focus();});
+  zillowUrlInput?.addEventListener("input",updateProviderSelections);estimateInput?.addEventListener("input",updateProviderSelections);
+
 
   const integrations=document.querySelector<HTMLElement>("#connected-integrations");
   integrations?.addEventListener("click",(event)=>{
