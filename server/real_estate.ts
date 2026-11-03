@@ -18,17 +18,17 @@ realEstateRouter.get("/", async (context) => {
   const owner = await userId(context.req.raw);
   if (!owner) return context.json({ error: "Authentication required." }, 401);
   const properties = sqliteClient.prepare(`
-    SELECT c.id, c.address, c.latitude, c.longitude, c.created_at AS createdAt,
-      e.id AS estimateId, e.provider, e.amount, e.created_at AS estimateAt
+    SELECT c.id, c.address, c.latitude, c.longitude, c.zillow_url AS zillowUrl, c.redfin_url AS redfinUrl, c.created_at AS createdAt,
+      e.id AS estimateId, e.provider, e.amount, e.created_at AS estimateAt, e.source_notes AS sourceNotes
     FROM real_estate_connection c
     LEFT JOIN real_estate_estimate e ON e.connection_id=c.id AND e.user_id=c.user_id
     WHERE c.user_id=? ORDER BY c.created_at DESC, e.created_at DESC
-  `).all(owner) as Array<{id:string;address:string;latitude:number;longitude:number;createdAt:number;estimateId:string|null;provider:"manual"|"zillow"|null;amount:number|null;estimateAt:number|null}>;
-  const grouped = new Map<string, {id:string;address:string;latitude:number;longitude:number;createdAt:number;estimates:Array<{id:string;provider:"manual"|"zillow";amount:number;createdAt:number}>}>();
+  `).all(owner) as Array<{id:string;address:string;latitude:number;longitude:number;zillowUrl:string|null;redfinUrl:string|null;createdAt:number;estimateId:string|null;provider:"manual"|"zillow"|"redfin"|null;amount:number|null;estimateAt:number|null;sourceNotes:string|null}>;
+  const grouped = new Map<string, {id:string;address:string;latitude:number;longitude:number;zillowUrl:string|null;redfinUrl:string|null;createdAt:number;estimates:Array<{id:string;provider:"manual"|"zillow"|"redfin";amount:number;createdAt:number;sourceNotes:string|null}>}>();
   for (const row of properties) {
     let property = grouped.get(row.id);
-    if (!property) { property={id:row.id,address:row.address,latitude:row.latitude,longitude:row.longitude,createdAt:row.createdAt,estimates:[]}; grouped.set(row.id,property); }
-    if (row.estimateId && row.provider && row.amount !== null && row.estimateAt !== null) property.estimates.push({id:row.estimateId,provider:row.provider,amount:row.amount,createdAt:row.estimateAt});
+    if (!property) { property={id:row.id,address:row.address,latitude:row.latitude,longitude:row.longitude,zillowUrl:row.zillowUrl,redfinUrl:row.redfinUrl,createdAt:row.createdAt,estimates:[]}; grouped.set(row.id,property); }
+    if (row.estimateId && row.provider && row.amount !== null && row.estimateAt !== null) property.estimates.push({id:row.estimateId,provider:row.provider,amount:row.amount,createdAt:row.estimateAt,sourceNotes:row.sourceNotes});
   }
   return context.json({ properties:[...grouped.values()] });
 });
@@ -103,9 +103,10 @@ realEstateRouter.post("/:id/estimates", async (context) => {
   const id=context.req.param("id");
   const body: unknown=await context.req.json().catch(()=>null);
   const amount=body && typeof body==="object" ? (body as Record<string,unknown>).amount : null;
-  if (typeof amount!=="number" || !Number.isFinite(amount) || amount<0) return context.json({error:"Provide a non-negative manual estimate."},400);
+  const sourceNotes=body&&typeof body==="object"?(body as Record<string,unknown>).sourceNotes:undefined;
+  if (typeof amount!=="number" || !Number.isFinite(amount) || amount<0 || (sourceNotes!==undefined&&(typeof sourceNotes!=="string"||sourceNotes.length>2000))) return context.json({error:"Provide a non-negative manual estimate."},400);
   const exists=sqliteClient.prepare("SELECT 1 FROM real_estate_connection WHERE id=? AND user_id=?").get(id,owner);
   if (!exists) return context.json({error:"Property not found."},404);
-  const result=sqliteClient.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount,created_at) VALUES(?,?,?,'manual',?,?)").run(crypto.randomUUID(),id,owner,amount,Date.now());
+  const result=sqliteClient.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount,created_at,source_notes) VALUES(?,?,?,'manual',?,?,?)").run(crypto.randomUUID(),id,owner,amount,Date.now(),typeof sourceNotes==="string"?sourceNotes.trim()||null:null);
   return context.json({id:result.lastInsertRowid},201);
 });

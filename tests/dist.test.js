@@ -696,22 +696,32 @@ test("connection cards render a delete menu and shared confirmation dialog", () 
   assert.match(page, /id="confirm-delete-connection"/);
 });
 
-test("real-estate cards show only the current estimate and an edit control", async () => {
+test("real-estate cards render separate provider estimates, manual add, and estimate history chart", async () => {
   const html = renderRealEstateCards([{ id: "home-1", address: "<script>alert(1)</script>", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 750000, createdAt: 1790900000000 }, { amount: 700000, createdAt: 1788000000000 }] }]);
   assert.match(html, />Estimate:<\/strong>/);
   assert.doesNotMatch(html, /Current estimate/);
   assert.match(html, /\$750,000/);
   assert.doesNotMatch(html, /\$700,000/);
   assert.doesNotMatch(html, /Manual estimate history/);
-  assert.match(html, /class="estimate-edit-button"/);
-  assert.match(html, /class="zillow-refresh-button"[^>]*>Zillow<\/button>/);
-  assert.match(html, /class="zillow-refresh-form"[^>]*hidden/);
+  assert.doesNotMatch(html, /class="estimate-edit-button"/);
+  assert.doesNotMatch(html, /class="zillow-refresh-button"/);
+  assert.match(html, /class="manual-estimate-add"/);
+  assert.match(html, /class="estimate-history-chart"/);
+  const allProvidersHtml = renderRealEstateCards([{ id: "home-all", address: "123 Main St", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 795900, createdAt: 1791000000000, provider: "zillow" }, { amount: 780000, createdAt: 1790900000000, provider: "redfin" }, { amount: 750000, createdAt: 1790800000000, provider: "manual" }] }]);
+  assert.match(allProvidersHtml, /class="estimate-source-link"[^>]*href="https:\/\/www\.zillow\.com/);
+  assert.match(allProvidersHtml, /class="estimate-source-link"[^>]*href="https:\/\/www\.redfin\.com/);
+  assert.match(allProvidersHtml, /class="estimate-series-zillow"/);
+  assert.match(allProvidersHtml, /class="estimate-series-redfin"/);
+  assert.match(allProvidersHtml, /class="estimate-series-manual"/);
   const zillowHtml = renderRealEstateCards([{ id: "home-zillow", address: "123 Main St", latitude: 47.6, longitude: -122.3, estimates: [{ amount: 795900, createdAt: 1791000000000, provider: "zillow" }] }]);
   assert.match(zillowHtml, /\$795,900/);
   assert.match(zillowHtml, /class="estimate-source">Zillow Zestimate<\/span>/);
-  assert.match(html, /aria-label="Edit estimate"/);
-  assert.match(html, /value="750000"/);
-  assert.match(html, /aria-label="Confirm estimate"/);
+  assert.match(html, /class="manual-estimate-add"/);
+  assert.match(html, /class="manual-estimate-form"[^>]*hidden/);
+  assert.match(html, /name="amount"/);
+  assert.match(html, /name="sourceNotes"/);
+  assert.match(html, /class="manual-estimate-cancel"/);
+  assert.match(html, /<svg[^>]*class="estimate-history-chart"/);
   assert.match(html, /class="property-map-frame"/);
   assert.match(html, /maps\.google\.com/);
   assert.match(html, /&lt;script&gt;/);

@@ -2361,6 +2361,23 @@ a.text-button {
 #real-estate-next { margin: 0; }
 #real-estate-back { margin: 0; }
 #real-estate-step-provider button[disabled] { opacity: .55; cursor: not-allowed; }
+.estimate-panel h3 { margin: 18px 0 8px; font-size: 14px; }
+.provider-estimates { display: grid; gap: 8px; margin: 8px 0 14px; }
+.provider-estimate { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid #e7ebe5; border-radius: 8px; }
+.provider-estimate > span:nth-child(2) { font-weight: 650; }
+.estimate-source-link { color: #245b35; font-size: 12px; }
+.manual-estimate-add, .manual-estimate-form button { padding: 8px 11px; border: 1px solid #dce3d9; border-radius: 8px; background: #f6faf5; color: #245b35; font: inherit; cursor: pointer; }
+.manual-estimate-form { display: grid; gap: 10px; margin-top: 10px; }
+.manual-estimate-form[hidden], .manual-estimate-add[hidden] { display: none; }
+.manual-estimate-form label { display: grid; gap: 5px; font-size: 13px; }
+.manual-estimate-form input { padding: 8px; border: 1px solid #cfd7ce; border-radius: 7px; font: inherit; }
+.manual-estimate-form > div { display: flex; gap: 8px; }
+.manual-estimate-error { color: #a12b22; font-size: 12px; }
+.estimate-history-chart { display: block; width: 100%; max-width: 480px; height: 150px; overflow: visible; border-bottom: 1px solid #e9ebe6; border-left: 1px solid #e9ebe6; }
+.estimate-history-chart polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
+.estimate-series-zillow { stroke: #2563eb; }
+.estimate-series-redfin { stroke: #dc2626; }
+.estimate-series-manual { stroke: #15803d; }
 .real-estate-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 42%); gap: 18px; align-items: start; padding: 16px 20px 22px; border-top: 1px solid #e9ebe6; }
 .current-estimate-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 42px; }
 .current-estimate-value { font-size: 18px; font-weight: 700; }
