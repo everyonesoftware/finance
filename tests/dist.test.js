@@ -714,7 +714,10 @@ test("real-estate cards render separate provider estimates, manual add, and esti
   assert.match(scaledChart, /data-y-min="0"/);
   assert.match(scaledChart, /data-y-max="220"/);
   assert.match(scaledChart, /2025-01-01/);
-  assert.match(scaledChart, /2025-01-03/);
+  assert.match(scaledChart, /class="estimate-series-zillow"/);
+  assert.equal((scaledChart.match(/class="estimate-point-zillow"/g) ?? []).length, 2);
+  assert.match(scaledChart, /<title>2025-01-01 · \$100<\/title>/);
+  assert.match(scaledChart, /<title>2025-01-03 · \$200<\/title>/);
   assert.match(allProvidersHtml, /class="estimate-series-zillow"/);
   assert.match(allProvidersHtml, /class="estimate-series-redfin"/);
   assert.match(allProvidersHtml, /class="estimate-series-manual"/);

@@ -2379,6 +2379,9 @@ a.text-button {
 .estimate-chart-label { fill: #66766a; font-size: 9px; }
 .estimate-history-chart polyline { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .estimate-series-zillow { stroke: #2563eb; }
+.estimate-point-zillow { fill: #2563eb; stroke: #fff; stroke-width: 1.5; cursor: pointer; }
+.estimate-point-zillow:hover, .estimate-point-zillow:focus { r: 6; outline: none; }
+.estimate-point-zillow:focus-visible { stroke: #153e9c; stroke-width: 2; }
 .estimate-series-redfin { stroke: #dc2626; }
 .estimate-series-manual { stroke: #15803d; }
 .real-estate-details { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, 42%); gap: 18px; align-items: start; padding: 16px 20px 22px; border-top: 1px solid #e9ebe6; }
