@@ -787,10 +787,21 @@ test("real-estate wizard supports independent providers and persists Zillow URL 
   assert.match(css, /\.manual-estimate-row\s*\{[^}]*grid-template-columns:\s*2fr\s+3fr/);
   const migration = await readFile(new URL("../server/migrations/0007_real_estate_sources.sql", import.meta.url), "utf8");
   assert.match(migration, /zillow_url/);
-  assert.match(migration, /redfin_url/);
   assert.match(migration, /source_notes/);
+  const redfinMigration = await readFile(new URL("../server/migrations/0008_redfin_url.sql", import.meta.url), "utf8");
+  assert.match(redfinMigration, /redfin_url/);
   const server = await readFile(new URL("../server/real_estate.ts", import.meta.url), "utf8");
   assert.doesNotMatch(server, /86_400_000|one request per 24 hours/);
+});
+
+test("real-estate source migration adds Redfin URL to databases already on migration 0007", async () => {
+  const database = new Database(":memory:");
+  database.exec("CREATE TABLE real_estate_connection (id TEXT PRIMARY KEY, user_id TEXT NOT NULL, address TEXT NOT NULL, latitude REAL NOT NULL, longitude REAL NOT NULL, zillow_url TEXT)");
+  const migration = await readFile(new URL("../server/migrations/0008_redfin_url.sql", import.meta.url), "utf8");
+  applySqlMigration(database, migration);
+  const columns = database.prepare("PRAGMA table_info(real_estate_connection)").all().map((column) => column.name);
+  assert.ok(columns.includes("redfin_url"));
+  database.close();
 });
 
 test("real-estate migration persists owned connections and timestamped estimate history", async () => {
