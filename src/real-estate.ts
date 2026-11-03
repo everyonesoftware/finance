@@ -20,6 +20,7 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   if (realEstateInitialized) return;
   realEstateInitialized = true;
   const dialog=document.querySelector<HTMLDialogElement>("#connection-dialog");
+  const connectionDialogTitle=document.querySelector<HTMLElement>("#connection-dialog-title");
   const choices=document.querySelector<HTMLElement>("#connection-choices");
   const wizard=document.querySelector<HTMLElement>("#real-estate-wizard");
   const addressInput=document.querySelector<HTMLInputElement>("#property-address");
@@ -47,6 +48,7 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
     finally {if(next)next.disabled=false;}
   };
   document.querySelector("#add-connection")?.addEventListener("click",()=>{
+    if(connectionDialogTitle)connectionDialogTitle.textContent="Add Connection";
     if(dialog)dialog.dataset.step="choices";
     if(choices)choices.hidden=false;if(wizard)wizard.hidden=true;resetAddressStep();
     if(addressInput)addressInput.value="";if(estimateInput)estimateInput.value="";if(zillowUrlInput)zillowUrlInput.value="";if(redfinUrlInput)redfinUrlInput.value="";if(suggestions)suggestions.replaceChildren();if(map)map.replaceChildren();selected=null;if(next)next.disabled=true;
@@ -54,10 +56,10 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   });
   document.querySelector("#close-connection-dialog")?.addEventListener("click",()=>dialog?.close());
   document.querySelector("#choose-plaid")?.addEventListener("click",()=>{dialog?.close(); location.href="/accounts?connect=plaid";});
-  document.querySelector("#choose-real-estate")?.addEventListener("click",()=>{if(choices)choices.hidden=true;if(wizard)wizard.hidden=false;if(dialog)dialog.dataset.step="address";});
+  document.querySelector("#choose-real-estate")?.addEventListener("click",()=>{if(choices)choices.hidden=true;if(wizard)wizard.hidden=false;if(connectionDialogTitle)connectionDialogTitle.textContent="Add Real Estate";if(dialog)dialog.dataset.step="address";});
   back?.addEventListener("click",()=>{
     if(stepProvider&&!stepProvider.hidden){resetAddressStep();if(dialog)dialog.dataset.step="address";return;}
-    if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;if(dialog)dialog.dataset.step="choices";
+    if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;if(connectionDialogTitle)connectionDialogTitle.textContent="Add Connection";if(dialog)dialog.dataset.step="choices";
   });
   addressInput?.addEventListener("input",()=>{
     selected=null;if(next)next.disabled=true;if(map)map.innerHTML=""; if(suggestions)suggestions.replaceChildren();

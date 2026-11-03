@@ -769,10 +769,16 @@ test("connections page offers Plaid and real-estate choices with disabled extern
 
 test("real-estate wizard supports independent providers and persists Zillow URL and manual notes", async () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
+  const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
+  const client = await readFile(new URL("../src/real-estate.ts", import.meta.url), "utf8");
   assert.match(html, /id="zillow-property-url" type="url"/);
   assert.match(html, /id="redfin-property-url" type="url"/);
   assert.match(html, /id="manual-estimate" type="number"/);
-  assert.match(html, /id="manual-source-notes"/);
+  assert.match(html, /id="connection-dialog-title">Add Connection<\/h2>/);
+  assert.ok(html.indexOf('id="connection-dialog-title"') < html.indexOf('<h3>Estimate sources</h3>'));
+  assert.match(client, /connectionDialogTitle\.textContent="Add Real Estate"/);
+  assert.match(html, /class="manual-estimate-row"[\s\S]*id="manual-estimate"[\s\S]*id="manual-source-notes"/);
+  assert.match(css, /\.manual-estimate-row\s*\{[^}]*grid-template-columns:\s*2fr\s+3fr/);
   const migration = await readFile(new URL("../server/migrations/0007_real_estate_sources.sql", import.meta.url), "utf8");
   assert.match(migration, /zillow_url/);
   assert.match(migration, /redfin_url/);
