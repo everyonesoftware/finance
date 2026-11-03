@@ -728,7 +728,10 @@ test("connection dialog keeps a stable height and reserves bounded space for the
   assert.match(deleteDialogRule, /width:\s*min\(400px,/);
   assert.match(css, /\.delete-connection-dialog\s*>\s*\.panel\s*\{[^}]*height:\s*auto[^}]*padding:\s*22px/);
   const panelRule = css.match(/\.connection-dialog\s*>\s*\.panel\s*\{([^}]*)\}/)?.[1] ?? "";
-  assert.match(panelRule, /height:\s*min\(80vh,\s*620px\)/);
+  assert.match(panelRule, /height:\s*var\(--connection-dialog-height,/);
+  assert.match(css, /#connection-dialog\[data-step="choices"\]\s*>\s*\.panel\s*\{[^}]*--connection-dialog-height:\s*min\(46vh,\s*360px\)/);
+  assert.match(css, /#connection-dialog\[data-step="address"\]\s*>\s*\.panel\s*\{[^}]*--connection-dialog-height:\s*min\(72vh,\s*540px\)/);
+  assert.match(css, /#connection-dialog\[data-step="provider"\]\s*>\s*\.panel\s*\{[^}]*--connection-dialog-height:\s*min\(72vh,\s*540px\)/);
   assert.match(panelRule, /display:\s*flex/);
   assert.match(panelRule, /flex-direction:\s*column/);
   assert.match(css, /#connection-choices\s*\{[^}]*flex:\s*1[^}]*align-content:\s*center/s);
@@ -750,20 +753,27 @@ test("connections page offers Plaid and real-estate choices with disabled extern
   assert.ok(html.indexOf('id="real-estate-back"') > html.indexOf('id="real-estate-step-provider"'));
   assert.doesNotMatch(html, /id="real-estate-choice-back"|id="real-estate-step-provider" hidden><button id="real-estate-back"/);
   assert.match(html, /Real Estate/);
-  assert.match(html, /name="providers"[^>]*value="zillow"/);
-  assert.match(html, /id="zillow-property-url" type="url"/);
-  assert.match(html, /value="redfin" disabled/);
-  assert.match(html, /Manual/);
+  assert.match(html, /label for="zillow-property-url">Zillow<\/label>/);
+  assert.match(html, /id="zillow-property-url" type="url"[^>]*placeholder="Enter Zillow URL for this home"/);
+  assert.match(html, /label for="redfin-property-url">Redfin<\/label>/);
+  assert.match(html, /id="redfin-property-url" type="url"[^>]*placeholder="Enter Redfin URL for this home"/);
+  assert.match(html, /label for="manual-estimate">Manual<\/label>/);
+  assert.match(html, /id="manual-estimate" type="number"/);
+  assert.match(html, /id="manual-source-notes"/);
 });
 
 test("real-estate wizard supports independent providers and persists Zillow URL and manual notes", async () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
-  assert.match(html, /name="providers"[^>]*value="zillow"/);
-  assert.match(html, /name="providers"[^>]*value="redfin"[^>]*disabled/);
-  assert.match(html, /name="providers"[^>]*value="manual"/);
+  assert.match(html, /id="zillow-property-url" type="url"/);
+  assert.match(html, /id="redfin-property-url" type="url"/);
+  assert.match(html, /id="manual-estimate" type="number"/);
+  assert.match(html, /id="manual-source-notes"/);
   const migration = await readFile(new URL("../server/migrations/0007_real_estate_sources.sql", import.meta.url), "utf8");
   assert.match(migration, /zillow_url/);
+  assert.match(migration, /redfin_url/);
   assert.match(migration, /source_notes/);
+  const server = await readFile(new URL("../server/real_estate.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(server, /86_400_000|one request per 24 hours/);
 });
 
 test("real-estate migration persists owned connections and timestamped estimate history", async () => {
@@ -1357,8 +1367,8 @@ test("account sync requires authentication and disconnect removes only after Pla
           headers: { "Content-Type": "application/json", Origin: "http://localhost:5173" },
           body: JSON.stringify({ address: "Another home", latitude: 47.73, longitude: -122.24, zillowUrl: "https://www.zillow.com/homedetails/example/123_zpid/" }),
         });
-        assert.equal(limitedZillowResponse.status, 429);
-        assert.equal(zillowFetchCount, 1);
+        assert.equal(limitedZillowResponse.status, 201);
+        assert.equal(zillowFetchCount, 2);
 
         sessionUserId = "user-two";
         const manualPropertyResponse = await realEstateRouter.request("/", {
@@ -1375,7 +1385,7 @@ test("account sync requires authentication and disconnect removes only after Pla
         });
         assert.equal(updatedEstimateResponse.status, 201);
         assert.deepEqual(await updatedEstimateResponse.json().then(({provider,amount}) => ({provider,amount})), { provider: "zillow", amount: 795900 });
-        assert.equal(zillowFetchCount, 2);
+        assert.equal(zillowFetchCount, 3);
         sessionUserId = "user-one";
         const wrongOwnerEstimate = await realEstateRouter.request(`/${manualProperty.id}/zillow`, {
           method: "POST",
@@ -1383,7 +1393,7 @@ test("account sync requires authentication and disconnect removes only after Pla
           body: JSON.stringify({ zillowUrl: "https://www.zillow.com/homedetails/example/48971089_zpid/" }),
         });
         assert.equal(wrongOwnerEstimate.status, 404);
-        assert.equal(zillowFetchCount, 2);
+        assert.equal(zillowFetchCount, 3);
       } finally {
         globalThis.fetch = originalFetch;
       }

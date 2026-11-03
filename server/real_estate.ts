@@ -6,6 +6,7 @@ import { fetchZillowZestimate } from "./zillow.js";
 export const realEstateRouter = new Hono();
 
 function validZillowUrl(value:string):boolean { try { const url=new URL(value.trim()); return url.protocol==="https:"&&["zillow.com","www.zillow.com"].includes(url.hostname); } catch { return false; } }
+function validRedfinUrl(value:string):boolean { try { const url=new URL(value.trim()); return url.protocol==="https:"&&["redfin.com","www.redfin.com"].includes(url.hostname); } catch { return false; } }
 
 async function userId(request: Request): Promise<string | null> {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -47,23 +48,18 @@ realEstateRouter.post("/", async (context) => {
   const body: unknown = await context.req.json().catch(() => null);
   if (!body || typeof body !== "object") return context.json({error:"Invalid property."},400);
   const value=body as Record<string,unknown>;
-  const {address,latitude,longitude,amount,zillowUrl,sourceNotes}=value;
+  const {address,latitude,longitude,amount,zillowUrl,redfinUrl,sourceNotes}=value;
   const isManual=typeof amount==="number"&&Number.isFinite(amount)&&amount>=0;
   const isZillow=typeof zillowUrl==="string"&&validZillowUrl(zillowUrl);
+  const isRedfin=typeof redfinUrl==="string"&&validRedfinUrl(redfinUrl);
   const manualFieldProvided=Object.hasOwn(value,"amount");
   const zillowFieldProvided=Object.hasOwn(value,"zillowUrl");
-  if (typeof address!=="string" || !address.trim() || address.length>500 || typeof latitude!=="number" || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || typeof longitude!=="number" || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || (!manualFieldProvided&&!zillowFieldProvided) || (manualFieldProvided&&!isManual) || (zillowFieldProvided&&!isZillow) || (sourceNotes!==undefined&&(typeof sourceNotes!=="string"||sourceNotes.length>2000))) return context.json({error:"Provide an address, map location, and either a manual estimate or Zillow property URL."},400);
+  const redfinFieldProvided=Object.hasOwn(value,"redfinUrl");
+  if (typeof address!=="string" || !address.trim() || address.length>500 || typeof latitude!=="number" || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 || typeof longitude!=="number" || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 || (!manualFieldProvided&&!zillowFieldProvided&&!redfinFieldProvided) || (manualFieldProvided&&!isManual) || (zillowFieldProvided&&!isZillow) || (redfinFieldProvided&&!isRedfin) || (sourceNotes!==undefined&&(typeof sourceNotes!=="string"||sourceNotes.length>2000))) return context.json({error:"Provide an address, map location, and at least one valid estimate source."},400);
 
   let estimateAmount:number|undefined;
   let provider:"manual"|"zillow"|undefined;
   if (isZillow) {
-    const requestedAt=Date.now();
-    const reservation=sqliteClient.prepare(`
-      INSERT INTO real_estate_zillow_request(user_id,requested_at) VALUES(?,?)
-      ON CONFLICT(user_id) DO UPDATE SET requested_at=excluded.requested_at
-      WHERE real_estate_zillow_request.requested_at<=?
-    `).run(owner,requestedAt,requestedAt-86_400_000);
-    if (reservation.changes===0) return context.json({error:"Zillow refresh is limited to one request per 24 hours."},429);
     try { estimateAmount=await fetchZillowZestimate(zillowUrl as string); }
     catch(error) { return context.json({error:error instanceof Error?error.message:"Unable to retrieve Zillow estimate."},422); }
     provider="zillow";
@@ -73,7 +69,7 @@ realEstateRouter.post("/", async (context) => {
   const id=crypto.randomUUID();
   const createdAt=Date.now();
   const save=sqliteClient.transaction(() => {
-    sqliteClient.prepare("INSERT INTO real_estate_connection(id,user_id,address,latitude,longitude,zillow_url) VALUES(?,?,?,?,?,?)").run(id,owner,address.trim(),latitude,longitude,isZillow?String(zillowUrl).trim():null);
+    sqliteClient.prepare("INSERT INTO real_estate_connection(id,user_id,address,latitude,longitude,zillow_url,redfin_url) VALUES(?,?,?,?,?,?,?)").run(id,owner,address.trim(),latitude,longitude,isZillow?String(zillowUrl).trim():null,isRedfin?String(redfinUrl).trim():null);
     if(isZillow)sqliteClient.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount,created_at,source_notes) VALUES(?,?,?,'zillow',?,?,NULL)").run(crypto.randomUUID(),id,owner,estimateAmount,createdAt);
     if(isManual)sqliteClient.prepare("INSERT INTO real_estate_estimate(id,connection_id,user_id,provider,amount,created_at,source_notes) VALUES(?,?,?,'manual',?,?,?)").run(crypto.randomUUID(),id,owner,amount,createdAt,typeof sourceNotes==="string"?sourceNotes.trim()||null:null);
   });
@@ -91,13 +87,6 @@ realEstateRouter.post("/:id/zillow", async (context) => {
   const body:unknown=await context.req.json().catch(()=>null);
   const zillowUrl=body&&typeof body==="object"?(body as Record<string,unknown>).zillowUrl:property.zillowUrl;
   if (typeof zillowUrl!=="string"||!validZillowUrl(zillowUrl)) return context.json({error:"Provide a Zillow property-page URL."},400);
-  const requestedAt=Date.now();
-  const reservation=sqliteClient.prepare(`
-    INSERT INTO real_estate_zillow_request(user_id,requested_at) VALUES(?,?)
-    ON CONFLICT(user_id) DO UPDATE SET requested_at=excluded.requested_at
-    WHERE real_estate_zillow_request.requested_at<=?
-  `).run(owner,requestedAt,requestedAt-86_400_000);
-  if (reservation.changes===0) return context.json({error:"Zillow refresh is limited to one request per 24 hours."},429);
   let amount:number;
   try { amount=await fetchZillowZestimate(zillowUrl); }
   catch(error) { return context.json({error:error instanceof Error?error.message:"Unable to retrieve Zillow estimate."},422); }

@@ -29,38 +29,35 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
   const back=document.querySelector<HTMLButtonElement>("#real-estate-back");
   const stepAddress=document.querySelector<HTMLElement>("#real-estate-step-address");
   const stepProvider=document.querySelector<HTMLElement>("#real-estate-step-provider");
-  const manualStep=document.querySelector<HTMLElement>("#manual-estimate-step");
-  const zillowStep=document.querySelector<HTMLElement>("#zillow-estimate-step");
   const zillowUrlInput=document.querySelector<HTMLInputElement>("#zillow-property-url");
-  const zillowChoice=document.querySelector<HTMLButtonElement>("#choose-zillow");
-  const manualChoice=document.querySelector<HTMLButtonElement>("#choose-manual");
+  const redfinUrlInput=document.querySelector<HTMLInputElement>("#redfin-property-url");
   const estimateInput=document.querySelector<HTMLInputElement>("#manual-estimate");
   const manualNotes=document.querySelector<HTMLTextAreaElement>("#manual-source-notes");
-  const manualCheckbox=document.querySelector<HTMLInputElement>("#provider-manual");
-  const zillowCheckbox=document.querySelector<HTMLInputElement>("#provider-zillow");
-  let selected:Place|null=null; let timer=0; let manualSelected=false; let zillowSelected=false;
-  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(manualStep)manualStep.hidden=true;if(zillowStep)zillowStep.hidden=true;manualSelected=false;zillowSelected=false;if(manualCheckbox)manualCheckbox.checked=false;if(zillowCheckbox)zillowCheckbox.checked=false;if(next){next.textContent="Next";next.disabled=!selected;}};
+  let selected:Place|null=null; let timer=0;
+  const resetAddressStep=()=>{if(stepAddress)stepAddress.hidden=false;if(stepProvider)stepProvider.hidden=true;if(next){next.textContent="Next";next.disabled=!selected;}};
   const saveRealEstate=async()=>{
-    const amount=Number(estimateInput?.value);const zillowUrl=zillowUrlInput?.value.trim()??"";const message=document.querySelector<HTMLElement>("#connection-dialog-message");
-    if(!selected||(manualSelected&&(!estimateInput?.value.trim()||!Number.isFinite(amount)||amount<0))||(zillowSelected&&!zillowUrl)){if(message)message.textContent=zillowSelected?"Enter a Zillow property-page URL.":"Select an address and enter a valid estimate.";return;}
+    const amount=Number(estimateInput?.value);const manualValue=estimateInput?.value.trim()??"";const zillowUrl=zillowUrlInput?.value.trim()??"";const redfinUrl=redfinUrlInput?.value.trim()??"";const message=document.querySelector<HTMLElement>("#connection-dialog-message");
+    const hasSource=manualValue!==""||!!zillowUrl||!!redfinUrl;
+    if(!selected||(manualValue!==""&&(!Number.isFinite(amount)||amount<0))||!hasSource){if(message)message.textContent="Choose at least one source and provide valid values.";return;}
     if(next)next.disabled=true;
     const payload:Record<string,unknown>={address:selected.display_name,latitude:Number(selected.lat),longitude:Number(selected.lon)};
-    if(manualSelected)payload.amount=amount;if(manualSelected&&manualNotes?.value.trim())payload.sourceNotes=manualNotes.value.trim();if(zillowSelected)payload.zillowUrl=zillowUrl;
+    if(estimateInput?.value.trim())payload.amount=amount;if(manualNotes?.value.trim())payload.sourceNotes=manualNotes.value.trim();if(zillowUrl)payload.zillowUrl=zillowUrl;if(redfinUrl)payload.redfinUrl=redfinUrl;
     try { const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const result=await response.json() as {error?:string};if(!response.ok)throw new Error(result.error??"Unable to save property.");dialog?.close();onSaved(); }
     catch(error){if(message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}
     finally {if(next)next.disabled=false;}
   };
   document.querySelector("#add-connection")?.addEventListener("click",()=>{
+    if(dialog)dialog.dataset.step="choices";
     if(choices)choices.hidden=false;if(wizard)wizard.hidden=true;resetAddressStep();
-    if(addressInput)addressInput.value="";if(estimateInput)estimateInput.value="";if(zillowUrlInput)zillowUrlInput.value="";if(suggestions)suggestions.replaceChildren();if(map)map.replaceChildren();selected=null;if(next)next.disabled=true;
+    if(addressInput)addressInput.value="";if(estimateInput)estimateInput.value="";if(zillowUrlInput)zillowUrlInput.value="";if(redfinUrlInput)redfinUrlInput.value="";if(suggestions)suggestions.replaceChildren();if(map)map.replaceChildren();selected=null;if(next)next.disabled=true;
     dialog?.showModal();
   });
   document.querySelector("#close-connection-dialog")?.addEventListener("click",()=>dialog?.close());
   document.querySelector("#choose-plaid")?.addEventListener("click",()=>{dialog?.close(); location.href="/accounts?connect=plaid";});
-  document.querySelector("#choose-real-estate")?.addEventListener("click",()=>{if(choices)choices.hidden=true;if(wizard)wizard.hidden=false;});
+  document.querySelector("#choose-real-estate")?.addEventListener("click",()=>{if(choices)choices.hidden=true;if(wizard)wizard.hidden=false;if(dialog)dialog.dataset.step="address";});
   back?.addEventListener("click",()=>{
-    if(stepProvider&&!stepProvider.hidden){resetAddressStep();return;}
-    if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;
+    if(stepProvider&&!stepProvider.hidden){resetAddressStep();if(dialog)dialog.dataset.step="address";return;}
+    if(wizard)wizard.hidden=true;if(choices)choices.hidden=false;if(dialog)dialog.dataset.step="choices";
   });
   addressInput?.addEventListener("input",()=>{
     selected=null;if(next)next.disabled=true;if(map)map.innerHTML=""; if(suggestions)suggestions.replaceChildren();
@@ -77,14 +74,11 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
     },350);
   });
   next?.addEventListener("click",()=>{
-    if(stepAddress&&!stepAddress.hidden){if(!selected)return;if(stepAddress)stepAddress.hidden=true;if(stepProvider)stepProvider.hidden=false;next.textContent="Next";next.disabled=true;return;}
-    if(manualSelected||zillowSelected)void saveRealEstate();
+    if(stepAddress&&!stepAddress.hidden){if(!selected)return;if(stepAddress)stepAddress.hidden=true;if(stepProvider)stepProvider.hidden=false;if(dialog)dialog.dataset.step="provider";next.textContent="Done";next.disabled=false;return;}
+    void saveRealEstate();
   });
-  const updateProviderSelections=()=>{manualSelected=!!manualCheckbox?.checked;zillowSelected=!!zillowCheckbox?.checked;if(manualStep)manualStep.hidden=!manualSelected;if(zillowStep)zillowStep.hidden=!zillowSelected;if(next){next.textContent="Done";next.disabled=(!manualSelected&&!zillowSelected)||(manualSelected&&(!estimateInput?.value.trim()||!Number.isFinite(Number(estimateInput.value))||Number(estimateInput.value)<0))||(zillowSelected&&!zillowUrlInput?.value.trim());}};
-  manualCheckbox?.addEventListener("change",updateProviderSelections);zillowCheckbox?.addEventListener("change",updateProviderSelections);
-  manualChoice?.addEventListener("click",()=>{if(manualCheckbox)manualCheckbox.checked=!manualCheckbox.checked;updateProviderSelections();});
-  zillowChoice?.addEventListener("click",()=>{if(zillowCheckbox)zillowCheckbox.checked=!zillowCheckbox.checked;updateProviderSelections();zillowUrlInput?.focus();});
-  zillowUrlInput?.addEventListener("input",updateProviderSelections);estimateInput?.addEventListener("input",updateProviderSelections);
+  const updateProviderSelections=()=>{if(next){const amount=estimateInput?.value.trim()??"";const zillow=zillowUrlInput?.value.trim()??"";const redfin=redfinUrlInput?.value.trim()??"";next.textContent="Done";next.disabled=(!amount&&!zillow&&!redfin)||(!!amount&&(!Number.isFinite(Number(amount))||Number(amount)<0));}};
+  zillowUrlInput?.addEventListener("input",updateProviderSelections);redfinUrlInput?.addEventListener("input",updateProviderSelections);estimateInput?.addEventListener("input",updateProviderSelections);
 
 
   const integrations=document.querySelector<HTMLElement>("#connected-integrations");
