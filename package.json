@@ -9,7 +9,7 @@
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start:api": "node server-dist/index.js",
-    "test": "node --test tests/dist.test.js"
+    "test": "node --import tsx --test tests/*.test.js"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
@@ -24,7 +24,6 @@
     "better-sqlite3": "^13.0.3",
     "drizzle-orm": "^0.45.4",
     "follow-redirects": "1.16.2",
-    "hono": "^4.13.13",
-    "plaid": "^49.0.0"
+    "hono": "^4.13.13"
   }
 }

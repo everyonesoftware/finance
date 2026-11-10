@@ -14,7 +14,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "bank_item_item_user_id_idx"
 
 CREATE TABLE IF NOT EXISTS "bank_account" (
   "id" text PRIMARY KEY NOT NULL,
-  "plaid_account_id" text NOT NULL,
+  "provider_account_id" text NOT NULL,
   "item_id" text NOT NULL REFERENCES "bank_item"("item_id") ON DELETE CASCADE,
   "user_id" text NOT NULL REFERENCES "user"("id") ON DELETE CASCADE,
   "encrypted_data" text NOT NULL,
@@ -25,5 +25,5 @@ CREATE TABLE IF NOT EXISTS "bank_account" (
 
 CREATE INDEX IF NOT EXISTS "bank_account_user_id_idx" ON "bank_account" ("user_id");
 CREATE INDEX IF NOT EXISTS "bank_account_item_id_idx" ON "bank_account" ("item_id");
-CREATE UNIQUE INDEX IF NOT EXISTS "bank_account_item_plaid_id_idx"
-  ON "bank_account" ("item_id", "plaid_account_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "bank_account_item_provider_id_idx"
+  ON "bank_account" ("item_id", "provider_account_id");

@@ -100,7 +100,7 @@ export function formatTransactionAmount(amount: number, currencyCode: string | n
     return "—";
   }
 
-  // Plaid uses positive values for outflows and negative values for inflows;
+  // Normalized transactions use positive outflows and negative inflows;
   // invert the sign for a familiar account-ledger presentation.
   const displayedAmount = -amount;
   if (currencyCode && /^[A-Z]{3}$/.test(currencyCode)) {

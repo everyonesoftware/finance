@@ -1,6 +1,6 @@
 # Finance
 
-A personal-finance app with a Vite/TypeScript frontend, Hono TypeScript API, Better Auth username/password authentication, SQLite, and Plaid-connected accounts. Account snapshots and synced transaction data are stored encrypted at rest.
+A personal-finance app with a Vite/TypeScript frontend, Hono TypeScript API, Better Auth username/password authentication, SQLite, and Teller-connected accounts. Account snapshots and synced transaction data are stored encrypted at rest.
 
 ## Requirements
 
@@ -30,17 +30,22 @@ npm run dev
 
 The Vite server prints its URL when ready. The API creates the SQLite database and applies migrations at startup using `DATABASE_PATH` from `.env`; `.env.example` stores it under `./data`. The root page provides account creation and username/password login. Registration also asks for an email address, which is stored with the profile. Email verification and email-based password recovery are not configured because no email delivery provider is set up. Authenticated users can update their display name, username, or password in settings.
 
-### Plaid bank connections
+### Teller bank connections
 
-Create a Plaid account and use its Sandbox credentials to enable bank linking. Add `PLAID_CLIENT_ID` and `PLAID_SECRET` from the Plaid Dashboard to `.env`, leave `PLAID_ENV=sandbox`, and generate a separate 32-byte encryption key:
+Open **Settings → Teller integration** after signing in. Integration settings are saved per Finance user in SQLite; no Teller environment variables or API restart are required.
 
-```powershell
-node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
-```
+- **Application ID:** copy the application ID from your Teller dashboard.
+- **Environment:** start with `sandbox` for simulated bank accounts. `development` and `production` connect to real institutions.
+- **Client certificate and private key:** paste the PEM values or upload the PEM files in Settings. Teller requires matching credentials in development and production; sandbox does not require them.
+- **Token signing key:** copy the application's public token signing key from the Teller dashboard. Live environments require it to verify the signed enrollment and prevent token replay.
 
-Set that value as `PLAID_TOKEN_ENCRYPTION_KEY`. Keep the Plaid credentials and encryption key out of source control. The key is required to decrypt stored access tokens and account data; back it up securely and separately from the database. Losing it makes saved Plaid connections unreadable. Restart the API after changing the environment.
+Saved certificate/private-key values are never returned to the browser. Blank credential fields preserve saved credentials; use the explicit clear-credentials control to remove them. Credentials, access tokens, institution names, account snapshots, and transactions are encrypted at rest using a purpose-specific key derived from `BETTER_AUTH_SECRET`. Back up this secret securely and separately from the database. Changing or losing it makes saved integration data unreadable. Serve the app over HTTPS outside local development.
 
-The Accounts page uses Plaid Link; Finance never receives or stores the bank's login credentials. Clicking a connected account opens its saved balance/details snapshot and recent synced transactions. Link requests the Transactions product with a 30-day history window. Use **Sync transactions** on the dashboard or an account details page to fetch and update recent transaction history from all connected items; sync applies added, modified, and removed records and can be retried manually. Finance stores full transaction payloads and sync cursors encrypted at rest using `PLAID_TOKEN_ENCRYPTION_KEY`. Access tokens, institution names, and account snapshots are also encrypted. Back up the key securely and separately from the database; losing it makes saved Plaid data unreadable. No background or webhook sync is implemented. Test with Plaid Sandbox; production requires eligible Plaid access.
+The Accounts page uses Teller Connect for bank authentication; Finance does not receive the bank's login credentials. Connect requests balance and transaction access. Clicking an account opens its saved balance/details snapshot and recent synced transactions. Use **Sync transactions** to refresh balances and retrieve transaction history; each enrollment is updated atomically only after all its pages are retrieved. Failed retrievals preserve the prior saved data. Background and webhook sync are not implemented.
+
+Existing connections from a previous integration are retained in the database as legacy records but are not displayed or sent to Teller. They cannot be converted to Teller tokens: reconnect institutions through Teller Connect. Switching Teller applications or environments also requires reconnecting accounts for that configuration. Create a database backup before upgrading.
+
+See Teller's official Connect and API authentication guides for dashboard setup and credential issuance.
 
 Each successful push to `main` receives an integer application version from the GitHub Actions workflow run number. The version appears in the lower-left account profile area and is also published as the matching numeric GHCR tag (for example, `ghcr.io/everyonesoftware/finance:42`); `latest` and `sha-...` tags remain available. Local builds show `Version dev` unless `APP_VERSION` is set.
 
@@ -58,6 +63,7 @@ The optimized static site is written to `dist`.
 Build and test the frontend and API:
 
 ```powershell
+npm run build
 npm test
 ```
 
@@ -85,4 +91,4 @@ The `app` service serves both the Vite frontend and TypeScript API from one Node
 
 ## Current backend scope
 
-Better Auth manages registration, username/password login, sessions, profile names, and password changes. SQLite stores authentication data, Plaid connections, bank-account snapshots, transactions, and sync cursors. Account and transaction APIs enforce per-user ownership; financial data and Plaid secrets are encrypted at rest. The dashboard displays real transactions only after a manual sync and does not invent income, expense, balance-trend, or chart values. Transactions can be synced from the dashboard or an account details page; background and webhook sync are not implemented.
+Better Auth manages registration, username/password login, sessions, profile names, and password changes. SQLite stores authentication data, per-user Teller settings, enrollments, bank-account snapshots, and transactions. Settings, account, and transaction APIs enforce per-user ownership; financial data and integration secrets are encrypted at rest. The dashboard displays imported transactions and does not invent income, expense, balance-trend, or chart values. Transactions can be synced manually; background and webhook sync are not implemented. Only deployment/bootstrap settings (authentication secret, public origin, database path, and optional server port) remain environment-based.

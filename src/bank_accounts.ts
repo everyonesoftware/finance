@@ -17,7 +17,7 @@ export interface BankAccountsPageUser {
 export interface BankAccount {
   id: string;
   itemId: string;
-  plaidAccountId?: string;
+  providerAccountId?: string;
   institutionName: string;
   name: string;
   officialName: string | null;
@@ -31,7 +31,7 @@ export interface BankAccount {
   lastRetrievedAt?: string;
 }
 
-export interface PlaidConnection {
+export interface TellerConnection {
   itemId: string;
   institutionName: string;
   lastRetrievedAt: string;
@@ -50,24 +50,20 @@ interface AccountDetailResponse {
   accounts: BankAccount[];
 }
 
-interface PlaidLinkExitError {
-  display_message?: string | null;
-}
-
-interface PlaidLinkHandler {
-  open(): void;
-}
-
-interface PlaidLinkOptions {
-  token: string;
-  onSuccess(publicToken: string): void;
-  onExit(error: PlaidLinkExitError | null): void;
+interface TellerConnectOptions {
+  applicationId: string;
+  environment: string;
+  products: string[];
+  nonce: string;
+  onSuccess(enrollment: Record<string, unknown>): void;
+  onExit(): void;
+  onFailure(error: unknown): void;
 }
 
 declare global {
   interface Window {
-    Plaid?: {
-      create(options: PlaidLinkOptions): PlaidLinkHandler;
+    TellerConnect?: {
+      setup(options: TellerConnectOptions): { open(): void };
     };
   }
 }
@@ -111,7 +107,7 @@ function isBankAccount(value: unknown): value is BankAccount {
     "updatedAt" in value &&
     typeof value.updatedAt === "string" &&
     (!("lastRetrievedAt" in value) || typeof value.lastRetrievedAt === "string") &&
-    (!("plaidAccountId" in value) || typeof value.plaidAccountId === "string")
+    (!("providerAccountId" in value) || typeof value.providerAccountId === "string")
   );
 }
 
@@ -331,8 +327,8 @@ export function renderAccounts(accounts: BankAccount[]): string {
     .join("");
 }
 
-export function renderConnections(connections: PlaidConnection[]): string {
-  if (connections.length === 0) return `<div class="accounts-empty"><strong>No Plaid connections yet</strong><span>Connect an institution to see its integration here.</span></div>`;
+export function renderConnections(connections: TellerConnection[]): string {
+  if (connections.length === 0) return `<div class="accounts-empty"><strong>No Teller connections yet</strong><span>Connect an institution to see its integration here.</span></div>`;
   return connections.map((connection) => {
     const institutionName = escapeHtml(connection.institutionName);
     const retrieved = new Date(connection.lastRetrievedAt);
@@ -342,7 +338,7 @@ export function renderConnections(connections: PlaidConnection[]): string {
       const mask = account.mask ? `•••• ${escapeHtml(account.mask)}` : "Account number hidden";
       return `<a class="connected-account-link" href="/accounts/${escapeHtml(encodeURIComponent(account.id))}"><article class="connected-account"><div class="connected-account-icon" aria-hidden="true">▣</div><div class="connected-account-info"><strong>${escapeHtml(account.name)}</strong><span>${escapeHtml(accountType)} · ${mask}</span></div><strong class="connected-account-balance${isLiabilityAccount(account) && account.currentBalance !== null ? " liability-balance" : ""}">${escapeHtml(formatAccountBalance(account))}</strong></article></a>`;
     }).join("");
-    return `<details class="connection-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">↔</span><span class="connection-title"><span class="eyebrow">PLAID INTEGRATION</span><strong>${institutionName}</strong><span>${connection.accountCount} ${connection.accountCount === 1 ? "account" : "accounts"} · ${updateLabel}</span></span></summary><details class="connection-actions-menu"><summary class="connection-menu-trigger" aria-label="More actions for ${institutionName}" title="More actions for ${institutionName}"><span aria-hidden="true">⋯</span></summary><div class="connection-menu-popup"><button type="button" class="delete-connection-button" data-connection-type="plaid" data-connection-id="${escapeHtml(connection.itemId)}" data-connection-name="${institutionName}">Delete</button></div></details><div class="connection-accounts">${accountRows || `<p class="account-empty">No accounts are currently available from this integration.</p>`}</div></details>`;
+    return `<details class="connection-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">↔</span><span class="connection-title"><span class="eyebrow">TELLER INTEGRATION</span><strong>${institutionName}</strong><span>${connection.accountCount} ${connection.accountCount === 1 ? "account" : "accounts"} · ${updateLabel}</span></span></summary><details class="connection-actions-menu"><summary class="connection-menu-trigger" aria-label="More actions for ${institutionName}" title="More actions for ${institutionName}"><span aria-hidden="true">⋯</span></summary><div class="connection-menu-popup"><button type="button" class="delete-connection-button" data-connection-type="teller" data-connection-id="${escapeHtml(connection.itemId)}" data-connection-name="${institutionName}">Delete</button></div></details><div class="connection-accounts">${accountRows || `<p class="account-empty">No accounts are currently available from this integration.</p>`}</div></details>`;
   }).join("");
 }
 
@@ -466,23 +462,23 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-async function loadPlaidLink(): Promise<void> {
-  if (window.Plaid) {
+async function loadTellerLink(): Promise<void> {
+  if (window.TellerConnect) {
     return;
   }
 
   await new Promise<void>((resolve, reject): void => {
     const script: HTMLScriptElement = document.createElement("script");
-    script.src = "https://cdn.plaid.com/link/v2/stable/link-initialize.js";
+    script.src = "https://cdn.teller.io/connect/connect.js";
     script.async = true;
     script.onload = (): void => resolve();
     script.onerror = (): void =>
-      reject(new Error("Plaid Link could not be loaded. Check your connection and try again."));
+      reject(new Error("Teller Connect could not be loaded. Check your connection and try again."));
     document.head.append(script);
   });
 
-  if (!window.Plaid) {
-    throw new Error("Plaid Link did not initialize correctly.");
+  if (!window.TellerConnect) {
+    throw new Error("Teller Connect did not initialize correctly.");
   }
 }
 
@@ -522,7 +518,7 @@ async function refreshAccounts(): Promise<void> {
       syncAllButton.disabled = syncAllButton.hidden;
     }
     const setupNotice: HTMLParagraphElement | null =
-      document.querySelector<HTMLParagraphElement>("#plaid-setup-notice");
+      document.querySelector<HTMLParagraphElement>("#teller-setup-notice");
     if (setupNotice) {
       setupNotice.hidden = payload.configured;
     }
@@ -648,7 +644,7 @@ async function syncAllInstitutions(button: HTMLButtonElement): Promise<void> {
   }
 }
 
-async function completePlaidConnection(publicToken: string): Promise<void> {
+async function completeTellerConnection(enrollment: Record<string, unknown>, nonce: string): Promise<void> {
   const connectButton: HTMLButtonElement | null =
     document.querySelector<HTMLButtonElement>("#connect-bank");
   if (connectButton) {
@@ -657,10 +653,10 @@ async function completePlaidConnection(publicToken: string): Promise<void> {
   }
 
   try {
-    const response: Response = await fetch("/api/accounts/exchange", {
+    const response: Response = await fetch("/api/accounts/enroll", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ publicToken }),
+      body: JSON.stringify({ ...enrollment, nonce }),
     });
     const payload: unknown = await readJson(response);
     if (!response.ok) {
@@ -698,7 +694,7 @@ async function connectBank(): Promise<void> {
   setAccountsMessage("", false);
 
   try {
-    const response: Response = await fetch("/api/accounts/link-token", {
+    const response: Response = await fetch("/api/accounts/connect-config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
@@ -708,30 +704,39 @@ async function connectBank(): Promise<void> {
       !response.ok ||
       typeof payload !== "object" ||
       payload === null ||
-      !("linkToken" in payload) ||
-      typeof payload.linkToken !== "string"
+      !("applicationId" in payload) || typeof payload.applicationId !== "string" ||
+      !("environment" in payload) || typeof payload.environment !== "string" ||
+      !["sandbox", "development", "production"].includes(payload.environment) ||
+      !("products" in payload) || !Array.isArray(payload.products) || !payload.products.every((product: unknown) => typeof product === "string") ||
+      !("nonce" in payload) || typeof payload.nonce !== "string"
     ) {
       throw new Error(
         getErrorMessage(payload, "Unable to start a secure bank connection."),
       );
     }
 
-    await loadPlaidLink();
-    if (!window.Plaid) {
-      throw new Error("Plaid Link did not initialize correctly.");
+    await loadTellerLink();
+    if (!window.TellerConnect) {
+      throw new Error("Teller Connect did not initialize correctly.");
     }
 
-    const handler: PlaidLinkHandler = window.Plaid.create({
-      token: payload.linkToken,
-      onSuccess: (publicToken: string): void => {
-        void completePlaidConnection(publicToken);
+    const resetButton = (): void => {
+      button.disabled = false;
+      button.innerHTML = `<span aria-hidden="true">＋</span> Connect a bank`;
+    };
+    const nonce = payload.nonce;
+    const handler = window.TellerConnect.setup({
+      applicationId: payload.applicationId,
+      environment: payload.environment,
+      products: payload.products as string[],
+      nonce,
+      onSuccess: (enrollment): void => {
+        void completeTellerConnection(enrollment, nonce);
       },
-      onExit: (error: PlaidLinkExitError | null): void => {
-        if (error?.display_message) {
-          setAccountsMessage(error.display_message, true);
-        }
-        button.disabled = false;
-        button.innerHTML = `<span aria-hidden="true">＋</span> Connect a bank`;
+      onExit: resetButton,
+      onFailure: (): void => {
+        setAccountsMessage("Teller could not complete the connection. Please try again.", true);
+        resetButton();
       },
     });
     handler.open();
@@ -796,22 +801,22 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           </div>
         </section>
 
-        <section class="panel plaid-setup-notice" id="plaid-setup-notice" hidden>
+        <section class="panel teller-setup-notice" id="teller-setup-notice" hidden>
           <h2>Secure bank connections</h2>
           <p>
-            Add your Plaid Sandbox credentials and a private encryption key to the
-            server environment to enable bank linking. Your bank sign-in is handled
-            by Plaid and is never stored by Finance.
+            <a class="text-button" href="/settings">Configure Teller in Settings</a>
+            to enable bank linking. Sandbox needs only your application ID; live
+            environments also require a matching certificate, private key and public signing key.
+            Bank sign-in is handled by Teller and never stored by Finance.
           </p>
         </section>
 
         <section class="panel account-data-notice">
           <strong>Your data, kept to what this page needs</strong>
           <p>
-            Plaid Link requests the Transactions product with a 30-day history
-            window. You can manually sync transaction history from the dashboard.
-            Finance stores transaction details and sync cursors encrypted at rest,
-            along with encrypted account details and balances.
+            Teller securely connects your selected bank accounts. You can manually
+            sync available transaction history from your accounts page.
+            Finance stores transaction details and account snapshots encrypted at rest.
           </p>
         </section>
 
@@ -821,7 +826,7 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
 
         <footer class="page-footer">
           Your finances, in focus.
-          <span>Bank connections provided by Plaid</span>
+          <span>Bank connections provided by Teller</span>
         </footer>
       </main>
     </div>
@@ -862,7 +867,7 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
         <div id="account-detail-content" class="account-detail-content" aria-live="polite">
           <div class="panel accounts-loading">Loading account details and transactions…</div>
         </div>
-        <footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Plaid</span></footer>
+        <footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Teller</span></footer>
       </main>
     </div>
   `;
@@ -941,7 +946,7 @@ export function initializeBankAccountsPage(): void {
     void syncAllInstitutions(syncAllButton);
   });
   void refreshAccounts();
-  if (new URLSearchParams(location.search).get("connect") === "plaid") {
+  if (new URLSearchParams(location.search).get("connect") === "teller") {
     history.replaceState(null, "", "/accounts");
     void connectBank();
   }

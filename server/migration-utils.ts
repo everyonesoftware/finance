@@ -4,6 +4,15 @@ export function applySqlMigration(
   database: InstanceType<typeof Database>,
   migration: string,
 ): void {
+  if (migration.includes("-- normalize-bank-account-column")) {
+    const columns = database.prepare('PRAGMA table_info("bank_account")').all() as Array<{ name: string }>;
+    if (!columns.some((column) => column.name === "provider_account_id")) {
+      const candidates = columns.filter((column) => column.name.endsWith("_account_id") && column.name !== "id");
+      if (candidates.length !== 1) throw new Error("Cannot discover the historical bank account identifier column.");
+      const discovered = candidates[0]!.name.replaceAll('"', '""');
+      database.exec(`ALTER TABLE "bank_account" RENAME COLUMN "${discovered}" TO "provider_account_id"`);
+    }
+  }
   const statements: string[] = migration
     .split(";")
     .map((statement): string => statement.trim())

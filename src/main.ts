@@ -2,6 +2,7 @@ import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
 import { renderMainNavigation } from "./navigation.ts";
+import { renderTellerSettings, initializeTellerSettings } from "./teller-settings.ts";
 import { appVersion } from "./app-version.ts";
 import { renderDashboard } from "./dashboard";
 import { initializeTransactionsPage, renderTransactionsPage } from "./transactions-page";
@@ -259,6 +260,7 @@ function renderSettings(user: AuthUser): void {
             <button class="primary-button" type="submit">Update password</button>
           </form>
         </section>
+        ${renderTellerSettings()}
         <section class="settings-card settings-logout-section">
           <h2>Log out</h2>
           <p>Sign out of your Finance account on this device.</p>
@@ -332,6 +334,7 @@ function renderSettings(user: AuthUser): void {
       }
     });
 
+  void initializeTellerSettings();
   attachLogoutHandler();
 }
 

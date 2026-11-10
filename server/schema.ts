@@ -95,6 +95,10 @@ export const bankItem = sqliteTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull().default("legacy"),
+    providerApplicationId: text("provider_application_id"),
+    providerEnvironment: text("provider_environment"),
+    providerUserId: text("provider_user_id"),
     institutionId: text("institution_id"),
     encryptedInstitutionName: text("encrypted_institution_name").notNull(),
     encryptedAccessToken: text("encrypted_access_token").notNull(),
@@ -115,7 +119,7 @@ export const bankAccount = sqliteTable(
   "bank_account",
   {
     id: text("id").primaryKey(),
-    plaidAccountId: text("plaid_account_id").notNull(),
+    providerAccountId: text("provider_account_id").notNull(),
     itemId: text("item_id")
       .notNull()
       .references(() => bankItem.itemId, { onDelete: "cascade" }),
@@ -131,7 +135,7 @@ export const bankAccount = sqliteTable(
   (table) => [
     index("bank_account_user_id_idx").on(table.userId),
     index("bank_account_item_id_idx").on(table.itemId),
-    uniqueIndex("bank_account_item_plaid_id_idx").on(table.itemId, table.plaidAccountId),
+    uniqueIndex("bank_account_item_provider_id_idx").on(table.itemId, table.providerAccountId),
     foreignKey({
       columns: [table.itemId, table.userId],
       foreignColumns: [bankItem.itemId, bankItem.userId],

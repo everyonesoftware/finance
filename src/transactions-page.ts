@@ -454,7 +454,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     renderResults();
     if (payload.configured === false && status) {
       status.hidden = false;
-      status.textContent = "Plaid is not configured. Add a secure bank connection to view synced transactions.";
+      status.innerHTML = `Teller is not configured. <a class="text-button" href="/settings">Configure Teller in Settings</a> to view synced transactions.`;
     }
   };
 

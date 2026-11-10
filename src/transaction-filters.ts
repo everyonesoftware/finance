@@ -155,12 +155,12 @@ export function getTransactionGroupDate(group: TransactionGroup): string | null 
 
 function getTransactionGroupAccountIds(
   group: TransactionGroup,
-  accountsByPlaidId: Map<string, BankAccount>,
+  accountsByProviderId: Map<string, BankAccount>,
 ): string[] {
   if (group.type === "transfer") return [group.fromAccount.id, group.toAccount.id];
   const accountId = group.transactions[0].account_id;
   if (typeof accountId !== "string") return [];
-  const account = accountsByPlaidId.get(accountId);
+  const account = accountsByProviderId.get(accountId);
   return account ? [account.id] : [];
 }
 
@@ -169,15 +169,15 @@ export function filterAndSortTransactionGroups(
   accounts: BankAccount[],
   filters: TransactionListFilters,
 ): TransactionGroup[] {
-  const accountsByPlaidId = new Map<string, BankAccount>();
+  const accountsByProviderId = new Map<string, BankAccount>();
   for (const account of accounts) {
-    if (account.plaidAccountId) accountsByPlaidId.set(account.plaidAccountId, account);
+    if (account.providerAccountId) accountsByProviderId.set(account.providerAccountId, account);
   }
 
   const included = new Set(filters.includeAccountIds);
   const excluded = new Set(filters.excludeAccountIds);
   const matches = groups.flatMap((group, index) => {
-    const accountIds = getTransactionGroupAccountIds(group, accountsByPlaidId);
+    const accountIds = getTransactionGroupAccountIds(group, accountsByProviderId);
     if (included.size === 0 || !accountIds.some((id) => included.has(id))) return [];
     if (accountIds.some((id) => excluded.has(id))) return [];
 

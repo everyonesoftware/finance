@@ -1,15 +1,10 @@
 import assert from "node:assert/strict";
-import { access, mkdtemp, readFile, readdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { access, readFile, readdir } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 import Database from "better-sqlite3";
-import {
-  decryptPlaidValue,
-  encryptPlaidValue,
-  getPlaidErrorLogDetails,
-  readPlaidTransactionCursor,
-} from "../server-dist/plaid.js";
-import { listAccountTransactions, listAllUserTransactions, refreshBankAccountSnapshots } from "../server-dist/account-storage.js";
+import { decryptBankValue, encryptBankValue } from "../server-dist/bank-crypto.js";
+
 import { applySqlMigration } from "../server-dist/migration-utils.js";
 import { collectTransactionPages, getRecentTransactions } from "../server-dist/transaction-sync.js";
 import { groupInternalTransfers, renderTransactionList } from "../src/transaction-list.ts";
@@ -71,13 +66,13 @@ test("recent transactions are sorted newest first and limited to 50", () => {
 
 test("internal transfers with reciprocal connected-account references collapse into one expandable pair", () => {
   const accounts = [
-    { id: "checking-id", plaidAccountId: "plaid-checking", itemId: "item-a", name: "Checking", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "1257", currentBalance: 100, availableBalance: 100, currencyCode: "USD", updatedAt: "2026-10-30" },
-    { id: "savings-id", plaidAccountId: "plaid-savings", itemId: "item-a", name: "Everyday Savings", officialName: null, institutionName: "Bank", type: "depository", subtype: "savings", mask: "4753", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "checking-id", providerAccountId: "provider-checking", itemId: "item-a", name: "Checking", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "1257", currentBalance: 100, availableBalance: 100, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "savings-id", providerAccountId: "provider-savings", itemId: "item-a", name: "Everyday Savings", officialName: null, institutionName: "Bank", type: "depository", subtype: "savings", mask: "4753", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
   ];
   const transactions = [
-    { transaction_id: "out", account_id: "plaid-checking", name: "Internet transfer to Savings account XXXXXX4753", date: "2026-10-29", amount: 50, iso_currency_code: "USD" },
-    { transaction_id: "in", account_id: "plaid-savings", name: "Internet transfer from Savings account XXXXXX1257", date: "2026-10-29", amount: -50, iso_currency_code: "USD" },
-    { transaction_id: "groceries", account_id: "plaid-checking", name: "Grocery store", date: "2026-10-28", amount: 22, iso_currency_code: "USD" },
+    { transaction_id: "out", account_id: "provider-checking", name: "Internet transfer to Savings account XXXXXX4753", date: "2026-10-29", amount: 50, iso_currency_code: "USD" },
+    { transaction_id: "in", account_id: "provider-savings", name: "Internet transfer from Savings account XXXXXX1257", date: "2026-10-29", amount: -50, iso_currency_code: "USD" },
+    { transaction_id: "groceries", account_id: "provider-checking", name: "Grocery store", date: "2026-10-28", amount: 22, iso_currency_code: "USD" },
   ];
 
   const groups = groupInternalTransfers(transactions, accounts);
@@ -99,16 +94,16 @@ test("internal transfers with reciprocal connected-account references collapse i
 });
 
 test("transaction filters include, exclude, and sort grouped transactions by amount and date", () => {
-  const checking = { id: "checking-id", plaidAccountId: "plaid-checking", name: "Checking" };
-  const savings = { id: "savings-id", plaidAccountId: "plaid-savings", name: "Savings" };
+  const checking = { id: "checking-id", providerAccountId: "provider-checking", name: "Checking" };
+  const savings = { id: "savings-id", providerAccountId: "provider-savings", name: "Savings" };
   const groups = [
-    { type: "single", transactions: [{ transaction_id: "checking-five", account_id: "plaid-checking", amount: -5, date: "2026-10-28" }] },
-    { type: "single", transactions: [{ transaction_id: "savings-ten", account_id: "plaid-savings", amount: 10, date: "2026-10-30" }] },
+    { type: "single", transactions: [{ transaction_id: "checking-five", account_id: "provider-checking", amount: -5, date: "2026-10-28" }] },
+    { type: "single", transactions: [{ transaction_id: "savings-ten", account_id: "provider-savings", amount: 10, date: "2026-10-30" }] },
     {
       type: "transfer",
       transactions: [
-        { transaction_id: "transfer-out", account_id: "plaid-checking", amount: 20, date: "2026-10-29" },
-        { transaction_id: "transfer-in", account_id: "plaid-savings", amount: -20, date: "2026-10-29" },
+        { transaction_id: "transfer-out", account_id: "provider-checking", amount: 20, date: "2026-10-29" },
+        { transaction_id: "transfer-in", account_id: "provider-savings", amount: -20, date: "2026-10-29" },
       ],
       fromAccount: checking,
       toAccount: savings,
@@ -211,24 +206,24 @@ test("account search matches fuzzy subsequences and highlights only matched char
 test("transaction lists can show the owning institution and account for each row", () => {
   const account = {
     id: "checking-id",
-    plaidAccountId: "plaid-checking",
+    providerAccountId: "provider-checking",
     institutionName: "Ally Bank",
     name: "Checking",
   };
   const html = renderTransactionList([
-    { transaction_id: "coffee", account_id: "plaid-checking", name: "Coffee shop", date: "2026-10-30", amount: 4.5, iso_currency_code: "USD" },
+    { transaction_id: "coffee", account_id: "provider-checking", name: "Coffee shop", date: "2026-10-30", amount: 4.5, iso_currency_code: "USD" },
   ], [account], { showAccount: true });
   assert.match(html, /class="transaction-account-label">Ally Bank · Checking<\/span>/);
 });
 
 test("Fidelity ACH deposits referencing a connected brokerage account are grouped as transfers", () => {
   const accounts = [
-    { id: "fidelity-id", plaidAccountId: "plaid-fidelity", itemId: "item-a", name: "Brokerage", officialName: "Individual Brokerage", institutionName: "Fidelity Investments", type: "investment", subtype: "brokerage", mask: "1283", currentBalance: 1000, availableBalance: null, currencyCode: "USD", updatedAt: "2026-10-30" },
-    { id: "spending-id", plaidAccountId: "plaid-spending", itemId: "item-b", name: "Spending", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "5566", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "fidelity-id", providerAccountId: "provider-fidelity", itemId: "item-a", name: "Brokerage", officialName: "Individual Brokerage", institutionName: "Fidelity Investments", type: "investment", subtype: "brokerage", mask: "1283", currentBalance: 1000, availableBalance: null, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "spending-id", providerAccountId: "provider-spending", itemId: "item-b", name: "Spending", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "5566", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
   ];
   const transaction = {
     transaction_id: "fidelity-ach",
-    account_id: "plaid-spending",
+    account_id: "provider-spending",
     name: "X77621283 708XN FID BKG SVC LLC ACH",
     date: "2026-10-29",
     amount: -400,
@@ -251,10 +246,10 @@ test("Fidelity ACH deposits referencing a connected brokerage account are groupe
 
 test("Fidelity ACH transfer detection requires an incoming transaction and matching connected Fidelity mask", () => {
   const accounts = [
-    { id: "fidelity-id", plaidAccountId: "plaid-fidelity", itemId: "item-a", name: "Brokerage", officialName: null, institutionName: "Fidelity Investments", type: "investment", subtype: "brokerage", mask: "1283", currentBalance: 1000, availableBalance: null, currencyCode: "USD", updatedAt: "2026-10-30" },
-    { id: "spending-id", plaidAccountId: "plaid-spending", itemId: "item-b", name: "Spending", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "5566", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "fidelity-id", providerAccountId: "provider-fidelity", itemId: "item-a", name: "Brokerage", officialName: null, institutionName: "Fidelity Investments", type: "investment", subtype: "brokerage", mask: "1283", currentBalance: 1000, availableBalance: null, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "spending-id", providerAccountId: "provider-spending", itemId: "item-b", name: "Spending", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "5566", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
   ];
-  const transaction = { account_id: "plaid-spending", name: "X77621283 708XN FID BKG SVC LLC ACH", date: "2026-10-29", amount: -400, iso_currency_code: "USD" };
+  const transaction = { account_id: "provider-spending", name: "X77621283 708XN FID BKG SVC LLC ACH", date: "2026-10-29", amount: -400, iso_currency_code: "USD" };
   const mismatches = [
     { ...transaction, amount: 400 },
     { ...transaction, name: "X77629999 708XN FID BKG SVC LLC ACH" },
@@ -267,11 +262,11 @@ test("Fidelity ACH transfer detection requires an incoming transaction and match
 
 test("transactions remain separate unless amount, direction, date, currency, and reciprocal accounts match", () => {
   const accounts = [
-    { id: "checking-id", plaidAccountId: "plaid-checking", itemId: "item-a", name: "Checking", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "1257", currentBalance: 100, availableBalance: 100, currencyCode: "USD", updatedAt: "2026-10-30" },
-    { id: "savings-id", plaidAccountId: "plaid-savings", itemId: "item-a", name: "Savings", officialName: null, institutionName: "Bank", type: "depository", subtype: "savings", mask: "4753", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "checking-id", providerAccountId: "provider-checking", itemId: "item-a", name: "Checking", officialName: null, institutionName: "Bank", type: "depository", subtype: "checking", mask: "1257", currentBalance: 100, availableBalance: 100, currencyCode: "USD", updatedAt: "2026-10-30" },
+    { id: "savings-id", providerAccountId: "provider-savings", itemId: "item-a", name: "Savings", officialName: null, institutionName: "Bank", type: "depository", subtype: "savings", mask: "4753", currentBalance: 200, availableBalance: 200, currencyCode: "USD", updatedAt: "2026-10-30" },
   ];
-  const outgoing = { transaction_id: "out", account_id: "plaid-checking", name: "Transfer to Savings account XXXX4753", date: "2026-10-29", amount: 50, iso_currency_code: "USD" };
-  const incoming = { transaction_id: "in", account_id: "plaid-savings", name: "Transfer from Checking account XXXX1257", date: "2026-10-29", amount: -50, iso_currency_code: "USD" };
+  const outgoing = { transaction_id: "out", account_id: "provider-checking", name: "Transfer to Savings account XXXX4753", date: "2026-10-29", amount: 50, iso_currency_code: "USD" };
+  const incoming = { transaction_id: "in", account_id: "provider-savings", name: "Transfer from Checking account XXXX1257", date: "2026-10-29", amount: -50, iso_currency_code: "USD" };
   const mismatches = [
     { ...incoming, amount: -49 },
     { ...incoming, name: "Transfer to Checking account XXXX1257" },
@@ -285,7 +280,7 @@ test("transactions remain separate unless amount, direction, date, currency, and
   }
 });
 
-test("Plaid transaction amounts render spending as negative and income as positive", () => {
+test("normalized transaction amounts render spending as negative and income as positive", () => {
   assert.equal(formatTransactionAmount(24.5, "USD"), "-$24.50");
   assert.equal(formatTransactionAmount(-125.75, "USD"), "$125.75");
   assert.equal(formatTransactionAmount(3, "CAD"), "-CA$3.00");
@@ -421,91 +416,61 @@ test("production HTML references existing JavaScript and CSS assets", async () =
   await access(new URL(`.${stylesheetPath}`, distDirectory));
 });
 
-test("Plaid data encryption hides values and detects tampering", () => {
+test("bank data encryption hides values and detects tampering", () => {
   const key = Buffer.alloc(32, 17);
-  const value = "plaid-access-token";
-  const encrypted = encryptPlaidValue(value, key);
+  const value = "provider-access-token";
+  const encrypted = encryptBankValue(value, key);
 
   assert.notEqual(encrypted, value);
-  assert.equal(decryptPlaidValue(encrypted, key), value);
+  assert.equal(decryptBankValue(encrypted, key), value);
 
   const [version, iv, authTag, ciphertext] = encrypted.split(".");
   assert.ok(version && iv && authTag && ciphertext);
   const changedCiphertext = `${ciphertext.startsWith("A") ? "B" : "A"}${ciphertext.slice(1)}`;
   const tampered = [version, iv, authTag, changedCiphertext].join(".");
-  assert.throws(() => decryptPlaidValue(tampered, key));
+  assert.throws(() => decryptBankValue(tampered, key));
 });
 
-test("an unsupported saved transaction cursor triggers a fresh sync", () => {
-  const result = readPlaidTransactionCursor("legacy-cursor-value", Buffer.alloc(32, 17));
-  assert.deepEqual(result, { cursor: undefined, recovered: true });
-});
-
-test("an encrypted saved transaction cursor is preserved", () => {
+test("bank encryption rejects unsupported and malformed envelopes", () => {
   const key = Buffer.alloc(32, 17);
-  const encrypted = encryptPlaidValue("cursor-123", key);
-  assert.deepEqual(readPlaidTransactionCursor(encrypted, key), {
-    cursor: "cursor-123",
-    recovered: false,
-  });
+  for (const value of ["legacy-value", "v99.a.b.c", "v1...", "", "v1.a.b.c.extra"]) {
+    assert.throws(() => decryptBankValue(value, key));
+  }
 });
 
-test("a saved cursor that fails authentication is not treated as a format recovery", () => {
-  const encrypted = encryptPlaidValue("cursor-123", Buffer.alloc(32, 17));
-  assert.throws(() => readPlaidTransactionCursor(encrypted, Buffer.alloc(32, 18)));
+test("bank encryption preserves structured financial payloads and Unicode", () => {
+  const key = Buffer.alloc(32, 17);
+  const payload = JSON.stringify({ name: "Épargne 日本", amount: -12.34, pending: false, account: null });
+  assert.equal(decryptBankValue(encryptBankValue(payload, key), key), payload);
 });
 
-test("Plaid failure logs contain diagnostics but omit sensitive response data", () => {
-  const error = Object.assign(new Error("request contains a sensitive token"), {
-    code: "ECONNABORTED",
-    config: { headers: { "PLAID-SECRET": "secret-value" } },
-    response: {
-      status: 400,
-      data: {
-        error_type: "INVALID_REQUEST",
-        error_code: "INVALID_FIELD",
-        request_id: "request-123",
-        error_message: "sensitive provider message",
-        display_message: "sensitive display text",
-      },
-    },
-  });
-  error.stack = [
-    "Error: request contains a sensitive token",
-    "    at syncPage (C:\\Users\\private\\secret.js:55:3)",
-    "    at Object.run (C:\\Users\\dan\\finance\\server-dist\\bank_accounts.js:352:5)",
-  ].join("\n");
-
-  const details = getPlaidErrorLogDetails("transaction sync", error, {
-    phase: "fetch and collect Plaid transaction pages",
-    itemNumber: 2,
-    itemCount: 3,
-  });
-  const serialized = JSON.stringify(details);
-
-  assert.equal(details.operation, "transaction sync");
-  assert.equal(details.errorName, "Error");
-  assert.equal(details.errorSummary, "Unclassified error; message withheld for safety.");
-  assert.equal(details.plaidErrorType, "INVALID_REQUEST");
-  assert.equal(details.plaidErrorCode, "INVALID_FIELD");
-  assert.equal(details.requestId, "request-123");
-  assert.equal(details.httpStatus, 400);
-  assert.equal(details.networkCode, "ECONNABORTED");
-  assert.equal(details.phase, "fetch and collect Plaid transaction pages");
-  assert.equal(details.itemNumber, 2);
-  assert.equal(details.itemCount, 3);
-  assert.deepEqual(details.stackFrames, [
-    "syncPage @ secret.js:55:3",
-    "Object.run @ bank_accounts.js:352:5",
-  ]);
-  assert.doesNotMatch(serialized, /secret-value|sensitive|PLAID-SECRET|C:\\\\Users/);
+test("bank encryption rejects a different user's encryption key", () => {
+  const encrypted = encryptBankValue("provider-access-token", Buffer.alloc(32, 17));
+  assert.throws(() => decryptBankValue(encrypted, Buffer.alloc(32, 18)));
 });
 
-test("sync failure summaries identify known internal errors without exposing raw messages", () => {
-  const error = new Error("Plaid transaction references an account outside this item.");
-  const details = getPlaidErrorLogDetails("transaction sync", error);
-  assert.equal(details.errorSummary, "Transaction account ownership validation failed.");
-  assert.doesNotMatch(JSON.stringify(details), /outside this item/);
+test("bank encryption randomizes repeated values without leaking plaintext", () => {
+  const key = Buffer.alloc(32, 17);
+  const secret = "sensitive-provider-access-token";
+  const first = encryptBankValue(secret, key);
+  const second = encryptBankValue(secret, key);
+  assert.notEqual(first, second);
+  assert.equal(first.includes(secret), false);
+  assert.equal(second.includes(secret), false);
+  assert.equal(decryptBankValue(first, key), secret);
+  assert.equal(decryptBankValue(second, key), secret);
+});
+
+test("bank encryption authenticates initialization vector and authentication tag", () => {
+  const key = Buffer.alloc(32, 17);
+  const encrypted = encryptBankValue("provider-access-token", key);
+  for (const index of [1, 2]) {
+    const parts = encrypted.split(".");
+    const bytes = Buffer.from(parts[index], "base64");
+    bytes[0] ^= 1;
+    parts[index] = bytes.toString("base64");
+    assert.throws(() => decryptBankValue(parts.join("."), key));
+  }
 });
 
 test("overview bank-account list escapes values and links additional accounts", () => {
@@ -630,7 +595,7 @@ test("institution cards provide a sync action and hide disconnect in the overflo
   assert.match(html, /data-item-id="item-1"/);
 });
 
-test("real-estate page loads only property cards and excludes Plaid UI", () => {
+test("real-estate page loads only property cards and excludes bank connection UI", () => {
   const account = {
     id: "account-1", itemId: "item-1", institutionName: "Bank One",
     name: "Checking", officialName: null, type: "depository", subtype: "checking",
@@ -645,12 +610,12 @@ test("real-estate page loads only property cards and excludes Plaid UI", () => {
   assert.match(html, /2 accounts/);
   assert.match(html, /Checking/);
   assert.match(html, /Savings/);
-  assert.match(renderConnections([]), /No Plaid connections yet/);
+  assert.match(renderConnections([]), /No Teller connections yet/);
   const page = renderConnectionsPage({ displayName: "Test", username: "test" });
   assert.match(page, /class="nav-link active" href="\/real-estate" aria-current="page"/);
   assert.match(page, /id="real-estate-properties"/);
   assert.match(page, /id="add-property"/);
-  assert.doesNotMatch(page, /api\/accounts|choose-plaid|connection-choices/);
+  assert.doesNotMatch(page, /api\/accounts|choose-teller|connection-choices/);
 });
 
 test("Zillow Zestimate parser reads only the home Zestimate from the Open Graph description", () => {
@@ -681,9 +646,9 @@ test("Zillow page fetch accepts only HTTPS home-details URLs on Zillow", async (
 });
 
 test("property cards render a delete menu and the real-estate page omits the old shared dialog", () => {
-  const plaid = renderConnections([{ itemId: "item-delete", institutionName: "Bank Delete", lastRetrievedAt: "2026-10-31T12:00:00.000Z", accountCount: 0, accounts: [] }]);
+  const bank = renderConnections([{ itemId: "item-delete", institutionName: "Bank Delete", lastRetrievedAt: "2026-10-31T12:00:00.000Z", accountCount: 0, accounts: [] }]);
   const estate = renderRealEstateCards([{ id: "home-delete", address: "42 Main Street", latitude: 47, longitude: -122, estimates: [] }]);
-  for (const [html, id, name] of [[plaid, "item-delete", "Bank Delete"], [estate, "home-delete", "42 Main Street"]]) {
+  for (const [html, id, name] of [[bank, "item-delete", "Bank Delete"], [estate, "home-delete", "42 Main Street"]]) {
     assert.match(html, /class="connection-actions-menu"/);
     assert.match(html, /class="connection-menu-trigger"[^>]*>[\s\S]*⋯<\/span>[\s\S]*<\/summary>/);
     assert.match(html, /class="connection-menu-popup"[^>]*>[\s\S]*class="delete-connection-button"[^>]*>Delete<\/button>/);
@@ -777,7 +742,7 @@ test("real-estate page uses an inline address autocomplete and Zillow form", asy
   assert.match(css, /#property-map-preview iframe\s*\{[^}]*height:\s*100%/s);
 });
 
-test("connections page offers Plaid and real-estate choices with disabled external providers", () => {
+test("real-estate page offers an address form and optional Zillow source", () => {
   const html = renderConnectionsPage({ displayName: "Test", username: "test" });
   assert.match(html, /id="add-property"/);
   assert.match(html, /id="new-property-panel" hidden/);
@@ -840,6 +805,17 @@ test("logout action is placed in a Settings section after Change password", asyn
   assert.ok(logoutSection > passwordSection);
   assert.match(settingsSource.slice(logoutSection), /class="primary-button logout-button"/);
   assert.doesNotMatch(settingsSource.slice(0, logoutSection), /logout-button/);
+});
+
+test("bank connection client requests owned Connect configuration and saves the enrollment", async () => {
+  const client = await readFile(new URL("../src/bank_accounts.ts", import.meta.url), "utf8");
+  assert.match(client, /\/api\/accounts\/connect-config/);
+  assert.match(client, /\/api\/accounts\/enroll/);
+  assert.match(client, /TellerConnect\.setup\(/);
+  assert.match(client, /applicationId/);
+  assert.match(client, /environment/);
+  assert.match(client, /JSON\.stringify\(\{\s*\.\.\.enrollment,\s*nonce\s*\}\)/);
+  assert.match(client, /completeTellerConnection\(enrollment,\s*nonce\)/);
 });
 
 test("accounts page places sync-all before Connect a bank", () => {
@@ -910,7 +886,7 @@ test("account details render a matching Fidelity ACH deposit as a collapsed tran
   const allyAccount = {
     id: "ally-checking",
     itemId: "ally-item",
-    plaidAccountId: "plaid-ally-checking",
+    providerAccountId: "provider-ally-checking",
     institutionName: "Ally Bank",
     name: "Checking",
     officialName: null,
@@ -925,7 +901,7 @@ test("account details render a matching Fidelity ACH deposit as a collapsed tran
   const fidelityAccount = {
     id: "fidelity-tod",
     itemId: "fidelity-item",
-    plaidAccountId: "plaid-fidelity-tod",
+    providerAccountId: "provider-fidelity-tod",
     institutionName: "Fidelity",
     name: "Individual - TOD",
     officialName: null,
@@ -939,7 +915,7 @@ test("account details render a matching Fidelity ACH deposit as a collapsed tran
   };
   const transaction = {
     transaction_id: "fidelity-ach-to-ally",
-    account_id: "plaid-ally-checking",
+    account_id: "provider-ally-checking",
     name: "X77621283 708XN FID BKG SVC LLC ACH",
     date: "2026-10-27",
     amount: -25004.82,
@@ -1013,22 +989,22 @@ test("bank-account migration creates user-owned encrypted data tables", async ()
     .run("user-two", "User Two", "two@example.test");
   database
     .prepare(
-      "INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)",
+      "INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')",
     )
     .run("item-one", "user-one", "encrypted-name", "encrypted-token");
   database
     .prepare(
-      "INSERT INTO bank_account (id, plaid_account_id, item_id, user_id, encrypted_data) VALUES (?, ?, ?, ?, ?)",
+      "INSERT INTO bank_account (id, provider_account_id, item_id, user_id, encrypted_data) VALUES (?, ?, ?, ?, ?)",
     )
-    .run("account-one", "plaid-account-one", "item-one", "user-one", "encrypted-data");
+    .run("account-one", "provider-account-one", "item-one", "user-one", "encrypted-data");
 
   assert.throws(
     () =>
       database
         .prepare(
-          "INSERT INTO bank_account (id, plaid_account_id, item_id, user_id, encrypted_data) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO bank_account (id, provider_account_id, item_id, user_id, encrypted_data) VALUES (?, ?, ?, ?, ?)",
         )
-        .run("account-two", "plaid-account-two", "item-one", "user-two", "encrypted-data"),
+        .run("account-two", "provider-account-two", "item-one", "user-two", "encrypted-data"),
     /FOREIGN KEY constraint failed/,
   );
   database.close();
@@ -1075,6 +1051,7 @@ test("legacy auth table rename keeps existing rows", async () => {
 
 
 test("account refresh preserves historical account IDs while hiding inactive accounts", async () => {
+  const { refreshBankAccountSnapshots } = await import("../server-dist/account-storage.js");
   const database = new Database(":memory:");
   database.pragma("foreign_keys = ON");
   const migrationNames = (await readdir(migrationsDirectory))
@@ -1085,11 +1062,11 @@ test("account refresh preserves historical account IDs while hiding inactive acc
   }
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-one", "User One", "one@example.test");
-  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
+  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')")
     .run("item-one", "user-one", "encrypted-name", "encrypted-token");
 
   refreshBankAccountSnapshots(database, "item-one", "user-one", [
-    { plaidAccountId: "plaid-account-one", encryptedData: "encrypted-v1" },
+    { providerAccountId: "provider-account-one", encryptedData: "encrypted-v1" },
   ]);
   const original = database.prepare("SELECT id FROM bank_account WHERE item_id = ?")
     .get("item-one");
@@ -1100,7 +1077,7 @@ test("account refresh preserves historical account IDs while hiding inactive acc
   assert.equal(inactive.is_active, 0);
 
   refreshBankAccountSnapshots(database, "item-one", "user-one", [
-    { plaidAccountId: "plaid-account-one", encryptedData: "encrypted-v2" },
+    { providerAccountId: "provider-account-one", encryptedData: "encrypted-v2" },
   ]);
   const reactivated = database.prepare("SELECT id, is_active, encrypted_data FROM bank_account WHERE item_id = ?")
     .get("item-one");
@@ -1111,6 +1088,7 @@ test("account refresh preserves historical account IDs while hiding inactive acc
 });
 
 test("account transaction queries are scoped to the owning user, item, and account", async () => {
+  const { listAccountTransactions } = await import("../server-dist/account-storage.js");
   const database = new Database(":memory:");
   database.pragma("foreign_keys = ON");
   const migrationNames = (await readdir(migrationsDirectory))
@@ -1123,22 +1101,28 @@ test("account transaction queries are scoped to the owning user, item, and accou
     .run("user-one", "User One", "one@example.test");
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-two", "User Two", "two@example.test");
-  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)");
+  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')");
   insertItem.run("item-one", "user-one", "encrypted-name", "encrypted-token");
   insertItem.run("item-two", "user-two", "encrypted-name", "encrypted-token");
+  insertItem.run("item-three", "user-one", "encrypted-name", "encrypted-token");
   const key = Buffer.alloc(32, 23);
   const insertTransaction = database.prepare("INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)");
-  const encode = (name, date) => encryptPlaidValue(JSON.stringify({ name, date }), key);
+  const encode = (name, date) => encryptBankValue(JSON.stringify({ name, date }), key);
   insertTransaction.run("tx-one", "item-one", "user-one", "account-one", encode("Target account transaction", "2026-10-29"));
   insertTransaction.run("tx-two", "item-one", "user-one", "account-two", encode("Another account transaction", "2026-10-30"));
   insertTransaction.run("tx-three", "item-two", "user-two", "account-one", encode("Another user transaction", "2026-10-30"));
+  insertTransaction.run("tx-four", "item-three", "user-one", "account-one", encode("Another institution transaction", "2026-10-30"));
 
   const transactions = listAccountTransactions(database, "user-one", "item-one", "account-one", key);
   assert.deepEqual(transactions.map((transaction) => transaction.name), ["Target account transaction"]);
+  assert.deepEqual(listAccountTransactions(database, "user-two", "item-one", "account-one", key), []);
+  assert.deepEqual(listAccountTransactions(database, "user-one", "item-two", "account-one", key), []);
+  assert.deepEqual(listAccountTransactions(database, "user-one", "item-one", "missing-account", key), []);
   database.close();
 });
 
 test("all transaction queries return every account for one user without the dashboard limit", async () => {
+  const { listAllUserTransactions } = await import("../server-dist/account-storage.js");
   const database = new Database(":memory:");
   database.pragma("foreign_keys = ON");
   const migrationNames = (await readdir(migrationsDirectory))
@@ -1151,7 +1135,7 @@ test("all transaction queries return every account for one user without the dash
     .run("user-one", "User One", "one@example.test");
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-two", "User Two", "two@example.test");
-  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)");
+  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')");
   insertItem.run("item-one", "user-one", "encrypted-name", "encrypted-token");
   insertItem.run("item-two", "user-two", "encrypted-name", "encrypted-token");
   const key = Buffer.alloc(32, 23);
@@ -1162,7 +1146,7 @@ test("all transaction queries return every account for one user without the dash
       "item-one",
       "user-one",
       index % 2 === 0 ? "account-one" : "account-two",
-      encryptPlaidValue(JSON.stringify({ transaction_id: `tx-${index}`, account_id: index % 2 === 0 ? "account-one" : "account-two", name: `Transaction ${index}`, date: "2026-10-30", amount: index }), key),
+      encryptBankValue(JSON.stringify({ transaction_id: `tx-${index}`, account_id: index % 2 === 0 ? "account-one" : "account-two", name: `Transaction ${index}`, date: "2026-10-30", amount: index }), key),
     );
   }
   insertTransaction.run(
@@ -1170,7 +1154,7 @@ test("all transaction queries return every account for one user without the dash
     "item-two",
     "user-two",
     "account-one",
-    encryptPlaidValue(JSON.stringify({ transaction_id: "tx-other-user", name: "Other user's transaction", date: "2026-10-30", amount: 1 }), key),
+    encryptBankValue(JSON.stringify({ transaction_id: "tx-other-user", name: "Other user's transaction", date: "2026-10-30", amount: 1 }), key),
   );
 
   const transactions = listAllUserTransactions(database, "user-one", key);
@@ -1200,7 +1184,7 @@ test("transaction migration stores encrypted transaction records and protected s
     .run("user-one", "User One", "one@example.test");
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-two", "User Two", "two@example.test");
-  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
+  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')")
     .run("item-one", "user-one", "encrypted-name", "encrypted-token");
   database.prepare("INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)")
     .run("tx-one", "item-one", "user-one", "account-one", "encrypted-payload");
@@ -1217,16 +1201,24 @@ test("transaction migration stores encrypted transaction records and protected s
   database.close();
 });
 
-test("account sync requires authentication and disconnect removes only after Plaid confirms", async () => {
+test("account sync and disconnect enforce owner scope and preserve data on remote failure", async () => {
+  const result = spawnSync(process.execPath, ["--input-type=module", "--eval", `
+    import assert from "node:assert/strict";
+    import { mkdtemp, rm } from "node:fs/promises";
+    import { join } from "node:path";
+    import { encryptBankValue, getBankEncryptionKey } from "./server-dist/bank-crypto.js";
+    await (${runBankAndPropertyLifecycle.toString()})();
+  `], { cwd: new URL("../", import.meta.url), encoding: "utf8", timeout: 60_000 });
+  assert.equal(result.error, undefined, result.error?.message);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+});
+
+async function runBankAndPropertyLifecycle() {
   const temporaryDirectory = await mkdtemp(join(process.env["TMPDIR"] ?? process.cwd(), "finance-route-test-"));
   const originalEnvironment = {
     DATABASE_PATH: process.env["DATABASE_PATH"],
     BETTER_AUTH_SECRET: process.env["BETTER_AUTH_SECRET"],
     ORIGIN_URL: process.env["ORIGIN_URL"],
-    PLAID_CLIENT_ID: process.env["PLAID_CLIENT_ID"],
-    PLAID_SECRET: process.env["PLAID_SECRET"],
-    PLAID_ENV: process.env["PLAID_ENV"],
-    PLAID_TOKEN_ENCRYPTION_KEY: process.env["PLAID_TOKEN_ENCRYPTION_KEY"],
   };
   process.env["DATABASE_PATH"] = join(temporaryDirectory, "finance.sqlite");
   process.env["BETTER_AUTH_SECRET"] = "test-only-auth-secret-at-least-32-characters-long";
@@ -1234,146 +1226,120 @@ test("account sync requires authentication and disconnect removes only after Pla
   let closeDatabase;
 
   try {
-    const databaseModule = await import("../server-dist/database.js");
-    const { bankAccountsRouter } = await import("../server-dist/bank_accounts.js");
-    const { realEstateRouter } = await import("../server-dist/real_estate.js");
-    const { auth } = await import("../server-dist/auth.js");
-    const { PlaidApi } = await import("plaid");
-    const { encryptPlaidValue } = await import("../server-dist/plaid.js");
+    const databaseModule = await import("./server-dist/database.js");
+    const { createBankAccountsRouter } = await import("./server-dist/bank_accounts.js");
+    const { realEstateRouter } = await import("./server-dist/real_estate.js");
+    const { auth } = await import("./server-dist/auth.js");
     closeDatabase = databaseModule.closeDatabase;
     await databaseModule.runMigrations();
-    const response = await bankAccountsRouter.request("/account-one/transactions");
-    assert.equal(response.status, 401);
-    assert.equal(response.headers.get("Cache-Control"), "no-store");
-
-    const allTransactionsResponse = await bankAccountsRouter.request("/transactions/all");
-    assert.equal(allTransactionsResponse.status, 401);
-    assert.equal(allTransactionsResponse.headers.get("Cache-Control"), "no-store");
-
-    const syncResponse = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
-      method: "POST",
-      headers: { Origin: "http://localhost:5173" },
-    });
-    assert.equal(syncResponse.status, 401);
-    assert.equal(syncResponse.headers.get("Cache-Control"), "no-store");
-
-    const disconnectResponse = await bankAccountsRouter.request("/items/item-one", {
-      method: "DELETE",
-      headers: { Origin: "http://localhost:5173" },
-    });
-    assert.equal(disconnectResponse.status, 401);
-    assert.equal(disconnectResponse.headers.get("Cache-Control"), "no-store");
-
-    const key = Buffer.alloc(32, 37);
-    process.env["PLAID_CLIENT_ID"] = "test-client-id";
-    process.env["PLAID_SECRET"] = "test-secret";
-    process.env["PLAID_ENV"] = "sandbox";
-    process.env["PLAID_TOKEN_ENCRYPTION_KEY"] = key.toString("base64");
-    databaseModule.sqliteClient.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
-      .run("user-one", "User One", "one@example.test");
-    databaseModule.sqliteClient.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
-      .run("user-two", "User Two", "two@example.test");
-    databaseModule.sqliteClient.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
-      .run("item-one", "user-one", encryptPlaidValue("Bank One", key), encryptPlaidValue("mock-access-token", key));
-    databaseModule.sqliteClient.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token) VALUES (?, ?, ?, ?)")
-      .run("item-two", "user-one", encryptPlaidValue("Bank Two", key), encryptPlaidValue("other-mock-access-token", key));
-
-    const originalGetSession = auth.api.getSession;
-    const originalItemRemove = PlaidApi.prototype.itemRemove;
-    const originalTransactionsSync = PlaidApi.prototype.transactionsSync;
-    let sessionUserId = "someone-else";
-    let plaidRemoveCalls = 0;
-    const transactionSyncTokens = [];
-    auth.api.getSession = async () => ({ user: { id: sessionUserId } });
-    PlaidApi.prototype.itemRemove = async () => {
-      plaidRemoveCalls += 1;
-      return { data: { request_id: "mock-request" } };
-    };
-    PlaidApi.prototype.transactionsSync = async (request) => {
-      transactionSyncTokens.push(request.access_token);
-      return { data: { added: [], modified: [], removed: [], next_cursor: "fresh-cursor", has_more: false } };
-    };
-    try {
-      const wrongOwnerSync = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
-        method: "POST",
-        headers: { Origin: "http://localhost:5173" },
-      });
-      assert.equal(wrongOwnerSync.status, 404);
-      assert.equal(transactionSyncTokens.length, 0);
-
-      sessionUserId = "user-one";
-      const insertAllTransaction = databaseModule.sqliteClient.prepare(
-        "INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)",
-      );
-      for (const transaction of [
-        { itemId: "item-one", transactionId: "first-item-transaction", accountId: "plaid-one", name: "First bank" },
-        { itemId: "item-two", transactionId: "second-item-transaction", accountId: "plaid-two", name: "Second bank" },
-      ]) {
-        insertAllTransaction.run(
-          transaction.transactionId,
-          transaction.itemId,
-          "user-one",
-          transaction.accountId,
-          encryptPlaidValue(JSON.stringify({ transaction_id: transaction.transactionId, account_id: transaction.accountId, name: transaction.name, date: "2026-10-30", amount: 5 }), key),
-        );
+    const db = databaseModule.sqliteClient;
+    const key = getBankEncryptionKey();
+    const settings = { applicationId: "app_test", environment: "sandbox", certificate: null, privateKey: null, signingKey: null };
+    let sessionUserId = null;
+    let failRemoval = false;
+    const calls = [];
+    const transport = async (configuration, token, method, path) => {
+      assert.equal(configuration.applicationId, "app_test");
+      assert.equal(configuration.environment, "sandbox");
+      calls.push({ token, method, path });
+      if (method === "DELETE") {
+        if (failRemoval) throw new Error("sensitive remote failure");
+        return null;
       }
-      const allAcrossItemsResponse = await bankAccountsRouter.request("/transactions/all");
+      assert.equal(token, "mock-access-token", "only the selected institution's token reaches Teller");
+      if (path === "/accounts") return [{ id: "provider-account-one", enrollment_id: "item-one", name: "Checking", type: "depository", subtype: "checking", currency: "USD", last_four: "1234", status: "open", institution: { id: "bank-one", name: "Bank One" } }];
+      if (path === "/accounts/provider-account-one/balances") return { account_id: "provider-account-one", ledger: "125.00", available: "100.00" };
+      if (path === "/accounts/provider-account-one/transactions?count=500") return [];
+      assert.fail(`Unexpected Teller request: ${method} ${path}`);
+    };
+    const bankAccountsRouter = createBankAccountsRouter({ database: db, getUserId: async () => sessionUserId, getSettings: () => settings, getEncryptionKey: () => key, transport });
+    const request = (path, method = "GET", body) => bankAccountsRouter.request(path, {
+      method, headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    for (const [path, method] of [["/", "GET"], ["/items", "GET"], ["/transactions", "GET"], ["/transactions/all", "GET"], ["/account-one/transactions", "GET"], ["/transactions/sync", "POST"], ["/items/item-one/transactions/sync", "POST"], ["/items/item-one", "DELETE"], ["/connect-config", "POST"], ["/enroll", "POST"]]) {
+      const response = await request(path, method);
+      assert.equal(response.status, 401, `${method} ${path} requires authentication`);
+      assert.equal(response.headers.get("Cache-Control"), "no-store");
+    }
+    assert.deepEqual(calls, []);
+    for (const userId of ["user-one", "user-two"]) db.prepare("INSERT INTO user(id,name,email) VALUES(?,?,?)").run(userId, userId, `${userId}@example.test`);
+    const insertItem = db.prepare("INSERT INTO bank_item(item_id,user_id,encrypted_institution_name,encrypted_access_token,provider,provider_application_id,provider_environment,updated_at) VALUES(?,?,?,?, 'teller','app_test','sandbox',?)");
+    insertItem.run("item-one", "user-one", encryptBankValue("Bank One", key), encryptBankValue("mock-access-token", key), 1000);
+    insertItem.run("item-two", "user-one", encryptBankValue("Bank Two", key), encryptBankValue("other-mock-access-token", key), 2000);
+    insertItem.run("item-other-user", "user-two", encryptBankValue("Private Bank", key), encryptBankValue("private-access-token", key), 3000);
+    const originalGetSession = auth.api.getSession;
+    auth.api.getSession = async () => sessionUserId ? { user: { id: sessionUserId } } : null;
+    try {
+      sessionUserId = "user-two";
+      assert.equal((await request("/items/item-one/transactions/sync", "POST")).status, 404);
+      assert.equal((await request("/items/item-one", "DELETE")).status, 404);
+      assert.equal((await request("/account-one/transactions")).status, 404);
+      assert.deepEqual(calls, []);
+      sessionUserId = "user-one";
+      const insertTransaction = db.prepare("INSERT INTO bank_transaction(transaction_id,item_id,user_id,account_id,encrypted_data) VALUES(?,?,?,?,?)");
+      const saveTransaction = (id, item, owner, account, name) => insertTransaction.run(id, item, owner, account, encryptBankValue(JSON.stringify({ transaction_id: id, account_id: account, name, date: "2026-10-30", amount: 5 }), key));
+      saveTransaction("first-item-transaction", "item-one", "user-one", "provider-account-one", "First bank");
+      saveTransaction("second-item-transaction", "item-two", "user-one", "provider-account-two", "Second bank");
+      saveTransaction("private-transaction", "item-other-user", "user-two", "provider-account-one", "Private transaction");
+      const allAcrossItemsResponse = await request("/transactions/all");
       assert.equal(allAcrossItemsResponse.status, 200);
       assert.equal(allAcrossItemsResponse.headers.get("Cache-Control"), "no-store");
-      const allAcrossItemsPayload = await allAcrossItemsResponse.json();
-      assert.deepEqual(allAcrossItemsPayload.transactions.map((transaction) => transaction.name).sort(), ["First bank", "Second bank"]);
-
-      const institutionSync = await bankAccountsRouter.request("/items/item-one/transactions/sync", {
-        method: "POST",
-        headers: { Origin: "http://localhost:5173" },
-      });
+      assert.deepEqual((await allAcrossItemsResponse.json()).transactions.map(tx => tx.name).sort(), ["First bank", "Second bank"]);
+      const siblingBefore = db.prepare("SELECT * FROM bank_item WHERE item_id='item-two'").get();
+      const institutionSync = await request("/items/item-one/transactions/sync", "POST");
       assert.equal(institutionSync.status, 200);
       assert.deepEqual(await institutionSync.json(), { synced: true });
-      assert.deepEqual(transactionSyncTokens, ["mock-access-token"]);
-      assert.equal(decryptPlaidValue(databaseModule.sqliteClient.prepare("SELECT encrypted_transaction_cursor AS cursor FROM bank_item WHERE item_id = ?")
-        .get("item-one").cursor, key), "fresh-cursor");
-      assert.equal(databaseModule.sqliteClient.prepare("SELECT encrypted_transaction_cursor FROM bank_item WHERE item_id = ?")
-        .get("item-two").encrypted_transaction_cursor, null);
-
-      const snapshotUpdatedAt = Date.parse("2025-01-05T12:00:00.000Z") / 1000;
-      const itemRetrievedAt = Date.parse("2026-10-31T12:00:00.000Z") / 1000;
-      const accountSnapshot = {
-        name: "Checking",
-        officialName: null,
-        type: "depository",
-        subtype: "checking",
-        mask: "1234",
-        currentBalance: 125,
-        availableBalance: 100,
-        currencyCode: "USD",
-      };
-      databaseModule.sqliteClient.prepare("INSERT INTO bank_account (id, plaid_account_id, item_id, user_id, encrypted_data, updated_at) VALUES (?, ?, ?, ?, ?, ?)")
-        .run("account-one", "plaid-account-one", "item-one", "user-one", encryptPlaidValue(JSON.stringify(accountSnapshot), key), snapshotUpdatedAt);
-      databaseModule.sqliteClient.prepare("UPDATE bank_item SET updated_at = ? WHERE item_id = ?")
-        .run(itemRetrievedAt, "item-one");
-      const accountsResponse = await bankAccountsRouter.request("/");
+      assert.ok(calls.length > 0);
+      assert.ok(calls.every(call => call.token === "mock-access-token"));
+      assert.deepEqual(db.prepare("SELECT * FROM bank_item WHERE item_id='item-two'").get(), siblingBefore);
+      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_transaction WHERE item_id='item-two'").get().count, 1);
+      const account = db.prepare("SELECT id FROM bank_account WHERE item_id='item-one'").get();
+      assert.ok(account);
+      db.prepare("UPDATE bank_account SET updated_at=? WHERE id=?").run(Date.parse("2025-01-05T12:00:00.000Z") / 1000, account.id);
+      db.prepare("UPDATE bank_item SET updated_at=? WHERE item_id='item-one'").run(Date.parse("2026-10-31T12:00:00.000Z") / 1000);
+      const accountsResponse = await request("/");
       assert.equal(accountsResponse.status, 200);
       const accountPayload = await accountsResponse.json();
+      assert.equal(accountPayload.accounts.length, 1);
+      assert.equal(accountPayload.accounts[0].providerAccountId, "provider-account-one");
       assert.equal(accountPayload.accounts[0].updatedAt, "2025-01-05T12:00:00.000Z");
       assert.equal(accountPayload.accounts[0].lastRetrievedAt, "2026-10-31T12:00:00.000Z");
-
-      sessionUserId = "someone-else";
-      const wrongOwnerResponse = await bankAccountsRouter.request("/items/item-one", {
-        method: "DELETE",
-        headers: { Origin: "http://localhost:5173" },
-      });
-      assert.equal(wrongOwnerResponse.status, 404);
-      assert.equal(plaidRemoveCalls, 0);
-
+      const itemsResponse = await request("/items");
+      assert.equal(itemsResponse.status, 200);
+      const connections = (await itemsResponse.json()).connections;
+      assert.equal(connections.length, 2);
+      const empty = connections.find(connection => connection.itemId === "item-two");
+      assert.equal(empty.accountCount, 0);
+      assert.deepEqual(empty.accounts, []);
+      assert.deepEqual(connections.find(connection => connection.itemId === "item-one").accounts.map(child => child.id), [account.id]);
+      saveTransaction("owned-detail", "item-one", "user-one", "provider-account-one", "Owned detail");
+      saveTransaction("sibling-detail", "item-one", "user-one", "provider-sibling", "Sibling detail");
+      const detail = await request(`/${account.id}/transactions`);
+      assert.equal(detail.status, 200);
+      assert.deepEqual((await detail.json()).transactions.map(tx => tx.name), ["Owned detail"]);
+      const beforeWrongOwner = calls.length;
+      sessionUserId = "user-two";
+      assert.equal((await request(`/${account.id}/transactions`)).status, 404);
+      assert.equal((await request("/items/item-one", "DELETE")).status, 404);
+      assert.equal(calls.length, beforeWrongOwner);
       sessionUserId = "user-one";
-      const successfulDisconnect = await bankAccountsRouter.request("/items/item-one", {
-        method: "DELETE",
-        headers: { Origin: "http://localhost:5173" },
-      });
+      const state = () => ({ item: db.prepare("SELECT * FROM bank_item WHERE item_id='item-one'").get(), accounts: db.prepare("SELECT * FROM bank_account WHERE item_id='item-one'").all(), transactions: db.prepare("SELECT * FROM bank_transaction WHERE item_id='item-one' ORDER BY transaction_id").all() });
+      const beforeFailure = state();
+      failRemoval = true;
+      const failedDisconnect = await request("/items/item-one", "DELETE");
+      assert.equal(failedDisconnect.status, 502);
+      assert.doesNotMatch(await failedDisconnect.text(), /sensitive remote failure|mock-access-token/);
+      assert.deepEqual(state(), beforeFailure);
+      failRemoval = false;
+      const successfulDisconnect = await request("/items/item-one", "DELETE");
       assert.equal(successfulDisconnect.status, 204);
-      assert.equal(plaidRemoveCalls, 1);
-      assert.equal(databaseModule.sqliteClient.prepare("SELECT item_id FROM bank_item WHERE item_id = ?")
-        .get("item-one"), undefined);
+      assert.equal(calls.filter(call => call.method === "DELETE").length, 2);
+      assert.equal(db.prepare("SELECT item_id FROM bank_item WHERE item_id='item-one'").get(), undefined);
+      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_account WHERE item_id='item-one'").get().count, 0);
+      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_transaction WHERE item_id='item-one'").get().count, 0);
+      assert.deepEqual(db.prepare("SELECT * FROM bank_item WHERE item_id='item-two'").get(), siblingBefore);
+      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_transaction WHERE user_id='user-two'").get().count, 1);
 
       const originalFetch = globalThis.fetch;
       let zillowFetchCount = 0;
@@ -1431,8 +1397,7 @@ test("account sync requires authentication and disconnect removes only after Pla
       }
     } finally {
       auth.api.getSession = originalGetSession;
-      PlaidApi.prototype.itemRemove = originalItemRemove;
-      PlaidApi.prototype.transactionsSync = originalTransactionsSync;
+
     }
   } finally {
     await closeDatabase?.();
@@ -1442,4 +1407,4 @@ test("account sync requires authentication and disconnect removes only after Pla
     }
     await rm(temporaryDirectory, { recursive: true, force: true });
   }
-});
+}

@@ -751,20 +751,20 @@ h1 span {
 }
 
 .account-data-notice,
-.plaid-setup-notice {
+.teller-setup-notice {
   margin-bottom: 15px;
   padding: 17px 20px;
 }
 
 .account-data-notice strong,
-.plaid-setup-notice h2 {
+.teller-setup-notice h2 {
   display: block;
   margin-bottom: 6px;
   font-size: 11px;
 }
 
 .account-data-notice p,
-.plaid-setup-notice p {
+.teller-setup-notice p {
   max-width: 820px;
   margin: 0;
   color: #737970;
@@ -772,7 +772,7 @@ h1 span {
   line-height: 1.7;
 }
 
-.plaid-setup-notice {
+.teller-setup-notice {
   border-color: #eadcc8;
   background: #fffaf3;
 }
@@ -2230,6 +2230,45 @@ a.text-button {
   max-width: 410px;
 }
 
+/* Match the existing settings controls, with the green inset used for bank setup. */
+.teller-settings-card form { max-width: none; }
+.teller-settings-card fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.teller-settings-card fieldset:disabled { opacity: .65; }
+.teller-settings-card .form-field { min-width: 0; }
+.teller-settings-card textarea,
+.teller-settings-card select {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #dbe4d8;
+  border-radius: 6px;
+  background: #fff;
+  color: #20251f;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 400;
+}
+.teller-settings-card textarea { resize: vertical; font-family: ui-monospace, monospace; }
+.teller-settings-card textarea:focus,
+.teller-settings-card select:focus { outline: none; border-color: #6e9b76; box-shadow: 0 0 0 3px rgb(110 155 118 / 12%); }
+.teller-settings-card input[type="file"] { height: auto; padding: 8px; max-width: 100%; }
+.teller-credential-inset {
+  min-width: 0;
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid #dce7d9;
+  border-radius: 8px;
+  background: #f3f7f0;
+}
+.teller-credential-help { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.teller-settings-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.teller-settings-actions .primary-button { margin: 0; }
+.teller-settings-card .auth-message { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .teller-credential-inset { padding: 12px; }
+  .teller-settings-actions > button { width: 100%; }
+}
+
 .settings-card .primary-button {
   margin-top: 3px;
 }
@@ -2242,7 +2281,12 @@ a.text-button {
   font-size: 13px;
 }
 
+@media (max-width: 1100px) {
+  .settings-main { margin-left: 210px; }
+}
+
 @media (max-width: 800px) {
+  .settings-main { margin-left: 0; padding: 0 24px 26px; }
   .landing-page,
   .settings-page {
     padding-right: 24px;
@@ -2266,6 +2310,7 @@ a.text-button {
 }
 
 @media (max-width: 520px) {
+  .settings-main { padding-right: 16px; padding-left: 16px; }
   .landing-page,
   .settings-page {
     padding-right: 16px;

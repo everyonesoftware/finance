@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type Database from "better-sqlite3";
-import { decryptPlaidValue } from "./plaid.js";
+import { decryptBankValue } from "./bank-crypto.js";
 import { getRecentTransactions } from "./transaction-sync.js";
 
 export interface BankAccountSnapshotWrite {
-  plaidAccountId: string;
+  providerAccountId: string;
   encryptedData: string;
 }
 
@@ -23,13 +23,13 @@ export function refreshBankAccountSnapshots(
   const upsert = sqliteClient.prepare(`
     INSERT INTO bank_account (
       id,
-      plaid_account_id,
+      provider_account_id,
       item_id,
       user_id,
       encrypted_data,
       is_active
     ) VALUES (?, ?, ?, ?, ?, 1)
-    ON CONFLICT(item_id, plaid_account_id) DO UPDATE SET
+    ON CONFLICT(item_id, provider_account_id) DO UPDATE SET
       encrypted_data = excluded.encrypted_data,
       is_active = 1,
       updated_at = unixepoch()
@@ -38,7 +38,7 @@ export function refreshBankAccountSnapshots(
   for (const snapshot of snapshots) {
     upsert.run(
       randomUUID(),
-      snapshot.plaidAccountId,
+      snapshot.providerAccountId,
       itemId,
       userId,
       snapshot.encryptedData,
@@ -50,7 +50,7 @@ export function listAccountTransactions(
   sqliteClient: Database.Database,
   userId: string,
   itemId: string,
-  plaidAccountId: string,
+  providerAccountId: string,
   encryptionKey: Buffer,
 ): Array<Record<string, unknown>> {
   const rows = sqliteClient
@@ -58,10 +58,11 @@ export function listAccountTransactions(
       SELECT encrypted_data AS encryptedData
       FROM bank_transaction
       WHERE user_id = ? AND item_id = ? AND account_id = ?
+        AND EXISTS (SELECT 1 FROM bank_item i WHERE i.item_id=bank_transaction.item_id AND i.user_id=bank_transaction.user_id AND i.provider='teller')
     `)
-    .all(userId, itemId, plaidAccountId) as Array<{ encryptedData: string }>;
+    .all(userId, itemId, providerAccountId) as Array<{ encryptedData: string }>;
   const transactions = rows.map((row) =>
-    JSON.parse(decryptPlaidValue(row.encryptedData, encryptionKey)) as Record<string, unknown> & { date?: unknown },
+    JSON.parse(decryptBankValue(row.encryptedData, encryptionKey)) as Record<string, unknown> & { date?: unknown },
   );
   return getRecentTransactions(transactions);
 }
@@ -76,9 +77,10 @@ export function listAllUserTransactions(
       SELECT encrypted_data AS encryptedData
       FROM bank_transaction
       WHERE user_id = ?
+        AND EXISTS (SELECT 1 FROM bank_item i WHERE i.item_id=bank_transaction.item_id AND i.user_id=bank_transaction.user_id AND i.provider='teller')
     `)
     .all(userId) as Array<{ encryptedData: string }>;
   return rows.map((row) =>
-    JSON.parse(decryptPlaidValue(row.encryptedData, encryptionKey)) as Record<string, unknown>,
+    JSON.parse(decryptBankValue(row.encryptedData, encryptionKey)) as Record<string, unknown>,
   );
 }

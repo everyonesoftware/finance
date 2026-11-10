@@ -51,7 +51,7 @@ function dateOrdinal(value: string): number | null {
 
 function getFidelityAchTransferAccounts(
   transaction: TransactionRecord,
-  accountsByPlaidId: Map<string, BankAccount>,
+  accountsByProviderId: Map<string, BankAccount>,
   accounts: BankAccount[],
 ): { fromAccount: BankAccount; toAccount: BankAccount } | null {
   const name = stringField(transaction, "name");
@@ -64,7 +64,7 @@ function getFidelityAchTransferAccounts(
     !receivingAccountId
   ) return null;
 
-  const toAccount = accountsByPlaidId.get(receivingAccountId);
+  const toAccount = accountsByProviderId.get(receivingAccountId);
   if (!toAccount || toAccount.type !== "depository") return null;
   const sourceMention = findFidelityAchAccountMention(name, accounts);
   if (!sourceMention || sourceMention.account.id === toAccount.id) return null;
@@ -74,7 +74,7 @@ function getFidelityAchTransferAccounts(
 function plausiblePair(
   first: TransactionRecord,
   second: TransactionRecord,
-  accountsByPlaidId: Map<string, BankAccount>,
+  accountsByProviderId: Map<string, BankAccount>,
   accounts: BankAccount[],
 ): { fromAccount: BankAccount; toAccount: BankAccount } | null {
   const firstId = stringField(first, "account_id");
@@ -101,22 +101,22 @@ function plausiblePair(
   const secondOrdinal = dateOrdinal(secondDate);
   if (firstOrdinal === null || secondOrdinal === null || Math.abs(firstOrdinal - secondOrdinal) > 3) return null;
 
-  const firstAccount = accountsByPlaidId.get(firstId);
-  const secondAccount = accountsByPlaidId.get(secondId);
+  const firstAccount = accountsByProviderId.get(firstId);
+  const secondAccount = accountsByProviderId.get(secondId);
   if (!firstAccount || !secondAccount) return null;
   const firstReference = findReferencedAccount(firstName, accounts);
   const secondReference = findReferencedAccount(secondName, accounts);
-  if (firstReference?.plaidAccountId !== secondId || secondReference?.plaidAccountId !== firstId) return null;
+  if (firstReference?.providerAccountId !== secondId || secondReference?.providerAccountId !== firstId) return null;
 
   const toTransaction = firstDirection === "to" ? first : second;
   const fromTransaction = firstDirection === "from" ? first : second;
-  const fromAccount = accountsByPlaidId.get(stringField(toTransaction, "account_id") ?? "");
+  const fromAccount = accountsByProviderId.get(stringField(toTransaction, "account_id") ?? "");
   const toAccount = findReferencedAccount(stringField(toTransaction, "name") ?? "", accounts);
   if (!fromAccount || !toAccount || fromAccount.id === toAccount.id) return null;
 
   // The incoming-side transaction must belong to the receiving account.
   const incomingAccountId = stringField(fromTransaction, "account_id");
-  if (incomingAccountId !== toAccount.plaidAccountId) return null;
+  if (incomingAccountId !== toAccount.providerAccountId) return null;
   return { fromAccount, toAccount };
 }
 
@@ -124,9 +124,9 @@ export function groupInternalTransfers(
   transactions: TransactionRecord[],
   accounts: BankAccount[],
 ): TransactionGroup[] {
-  const accountsByPlaidId = new Map<string, BankAccount>();
+  const accountsByProviderId = new Map<string, BankAccount>();
   for (const account of accounts) {
-    if (account.plaidAccountId) accountsByPlaidId.set(account.plaidAccountId, account);
+    if (account.providerAccountId) accountsByProviderId.set(account.providerAccountId, account);
   }
 
   const groups: TransactionGroup[] = [];
@@ -142,7 +142,7 @@ export function groupInternalTransfers(
       if (consumed.has(candidateIndex)) continue;
       const candidate = transactions[candidateIndex];
       if (!candidate) continue;
-      const pair = plausiblePair(transaction, candidate, accountsByPlaidId, accounts);
+      const pair = plausiblePair(transaction, candidate, accountsByProviderId, accounts);
       if (pair) {
         counterpartIndex = candidateIndex;
         pairedAccounts = pair;
@@ -151,7 +151,7 @@ export function groupInternalTransfers(
     }
 
     if (counterpartIndex < 0) {
-      const describedTransfer = getFidelityAchTransferAccounts(transaction, accountsByPlaidId, accounts);
+      const describedTransfer = getFidelityAchTransferAccounts(transaction, accountsByProviderId, accounts);
       if (describedTransfer) {
         groups.push({ type: "transfer", transactions: [transaction], ...describedTransfer });
         continue;
@@ -184,9 +184,9 @@ function renderTransactionRow(
   const date = stringField(transaction, "date") ?? "Date unavailable";
   const pending = transaction["pending"] === true ? " · Pending" : "";
   const amount = numberField(transaction, "amount") ?? Number.NaN;
-  const plaidAccountId = stringField(transaction, "account_id");
-  const account = showAccount && plaidAccountId
-    ? accounts.find((candidate) => candidate.plaidAccountId === plaidAccountId)
+  const providerAccountId = stringField(transaction, "account_id");
+  const account = showAccount && providerAccountId
+    ? accounts.find((candidate) => candidate.providerAccountId === providerAccountId)
     : undefined;
   const accountLabel = account
     ? `<span class="transaction-account-label">${escapeHtml(account.institutionName)} · ${escapeHtml(account.name)}</span>`
