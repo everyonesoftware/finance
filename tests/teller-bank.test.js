@@ -68,7 +68,8 @@ test('native HTTPS enforces a total timeout even with no response',async(t)=>{
 
 test('exported router works under the production accounts mount',async()=>{
  const {mkdtemp,rm}=await import('node:fs/promises');const {join}=await import('node:path');const {Hono}=await import('hono');
- const temp=await mkdtemp(join(process.env.TMPDIR,'teller-mount-test-'));
+ const {tmpdir}=await import('node:os');
+ const temp=await mkdtemp(join(process.env.TMPDIR || tmpdir(),'teller-mount-test-'));
  process.env.ORIGIN_URL='http://localhost:5173';process.env.DATABASE_PATH=join(temp,'fixture.sqlite');process.env.BETTER_AUTH_SECRET='isolated-teller-mount-fixture-secret-32-chars';
  const {runMigrations,sqliteClient,closeDatabase}=await import('../server/database.ts');await runMigrations();
  const {auth}=await import('../server/auth.ts');const original=auth.api.getSession;
