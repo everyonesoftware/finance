@@ -75,7 +75,6 @@ export function initializeRealEstateConnections(onSaved: () => void): void {
     dialog?.showModal();
   });
   document.querySelector("#close-connection-dialog")?.addEventListener("click",()=>dialog?.close());
-  document.querySelector("#choose-teller")?.addEventListener("click",()=>{dialog?.close(); location.href="/accounts?connect=teller";});
   document.querySelector("#choose-real-estate")?.addEventListener("click",()=>{if(choices)choices.hidden=true;if(wizard)wizard.hidden=false;if(connectionDialogTitle)connectionDialogTitle.textContent="Add Real Estate";if(dialog)dialog.dataset.step="address";});
   back?.addEventListener("click",()=>{
     if(stepProvider&&!stepProvider.hidden){resetAddressStep();if(dialog)dialog.dataset.step="address";return;}

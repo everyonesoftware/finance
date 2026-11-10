@@ -72,11 +72,11 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
           <div>
             <p class="eyebrow">ALL ACCOUNTS</p>
             <h1>Transactions</h1>
-            <p class="subheading">Search your activity across every connected account.</p>
+            <p class="subheading">Search saved activity across your accounts.</p>
           </div>
-          <button class="primary-button" id="sync-all-transactions" type="button">Sync transactions</button>
+
         </section>
-        <p id="all-transactions-status" class="auth-message" role="status" aria-live="polite" hidden></p>
+        <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
 
         <section class="panel transaction-filters" aria-labelledby="transaction-filters-title">
           <div class="transaction-filter-toolbar">
@@ -154,14 +154,14 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
           </div>
           <div id="all-transactions-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
         </section>
-        <footer class="page-footer">Your finances, in focus.<span>Transactions across connected institutions</span></footer>
+        <footer class="page-footer">Your finances, in focus.<span>Previously saved transactions</span></footer>
       </main>
     </div>
   `;
 }
 
 function renderAccountOptions(accounts: BankAccount[]): string {
-  if (accounts.length === 0) return `<span class="transaction-filter-empty">No connected accounts.</span>`;
+  if (accounts.length === 0) return `<span class="transaction-filter-empty">No saved accounts.</span>`;
   const options = accounts.map((account) => {
     const mask = account.mask ? ` · •••• ${escapeHtml(account.mask)}` : "";
     const id = escapeHtml(account.id);
@@ -231,7 +231,6 @@ export async function initializeTransactionsPage(): Promise<void> {
   const minimumInput = document.querySelector<HTMLInputElement>("#minimum-transaction-amount");
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
-  const syncButton = document.querySelector<HTMLButtonElement>("#sync-all-transactions");
   if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !resetAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
@@ -339,7 +338,7 @@ export async function initializeTransactionsPage(): Promise<void> {
       list.textContent = selectedAccountIds.length === 0
         ? "No accounts are selected. Select one or more accounts to view transactions."
         : transactions.length === 0
-          ? "No transactions are available yet. Sync transactions to load activity."
+          ? "No saved transactions are available."
           : "No transactions match these filters.";
       return;
     }
@@ -452,9 +451,9 @@ export async function initializeTransactionsPage(): Promise<void> {
     maximumAmount = bounds.maximum;
     syncRangeBounds(preserveAmountSelection);
     renderResults();
-    if (payload.configured === false && status) {
+    if (status) {
       status.hidden = false;
-      status.innerHTML = `Teller is not configured. <a class="text-button" href="/settings">Configure Teller in Settings</a> to view synced transactions.`;
+      status.textContent = "Bank connections and syncing are unavailable. Previously saved data remains available.";
     }
   };
 
@@ -604,37 +603,6 @@ export async function initializeTransactionsPage(): Promise<void> {
   maximumInput.addEventListener("input", () => handleAmountInput("maximum", maximumInput));
   minimumInput.addEventListener("change", () => handleAmountInputCommit("minimum", minimumInput));
   maximumInput.addEventListener("change", () => handleAmountInputCommit("maximum", maximumInput));
-
-  if (syncButton) {
-    syncButton.addEventListener("click", async () => {
-      syncButton.disabled = true;
-      if (status) {
-        status.hidden = false;
-        status.classList.remove("error", "success");
-        status.textContent = "Syncing transactions across connected accounts…";
-      }
-      try {
-        const response = await fetch("/api/accounts/transactions/sync", {
-          method: "POST",
-          credentials: "same-origin",
-        });
-        const payload = await response.json() as { error?: string };
-        if (!response.ok) throw new Error(payload.error ?? "Unable to sync transactions.");
-        await loadTransactions();
-        if (status) {
-          status.textContent = "Transactions synced.";
-          status.classList.add("success");
-        }
-      } catch (error) {
-        if (status) {
-          status.textContent = error instanceof Error ? error.message : "Unable to sync transactions.";
-          status.classList.add("error");
-        }
-      } finally {
-        syncButton.disabled = false;
-      }
-    });
-  }
 
   try {
     await loadTransactions();

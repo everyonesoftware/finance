@@ -62,14 +62,16 @@ export function renderDashboard(user: DashboardUser): string {
           <h1>Welcome, ${displayName} <span aria-hidden="true">✳</span></h1>
           <p class="subheading">Here’s what’s happening with your money.</p>
         </div>
-        <button class="primary-button" type="button" id="sync-transactions">Sync transactions</button>
+
       </section>
+
+      <p class="bank-data-notice">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
 
       <section class="summary-grid" aria-label="Financial summary">
         <article class="summary-card balance-card">
           <div class="card-label">Total balance</div>
           <div class="card-value" id="overview-total-balance">Loading…</div>
-          <div class="card-foot"><span>Across connected accounts</span></div>
+          <div class="card-foot"><span>Across saved accounts</span></div>
           <div class="balance-decoration" aria-hidden="true"></div>
         </article>
       </section>
@@ -80,18 +82,17 @@ export function renderDashboard(user: DashboardUser): string {
             <div><h2>Recent transactions</h2><p>Your latest activity at a glance</p></div>
           </div>
           <div id="transaction-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
-          <p id="transaction-status" role="status" hidden></p>
         </article>
 
         <article class="panel accounts-panel" id="accounts">
           <div class="panel-heading">
-            <div><h2>Bank accounts</h2><p>Accounts connected to your profile</p></div>
+            <div><h2>Bank accounts</h2><p>Previously saved accounts</p></div>
             <a class="text-button" href="/accounts">See all</a>
           </div>
           <div id="overview-bank-accounts" aria-live="polite">
             <div class="account-empty">Loading your bank accounts…</div>
           </div>
-          <a class="connect-button" href="/accounts"><span aria-hidden="true">＋</span> Connect an account</a>
+
         </article>
       </section>
 

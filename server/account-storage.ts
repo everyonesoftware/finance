@@ -58,7 +58,7 @@ export function listAccountTransactions(
       SELECT encrypted_data AS encryptedData
       FROM bank_transaction
       WHERE user_id = ? AND item_id = ? AND account_id = ?
-        AND EXISTS (SELECT 1 FROM bank_item i WHERE i.item_id=bank_transaction.item_id AND i.user_id=bank_transaction.user_id AND i.provider='teller')
+        AND EXISTS (SELECT 1 FROM bank_item i WHERE i.item_id=bank_transaction.item_id AND i.user_id=bank_transaction.user_id AND i.provider <> 'legacy')
     `)
     .all(userId, itemId, providerAccountId) as Array<{ encryptedData: string }>;
   const transactions = rows.map((row) =>
@@ -77,7 +77,7 @@ export function listAllUserTransactions(
       SELECT encrypted_data AS encryptedData
       FROM bank_transaction
       WHERE user_id = ?
-        AND EXISTS (SELECT 1 FROM bank_item i WHERE i.item_id=bank_transaction.item_id AND i.user_id=bank_transaction.user_id AND i.provider='teller')
+        AND EXISTS (SELECT 1 FROM bank_item i WHERE i.item_id=bank_transaction.item_id AND i.user_id=bank_transaction.user_id AND i.provider <> 'legacy')
     `)
     .all(userId) as Array<{ encryptedData: string }>;
   return rows.map((row) =>

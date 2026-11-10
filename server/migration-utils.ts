@@ -12,6 +12,16 @@ export function applySqlMigration(
       const discovered = candidates[0]!.name.replaceAll('"', '""');
       database.exec(`ALTER TABLE "bank_account" RENAME COLUMN "${discovered}" TO "provider_account_id"`);
     }
+    // The neutral migration name may be new to a database whose schema is already upgraded.
+    // Inspect columns rather than relying on historical migration-ledger filenames.
+    const itemColumns = new Set((database.prepare('PRAGMA table_info("bank_item")').all() as Array<{ name: string }>).map(column => column.name));
+    for (const statement of migration.replace(/^--.*$/gm, "").split(";").map(value => value.trim()).filter(Boolean)) {
+      const addedColumn = statement.match(/^ALTER TABLE bank_item ADD COLUMN ([a-z_]+)\s/i)?.[1];
+      if (addedColumn && itemColumns.has(addedColumn)) continue;
+      database.exec(statement);
+      if (addedColumn) itemColumns.add(addedColumn);
+    }
+    return;
   }
   const statements: string[] = migration
     .split(";")

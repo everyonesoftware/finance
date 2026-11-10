@@ -292,7 +292,7 @@ test("dashboard shows only implemented account and transaction features", () => 
   assert.match(html, /id="overview-total-balance"/);
   assert.match(html, /id="overview-bank-accounts"/);
   assert.match(html, /id="transaction-list"/);
-  assert.match(html, /id="sync-transactions"/);
+  assert.doesNotMatch(html, /id="sync-transactions"/);
   assert.ok(html.includes('href="/transactions"'));
   assert.doesNotMatch(html, /Not available yet|Spending overview|chart-placeholder|Budgets|View all transactions/);
   assert.match(html, /class="app-version">Version dev<\/span>/);
@@ -503,7 +503,7 @@ test("overview bank-account list escapes values and links additional accounts", 
   assert.equal((html.match(/class="overview-account-link"/g) ?? []).length, 4);
   assert.match(html, /\+1 more account/);
   assert.doesNotMatch(html, /<Checking>|Bank <One>/);
-  assert.match(renderOverviewBankAccounts([]), /No bank accounts connected yet/);
+  assert.match(renderOverviewBankAccounts([]), /No saved bank accounts yet/);
 });
 
 test("overview total balance subtracts credit and loan balances", () => {
@@ -563,7 +563,7 @@ test("accounts page renders credit and loan balances as negative and red", () =>
   assert.match(html, /href="\/accounts\/account-1"/);
 });
 
-test("institution cards provide a sync action and hide disconnect in the overflow menu", () => {
+test("institution cards retain saved retrieval timestamps without bank mutation actions", () => {
   const account = {
     id: "account-1",
     itemId: "item-1",
@@ -580,19 +580,14 @@ test("institution cards provide a sync action and hide disconnect in the overflo
     lastRetrievedAt: "2026-10-31T12:00:00.000Z",
   };
   const html = renderAccounts([account]);
-  const syncIndex = html.indexOf("sync-institution-button");
-  const menuIndex = html.indexOf('class="institution-actions-menu"');
-  const disconnectIndex = html.indexOf("disconnect-bank");
-
-  assert.ok(syncIndex >= 0, "institution sync button should be rendered");
-  assert.ok(menuIndex > syncIndex, "overflow menu should follow the sync button");
-  assert.ok(disconnectIndex > menuIndex, "disconnect action should be inside the overflow menu");
-  assert.match(html, /aria-label="Synchronize Bank One"/);
-  assert.match(html, /aria-label="More actions for Bank One"/);
+  assert.doesNotMatch(html, /sync-institution-button|institution-actions-menu|disconnect-bank/);
+  assert.doesNotMatch(html, /aria-label="Synchronize Bank One"|aria-label="More actions for Bank One"/);
+  assert.match(html, /Bank One/);
+  assert.match(html, /Checking/);
+  assert.match(html, /href="\/accounts\/account-1"/);
   assert.match(html, /class="institution-last-retrieved">Last retrieved Oct 31, 2026/);
-  assert.ok(html.indexOf("institution-last-retrieved") < syncIndex);
   assert.doesNotMatch(html, /institution-updated|Jan 5, 2025/);
-  assert.match(html, /data-item-id="item-1"/);
+  assert.match(html, /aria-label="Bank One accounts"/);
 });
 
 test("real-estate page loads only property cards and excludes bank connection UI", () => {
@@ -610,12 +605,13 @@ test("real-estate page loads only property cards and excludes bank connection UI
   assert.match(html, /2 accounts/);
   assert.match(html, /Checking/);
   assert.match(html, /Savings/);
-  assert.match(renderConnections([]), /No Teller connections yet/);
+  assert.match(renderConnections([]), /No saved bank connections/);
+  assert.doesNotMatch(html, /sync-institution|disconnect-bank|delete-connection-button|connection-actions-menu/);
   const page = renderConnectionsPage({ displayName: "Test", username: "test" });
   assert.match(page, /class="nav-link active" href="\/real-estate" aria-current="page"/);
   assert.match(page, /id="real-estate-properties"/);
   assert.match(page, /id="add-property"/);
-  assert.doesNotMatch(page, /api\/accounts|choose-teller|connection-choices/);
+  assert.doesNotMatch(page, /api\/accounts|connect-bank|connection-choices/);
 });
 
 test("Zillow Zestimate parser reads only the home Zestimate from the Open Graph description", () => {
@@ -648,7 +644,10 @@ test("Zillow page fetch accepts only HTTPS home-details URLs on Zillow", async (
 test("property cards render a delete menu and the real-estate page omits the old shared dialog", () => {
   const bank = renderConnections([{ itemId: "item-delete", institutionName: "Bank Delete", lastRetrievedAt: "2026-10-31T12:00:00.000Z", accountCount: 0, accounts: [] }]);
   const estate = renderRealEstateCards([{ id: "home-delete", address: "42 Main Street", latitude: 47, longitude: -122, estimates: [] }]);
-  for (const [html, id, name] of [[bank, "item-delete", "Bank Delete"], [estate, "home-delete", "42 Main Street"]]) {
+  assert.match(bank, /Bank Delete/);
+  assert.match(bank, /0 accounts/);
+  assert.doesNotMatch(bank, /connection-actions-menu|connection-menu-trigger|delete-connection-button|disconnect-bank/);
+  for (const [html, id, name] of [[estate, "home-delete", "42 Main Street"]]) {
     assert.match(html, /class="connection-actions-menu"/);
     assert.match(html, /class="connection-menu-trigger"[^>]*>[\s\S]*⋯<\/span>[\s\S]*<\/summary>/);
     assert.match(html, /class="connection-menu-popup"[^>]*>[\s\S]*class="delete-connection-button"[^>]*>Delete<\/button>/);
@@ -807,21 +806,20 @@ test("logout action is placed in a Settings section after Change password", asyn
   assert.doesNotMatch(settingsSource.slice(0, logoutSection), /logout-button/);
 });
 
-test("bank connection client requests owned Connect configuration and saves the enrollment", async () => {
+test("bank client only reads saved accounts and transactions without connection or sync handlers", async () => {
   const client = await readFile(new URL("../src/bank_accounts.ts", import.meta.url), "utf8");
-  assert.match(client, /\/api\/accounts\/connect-config/);
-  assert.match(client, /\/api\/accounts\/enroll/);
-  assert.match(client, /TellerConnect\.setup\(/);
-  assert.match(client, /applicationId/);
-  assert.match(client, /environment/);
-  assert.match(client, /JSON\.stringify\(\{\s*\.\.\.enrollment,\s*nonce\s*\}\)/);
-  assert.match(client, /completeTellerConnection\(enrollment,\s*nonce\)/);
+  assert.doesNotMatch(client, /\/api\/accounts\/(?:connect-config|enroll)|\/transactions\/sync|sync-institution|disconnect-bank|complete\w+Connection/);
+  assert.match(client, /export interface BankConnection/);
+  assert.match(client, /export function renderConnections\(/);
+  assert.match(client, /\/api\/accounts/);
+  assert.match(client, /\/transactions/);
 });
 
-test("accounts page places sync-all before Connect a bank", () => {
+test("accounts page keeps saved account loading targets without sync or connect controls", () => {
   const html = renderBankAccountsPage({ displayName: "Test User", username: "test-user" });
-  assert.ok(html.indexOf('id="sync-all-institutions"') >= 0);
-  assert.ok(html.indexOf('id="sync-all-institutions"') < html.indexOf('id="connect-bank"'));
+  assert.doesNotMatch(html, /id="sync-all-institutions"|id="connect-bank"|Connect a bank/);
+  assert.match(html, /id="connected-accounts"/);
+  assert.match(html, /Loading/);
 });
 
 test("account detail page provides a protected-page shell and loading target", () => {
@@ -829,8 +827,10 @@ test("account detail page provides a protected-page shell and loading target", (
   assert.match(html, /id="account-detail-content"/);
   assert.match(html, /href="\/accounts"/);
   assert.match(html, /Loading account details and transactions/);
-  assert.match(html, /id="sync-account-transactions"/);
-  assert.match(html, /id="account-transaction-status"/);
+  assert.doesNotMatch(html, /id="sync-account-transactions"/);
+  assert.match(html, /class="bank-data-notice"[^>]*role="status"/);
+  assert.match(html, /Previously saved data remains available/);
+  assert.match(html, /id="account-detail-content"[^>]*aria-live="polite"/);
   assert.match(html, /class="app-version">Version dev<\/span>/);
   assert.match(html, /&lt;A User&gt;/);
   assert.doesNotMatch(html, /<A User>/);
@@ -989,7 +989,7 @@ test("bank-account migration creates user-owned encrypted data tables", async ()
     .run("user-two", "User Two", "two@example.test");
   database
     .prepare(
-      "INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')",
+      "INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'imported')",
     )
     .run("item-one", "user-one", "encrypted-name", "encrypted-token");
   database
@@ -1062,7 +1062,7 @@ test("account refresh preserves historical account IDs while hiding inactive acc
   }
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-one", "User One", "one@example.test");
-  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')")
+  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'imported')")
     .run("item-one", "user-one", "encrypted-name", "encrypted-token");
 
   refreshBankAccountSnapshots(database, "item-one", "user-one", [
@@ -1101,7 +1101,7 @@ test("account transaction queries are scoped to the owning user, item, and accou
     .run("user-one", "User One", "one@example.test");
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-two", "User Two", "two@example.test");
-  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')");
+  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'imported')");
   insertItem.run("item-one", "user-one", "encrypted-name", "encrypted-token");
   insertItem.run("item-two", "user-two", "encrypted-name", "encrypted-token");
   insertItem.run("item-three", "user-one", "encrypted-name", "encrypted-token");
@@ -1135,7 +1135,7 @@ test("all transaction queries return every account for one user without the dash
     .run("user-one", "User One", "one@example.test");
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-two", "User Two", "two@example.test");
-  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')");
+  const insertItem = database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'imported')");
   insertItem.run("item-one", "user-one", "encrypted-name", "encrypted-token");
   insertItem.run("item-two", "user-two", "encrypted-name", "encrypted-token");
   const key = Buffer.alloc(32, 23);
@@ -1184,7 +1184,7 @@ test("transaction migration stores encrypted transaction records and protected s
     .run("user-one", "User One", "one@example.test");
   database.prepare("INSERT INTO user (id, name, email) VALUES (?, ?, ?)")
     .run("user-two", "User Two", "two@example.test");
-  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'teller')")
+  database.prepare("INSERT INTO bank_item (item_id, user_id, encrypted_institution_name, encrypted_access_token, provider) VALUES (?, ?, ?, ?, 'imported')")
     .run("item-one", "user-one", "encrypted-name", "encrypted-token");
   database.prepare("INSERT INTO bank_transaction (transaction_id, item_id, user_id, account_id, encrypted_data) VALUES (?, ?, ?, ?, ?)")
     .run("tx-one", "item-one", "user-one", "account-one", "encrypted-payload");
@@ -1201,7 +1201,7 @@ test("transaction migration stores encrypted transaction records and protected s
   database.close();
 });
 
-test("account sync and disconnect enforce owner scope and preserve data on remote failure", async () => {
+test("saved bank lifecycle enforces owner scope and rejects mutations without changing bank or property data", async () => {
   const result = spawnSync(process.execPath, ["--input-type=module", "--eval", `
     import assert from "node:assert/strict";
     import { mkdtemp, rm } from "node:fs/promises";
@@ -1234,40 +1234,34 @@ async function runBankAndPropertyLifecycle() {
     await databaseModule.runMigrations();
     const db = databaseModule.sqliteClient;
     const key = getBankEncryptionKey();
-    const settings = { applicationId: "app_test", environment: "sandbox", certificate: null, privateKey: null, signingKey: null };
     let sessionUserId = null;
-    let failRemoval = false;
     const calls = [];
-    const transport = async (configuration, token, method, path) => {
-      assert.equal(configuration.applicationId, "app_test");
-      assert.equal(configuration.environment, "sandbox");
-      calls.push({ token, method, path });
-      if (method === "DELETE") {
-        if (failRemoval) throw new Error("sensitive remote failure");
-        return null;
-      }
-      assert.equal(token, "mock-access-token", "only the selected institution's token reaches Teller");
-      if (path === "/accounts") return [{ id: "provider-account-one", enrollment_id: "item-one", name: "Checking", type: "depository", subtype: "checking", currency: "USD", last_four: "1234", status: "open", institution: { id: "bank-one", name: "Bank One" } }];
-      if (path === "/accounts/provider-account-one/balances") return { account_id: "provider-account-one", ledger: "125.00", available: "100.00" };
-      if (path === "/accounts/provider-account-one/transactions?count=500") return [];
-      assert.fail(`Unexpected Teller request: ${method} ${path}`);
+    const originalBankFetch = globalThis.fetch;
+    globalThis.fetch = async (...args) => {
+      calls.push(args);
+      throw new Error("Saved bank APIs must never make outbound requests");
     };
-    const bankAccountsRouter = createBankAccountsRouter({ database: db, getUserId: async () => sessionUserId, getSettings: () => settings, getEncryptionKey: () => key, transport });
+    const bankAccountsRouter = createBankAccountsRouter({ database: db, getUserId: async () => sessionUserId, getEncryptionKey: () => key });
     const request = (path, method = "GET", body) => bankAccountsRouter.request(path, {
       method, headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    for (const [path, method] of [["/", "GET"], ["/items", "GET"], ["/transactions", "GET"], ["/transactions/all", "GET"], ["/account-one/transactions", "GET"], ["/transactions/sync", "POST"], ["/items/item-one/transactions/sync", "POST"], ["/items/item-one", "DELETE"], ["/connect-config", "POST"], ["/enroll", "POST"]]) {
+    const mutations = [["/transactions/sync", "POST"], ["/items/item-one/transactions/sync", "POST"], ["/items/item-one", "DELETE"], ["/connect-config", "POST"], ["/enroll", "POST"], ["/", "POST"], ["/account-one", "PATCH"], ["/items/item-one", "PUT"]];
+    for (const [path, method] of [["/", "GET"], ["/items", "GET"], ["/transactions", "GET"], ["/transactions/all", "GET"], ["/account-one/transactions", "GET"], ...mutations]) {
       const response = await request(path, method);
       assert.equal(response.status, 401, `${method} ${path} requires authentication`);
       assert.equal(response.headers.get("Cache-Control"), "no-store");
     }
     assert.deepEqual(calls, []);
     for (const userId of ["user-one", "user-two"]) db.prepare("INSERT INTO user(id,name,email) VALUES(?,?,?)").run(userId, userId, `${userId}@example.test`);
-    const insertItem = db.prepare("INSERT INTO bank_item(item_id,user_id,encrypted_institution_name,encrypted_access_token,provider,provider_application_id,provider_environment,updated_at) VALUES(?,?,?,?, 'teller','app_test','sandbox',?)");
+    const insertItem = db.prepare("INSERT INTO bank_item(item_id,user_id,encrypted_institution_name,encrypted_access_token,provider,updated_at) VALUES(?,?,?,?, 'imported',?)");
     insertItem.run("item-one", "user-one", encryptBankValue("Bank One", key), encryptBankValue("mock-access-token", key), 1000);
     insertItem.run("item-two", "user-one", encryptBankValue("Bank Two", key), encryptBankValue("other-mock-access-token", key), 2000);
     insertItem.run("item-other-user", "user-two", encryptBankValue("Private Bank", key), encryptBankValue("private-access-token", key), 3000);
+    const account = { id: "account-one" };
+    const snapshot = { name: "Checking", officialName: "Everyday Checking", type: "depository", subtype: "checking", mask: "1234", currentBalance: 125, availableBalance: 100, currencyCode: "USD" };
+    db.prepare("INSERT INTO bank_account(id,provider_account_id,item_id,user_id,encrypted_data,updated_at) VALUES(?,?,?,?,?,?)").run(account.id, "provider-account-one", "item-one", "user-one", encryptBankValue(JSON.stringify(snapshot), key), Date.parse("2025-01-05T12:00:00.000Z") / 1000);
+    db.prepare("UPDATE bank_item SET updated_at=? WHERE item_id='item-one'").run(Date.parse("2026-10-31T12:00:00.000Z") / 1000);
     const originalGetSession = auth.api.getSession;
     auth.api.getSession = async () => sessionUserId ? { user: { id: sessionUserId } } : null;
     try {
@@ -1278,6 +1272,7 @@ async function runBankAndPropertyLifecycle() {
       assert.deepEqual(calls, []);
       sessionUserId = "user-one";
       const insertTransaction = db.prepare("INSERT INTO bank_transaction(transaction_id,item_id,user_id,account_id,encrypted_data) VALUES(?,?,?,?,?)");
+
       const saveTransaction = (id, item, owner, account, name) => insertTransaction.run(id, item, owner, account, encryptBankValue(JSON.stringify({ transaction_id: id, account_id: account, name, date: "2026-10-30", amount: 5 }), key));
       saveTransaction("first-item-transaction", "item-one", "user-one", "provider-account-one", "First bank");
       saveTransaction("second-item-transaction", "item-two", "user-one", "provider-account-two", "Second bank");
@@ -1285,29 +1280,32 @@ async function runBankAndPropertyLifecycle() {
       const allAcrossItemsResponse = await request("/transactions/all");
       assert.equal(allAcrossItemsResponse.status, 200);
       assert.equal(allAcrossItemsResponse.headers.get("Cache-Control"), "no-store");
-      assert.deepEqual((await allAcrossItemsResponse.json()).transactions.map(tx => tx.name).sort(), ["First bank", "Second bank"]);
+      const allAcrossItems = await allAcrossItemsResponse.json();
+      assert.equal(allAcrossItems.configured, false);
+      assert.deepEqual(allAcrossItems.transactions.map(tx => tx.name).sort(), ["First bank", "Second bank"]);
       const siblingBefore = db.prepare("SELECT * FROM bank_item WHERE item_id='item-two'").get();
-      const institutionSync = await request("/items/item-one/transactions/sync", "POST");
-      assert.equal(institutionSync.status, 200);
-      assert.deepEqual(await institutionSync.json(), { synced: true });
-      assert.ok(calls.length > 0);
-      assert.ok(calls.every(call => call.token === "mock-access-token"));
-      assert.deepEqual(db.prepare("SELECT * FROM bank_item WHERE item_id='item-two'").get(), siblingBefore);
-      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_transaction WHERE item_id='item-two'").get().count, 1);
-      const account = db.prepare("SELECT id FROM bank_account WHERE item_id='item-one'").get();
-      assert.ok(account);
-      db.prepare("UPDATE bank_account SET updated_at=? WHERE id=?").run(Date.parse("2025-01-05T12:00:00.000Z") / 1000, account.id);
-      db.prepare("UPDATE bank_item SET updated_at=? WHERE item_id='item-one'").run(Date.parse("2026-10-31T12:00:00.000Z") / 1000);
+      const recentResponse = await request("/transactions");
+      assert.equal(recentResponse.status, 200);
+      assert.equal(recentResponse.headers.get("Cache-Control"), "no-store");
+      const recentPayload = await recentResponse.json();
+      assert.equal(recentPayload.configured, false);
+      assert.deepEqual(recentPayload.transactions.map(tx => tx.name).sort(), ["First bank", "Second bank"]);
+      assert.deepEqual(calls, []);
       const accountsResponse = await request("/");
       assert.equal(accountsResponse.status, 200);
       const accountPayload = await accountsResponse.json();
+      assert.equal(accountPayload.configured, false);
       assert.equal(accountPayload.accounts.length, 1);
+      assert.equal(accountPayload.accounts[0].name, "Checking");
+      assert.equal(accountPayload.accounts[0].currentBalance, 125);
       assert.equal(accountPayload.accounts[0].providerAccountId, "provider-account-one");
       assert.equal(accountPayload.accounts[0].updatedAt, "2025-01-05T12:00:00.000Z");
       assert.equal(accountPayload.accounts[0].lastRetrievedAt, "2026-10-31T12:00:00.000Z");
       const itemsResponse = await request("/items");
       assert.equal(itemsResponse.status, 200);
-      const connections = (await itemsResponse.json()).connections;
+      const itemPayload = await itemsResponse.json();
+      assert.equal(itemPayload.configured, false);
+      const connections = itemPayload.connections;
       assert.equal(connections.length, 2);
       const empty = connections.find(connection => connection.itemId === "item-two");
       assert.equal(empty.accountCount, 0);
@@ -1317,29 +1315,31 @@ async function runBankAndPropertyLifecycle() {
       saveTransaction("sibling-detail", "item-one", "user-one", "provider-sibling", "Sibling detail");
       const detail = await request(`/${account.id}/transactions`);
       assert.equal(detail.status, 200);
-      assert.deepEqual((await detail.json()).transactions.map(tx => tx.name), ["Owned detail"]);
+      assert.deepEqual((await detail.json()).transactions.map(tx => tx.name).sort(), ["First bank", "Owned detail"]);
       const beforeWrongOwner = calls.length;
       sessionUserId = "user-two";
       assert.equal((await request(`/${account.id}/transactions`)).status, 404);
       assert.equal((await request("/items/item-one", "DELETE")).status, 404);
       assert.equal(calls.length, beforeWrongOwner);
       sessionUserId = "user-one";
-      const state = () => ({ item: db.prepare("SELECT * FROM bank_item WHERE item_id='item-one'").get(), accounts: db.prepare("SELECT * FROM bank_account WHERE item_id='item-one'").all(), transactions: db.prepare("SELECT * FROM bank_transaction WHERE item_id='item-one' ORDER BY transaction_id").all() });
-      const beforeFailure = state();
-      failRemoval = true;
-      const failedDisconnect = await request("/items/item-one", "DELETE");
-      assert.equal(failedDisconnect.status, 502);
-      assert.doesNotMatch(await failedDisconnect.text(), /sensitive remote failure|mock-access-token/);
-      assert.deepEqual(state(), beforeFailure);
-      failRemoval = false;
-      const successfulDisconnect = await request("/items/item-one", "DELETE");
-      assert.equal(successfulDisconnect.status, 204);
-      assert.equal(calls.filter(call => call.method === "DELETE").length, 2);
-      assert.equal(db.prepare("SELECT item_id FROM bank_item WHERE item_id='item-one'").get(), undefined);
-      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_account WHERE item_id='item-one'").get().count, 0);
-      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_transaction WHERE item_id='item-one'").get().count, 0);
+      const state = () => ({ items: db.prepare("SELECT * FROM bank_item ORDER BY item_id").all(), accounts: db.prepare("SELECT * FROM bank_account ORDER BY id").all(), transactions: db.prepare("SELECT * FROM bank_transaction ORDER BY item_id,transaction_id").all() });
+      const beforeMutations = state();
+      for (const [path, method] of mutations) {
+        const rejected = await request(path, method, { accessToken: "unused-token" });
+        assert.equal(rejected.status, 404, `${method} ${path} is unsupported`);
+        assert.equal(rejected.headers.get("Cache-Control"), "no-store");
+        assert.doesNotMatch(await rejected.text(), /mock-access-token|unused-token/);
+        assert.deepEqual(state(), beforeMutations);
+        assert.deepEqual(calls, []);
+      }
       assert.deepEqual(db.prepare("SELECT * FROM bank_item WHERE item_id='item-two'").get(), siblingBefore);
+      assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_transaction WHERE item_id='item-two'").get().count, 1);
       assert.equal(db.prepare("SELECT COUNT(*) AS count FROM bank_transaction WHERE user_id='user-two'").get().count, 1);
+      const savedDetail = await request(`/${account.id}/transactions`);
+      assert.equal(savedDetail.status, 200);
+      assert.deepEqual((await savedDetail.json()).transactions.map(tx => tx.name).sort(), ["First bank", "Owned detail"]);
+      assert.deepEqual(calls, []);
+      globalThis.fetch = originalBankFetch;
 
       const originalFetch = globalThis.fetch;
       let zillowFetchCount = 0;

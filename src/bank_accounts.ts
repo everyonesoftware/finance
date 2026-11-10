@@ -31,7 +31,7 @@ export interface BankAccount {
   lastRetrievedAt?: string;
 }
 
-export interface TellerConnection {
+export interface BankConnection {
   itemId: string;
   institutionName: string;
   lastRetrievedAt: string;
@@ -48,24 +48,6 @@ interface AccountDetailResponse {
   account: BankAccount;
   transactions: Array<Record<string, unknown>>;
   accounts: BankAccount[];
-}
-
-interface TellerConnectOptions {
-  applicationId: string;
-  environment: string;
-  products: string[];
-  nonce: string;
-  onSuccess(enrollment: Record<string, unknown>): void;
-  onExit(): void;
-  onFailure(error: unknown): void;
-}
-
-declare global {
-  interface Window {
-    TellerConnect?: {
-      setup(options: TellerConnectOptions): { open(): void };
-    };
-  }
 }
 
 function isNullableString(value: unknown): value is string | null {
@@ -236,8 +218,8 @@ export function renderAccounts(accounts: BankAccount[]): string {
     return `
       <div class="accounts-empty">
         <div class="empty-icon" aria-hidden="true">▣</div>
-        <strong>No bank accounts connected</strong>
-        <span>Connect an institution to see your accounts and balances here.</span>
+        <strong>No saved bank accounts</strong>
+        <span>No previously saved accounts are available.</span>
       </div>
     `;
   }
@@ -250,7 +232,7 @@ export function renderAccounts(accounts: BankAccount[]): string {
   }
 
   return [...groups.entries()]
-    .map(([itemId, group]): string => {
+    .map(([, group]): string => {
       const institutionName: string = escapeHtml(group[0]?.institutionName ?? "Bank");
       const lastRetrievedAt: Date = new Date(
         group[0]?.lastRetrievedAt ?? group[0]?.updatedAt ?? "",
@@ -300,24 +282,11 @@ export function renderAccounts(accounts: BankAccount[]): string {
         <section class="institution-card" aria-label="${institutionName} accounts">
           <header class="institution-heading">
             <div>
-              <p class="eyebrow">CONNECTED INSTITUTION</p>
+              <p class="eyebrow">SAVED INSTITUTION</p>
               <h2>${institutionName}</h2>
             </div>
             <div class="institution-actions">
               <span class="institution-last-retrieved">${updateLabel}</span>
-              <button class="icon-button sync-institution-button" type="button"
-                aria-label="Synchronize ${institutionName}" title="Synchronize ${institutionName}"
-                data-item-id="${escapeHtml(itemId)}" data-institution-name="${institutionName}">
-                <svg class="sync-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.3 8A6.5 6.5 0 0 0 5 4.8L3.5 6.3M3.5 6.3V2.8M3.5 6.3H7M3.7 12a6.5 6.5 0 0 0 11.3 3.2l1.5-1.5m0 0v3.5m0-3.5H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              </button>
-              <details class="institution-actions-menu">
-                <summary class="icon-button menu-trigger" aria-label="More actions for ${institutionName}" title="More actions for ${institutionName}">
-                  <span aria-hidden="true">⋯</span>
-                </summary>
-                <div class="institution-actions-menu-panel">
-                  <button class="menu-item disconnect-bank" type="button" data-item-id="${escapeHtml(itemId)}">Disconnect</button>
-                </div>
-              </details>
             </div>
           </header>
           <div class="connected-account-list">${accountRows}</div>
@@ -327,8 +296,8 @@ export function renderAccounts(accounts: BankAccount[]): string {
     .join("");
 }
 
-export function renderConnections(connections: TellerConnection[]): string {
-  if (connections.length === 0) return `<div class="accounts-empty"><strong>No Teller connections yet</strong><span>Connect an institution to see its integration here.</span></div>`;
+export function renderConnections(connections: BankConnection[]): string {
+  if (connections.length === 0) return `<div class="accounts-empty"><strong>No saved bank connections</strong><span>No previously saved connections are available.</span></div>`;
   return connections.map((connection) => {
     const institutionName = escapeHtml(connection.institutionName);
     const retrieved = new Date(connection.lastRetrievedAt);
@@ -338,7 +307,7 @@ export function renderConnections(connections: TellerConnection[]): string {
       const mask = account.mask ? `•••• ${escapeHtml(account.mask)}` : "Account number hidden";
       return `<a class="connected-account-link" href="/accounts/${escapeHtml(encodeURIComponent(account.id))}"><article class="connected-account"><div class="connected-account-icon" aria-hidden="true">▣</div><div class="connected-account-info"><strong>${escapeHtml(account.name)}</strong><span>${escapeHtml(accountType)} · ${mask}</span></div><strong class="connected-account-balance${isLiabilityAccount(account) && account.currentBalance !== null ? " liability-balance" : ""}">${escapeHtml(formatAccountBalance(account))}</strong></article></a>`;
     }).join("");
-    return `<details class="connection-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">↔</span><span class="connection-title"><span class="eyebrow">TELLER INTEGRATION</span><strong>${institutionName}</strong><span>${connection.accountCount} ${connection.accountCount === 1 ? "account" : "accounts"} · ${updateLabel}</span></span></summary><details class="connection-actions-menu"><summary class="connection-menu-trigger" aria-label="More actions for ${institutionName}" title="More actions for ${institutionName}"><span aria-hidden="true">⋯</span></summary><div class="connection-menu-popup"><button type="button" class="delete-connection-button" data-connection-type="teller" data-connection-id="${escapeHtml(connection.itemId)}" data-connection-name="${institutionName}">Delete</button></div></details><div class="connection-accounts">${accountRows || `<p class="account-empty">No accounts are currently available from this integration.</p>`}</div></details>`;
+    return `<details class="connection-card"><summary class="connection-heading"><span class="connected-account-icon" aria-hidden="true">↔</span><span class="connection-title"><span class="eyebrow">SAVED BANK DATA</span><strong>${institutionName}</strong><span>${connection.accountCount} ${connection.accountCount === 1 ? "account" : "accounts"} · ${updateLabel}</span></span></summary><div class="connection-accounts">${accountRows || `<p class="account-empty">No saved accounts are available for this institution.</p>`}</div></details>`;
   }).join("");
 }
 
@@ -350,8 +319,7 @@ export function renderConnectionsPage(user: BankAccountsPageUser): string {
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
   const container: string = accounts.length === 0
     ? `<div class="account-empty">
-        <span>No bank accounts connected yet.</span>
-        <a class="text-button" href="/accounts">Connect an account <span aria-hidden="true">→</span></a>
+        <span>No saved bank accounts yet.</span>
       </div>`
     : accounts
         .slice(0, 4)
@@ -462,33 +430,9 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-async function loadTellerLink(): Promise<void> {
-  if (window.TellerConnect) {
-    return;
-  }
-
-  await new Promise<void>((resolve, reject): void => {
-    const script: HTMLScriptElement = document.createElement("script");
-    script.src = "https://cdn.teller.io/connect/connect.js";
-    script.async = true;
-    script.onload = (): void => resolve();
-    script.onerror = (): void =>
-      reject(new Error("Teller Connect could not be loaded. Check your connection and try again."));
-    document.head.append(script);
-  });
-
-  if (!window.TellerConnect) {
-    throw new Error("Teller Connect did not initialize correctly.");
-  }
-}
-
 async function refreshAccounts(): Promise<void> {
   const container: HTMLDivElement | null =
     document.querySelector<HTMLDivElement>("#connected-accounts");
-  const connectButton: HTMLButtonElement | null =
-    document.querySelector<HTMLButtonElement>("#connect-bank");
-  const syncAllButton: HTMLButtonElement | null =
-    document.querySelector<HTMLButtonElement>("#sync-all-institutions");
   if (!container) {
     return;
   }
@@ -509,21 +453,6 @@ async function refreshAccounts(): Promise<void> {
     }
 
     container.innerHTML = renderAccounts(payload.accounts);
-    if (connectButton) {
-      connectButton.disabled = !payload.configured;
-      connectButton.hidden = !payload.configured;
-    }
-    if (syncAllButton) {
-      syncAllButton.hidden = !payload.configured || payload.accounts.length === 0;
-      syncAllButton.disabled = syncAllButton.hidden;
-    }
-    const setupNotice: HTMLParagraphElement | null =
-      document.querySelector<HTMLParagraphElement>("#teller-setup-notice");
-    if (setupNotice) {
-      setupNotice.hidden = payload.configured;
-    }
-    attachDisconnectHandlers();
-    attachInstitutionSyncHandlers();
   } catch (error: unknown) {
     container.innerHTML = `
       <div class="accounts-error">
@@ -538,215 +467,6 @@ async function refreshAccounts(): Promise<void> {
       });
     setAccountsMessage(
       error instanceof Error ? error.message : "Unable to load bank accounts.",
-      true,
-    );
-  }
-}
-
-function attachDisconnectHandlers(): void {
-  document
-    .querySelectorAll<HTMLButtonElement>(".disconnect-bank")
-    .forEach((button): void => {
-      button.addEventListener("click", async (): Promise<void> => {
-        const itemId: string | undefined = button.dataset["itemId"];
-        if (
-          !itemId ||
-          !window.confirm(
-            "Disconnect this institution? Its saved account details will be removed from Finance.",
-          )
-        ) {
-          return;
-        }
-
-        button.disabled = true;
-        setAccountsMessage("", false);
-        try {
-          const response: Response = await fetch(
-            `/api/accounts/items/${encodeURIComponent(itemId)}`,
-            { method: "DELETE" },
-          );
-          const payload: unknown = await readJson(response);
-          if (!response.ok) {
-            throw new Error(
-              getErrorMessage(payload, "Unable to disconnect the institution."),
-            );
-          }
-          setAccountsMessage("Institution disconnected.", false);
-          await refreshAccounts();
-        } catch (error: unknown) {
-          button.disabled = false;
-          setAccountsMessage(
-            error instanceof Error
-              ? error.message
-              : "Unable to disconnect the institution.",
-            true,
-          );
-        }
-      });
-    });
-}
-
-function attachInstitutionSyncHandlers(): void {
-  document
-    .querySelectorAll<HTMLButtonElement>(".sync-institution-button")
-    .forEach((button): void => {
-      button.addEventListener("click", async (): Promise<void> => {
-        const itemId = button.dataset["itemId"];
-        const institutionName = button.dataset["institutionName"] ?? "institution";
-        if (!itemId) return;
-
-        button.disabled = true;
-        setAccountsMessage(`Syncing ${institutionName}…`, false);
-        try {
-          const response = await fetch(
-            `/api/accounts/items/${encodeURIComponent(itemId)}/transactions/sync`,
-            { method: "POST", credentials: "same-origin" },
-          );
-          const payload: unknown = await readJson(response);
-          if (!response.ok) {
-            throw new Error(getErrorMessage(payload, `Unable to sync ${institutionName}.`));
-          }
-          setAccountsMessage(`${institutionName} synchronized.`, false);
-          await refreshAccounts();
-        } catch (error: unknown) {
-          setAccountsMessage(
-            error instanceof Error ? error.message : `Unable to sync ${institutionName}.`,
-            true,
-          );
-        } finally {
-          if (button.isConnected) button.disabled = false;
-        }
-      });
-    });
-}
-
-async function syncAllInstitutions(button: HTMLButtonElement): Promise<void> {
-  button.disabled = true;
-  setAccountsMessage("Syncing all connected institutions…", false);
-  try {
-    const response = await fetch("/api/accounts/transactions/sync", {
-      method: "POST",
-      credentials: "same-origin",
-    });
-    const payload: unknown = await readJson(response);
-    if (!response.ok) {
-      throw new Error(getErrorMessage(payload, "Unable to sync connected institutions."));
-    }
-    setAccountsMessage("All connected institutions synchronized.", false);
-    await refreshAccounts();
-  } catch (error: unknown) {
-    setAccountsMessage(
-      error instanceof Error ? error.message : "Unable to sync connected institutions.",
-      true,
-    );
-  } finally {
-    if (button.isConnected) button.disabled = false;
-  }
-}
-
-async function completeTellerConnection(enrollment: Record<string, unknown>, nonce: string): Promise<void> {
-  const connectButton: HTMLButtonElement | null =
-    document.querySelector<HTMLButtonElement>("#connect-bank");
-  if (connectButton) {
-    connectButton.disabled = true;
-    connectButton.textContent = "Saving connected accounts…";
-  }
-
-  try {
-    const response: Response = await fetch("/api/accounts/enroll", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...enrollment, nonce }),
-    });
-    const payload: unknown = await readJson(response);
-    if (!response.ok) {
-      throw new Error(
-        getErrorMessage(payload, "Unable to save the bank connection."),
-      );
-    }
-
-    setAccountsMessage("Your bank accounts are connected.", false);
-    await refreshAccounts();
-  } catch (error: unknown) {
-    setAccountsMessage(
-      error instanceof Error
-        ? error.message
-        : "Unable to save the bank connection.",
-      true,
-    );
-  } finally {
-    if (connectButton) {
-      connectButton.disabled = false;
-      connectButton.innerHTML = `<span aria-hidden="true">＋</span> Connect a bank`;
-    }
-  }
-}
-
-async function connectBank(): Promise<void> {
-  const button: HTMLButtonElement | null =
-    document.querySelector<HTMLButtonElement>("#connect-bank");
-  if (!button) {
-    return;
-  }
-
-  button.disabled = true;
-  button.textContent = "Preparing secure connection…";
-  setAccountsMessage("", false);
-
-  try {
-    const response: Response = await fetch("/api/accounts/connect-config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: "{}",
-    });
-    const payload: unknown = await readJson(response);
-    if (
-      !response.ok ||
-      typeof payload !== "object" ||
-      payload === null ||
-      !("applicationId" in payload) || typeof payload.applicationId !== "string" ||
-      !("environment" in payload) || typeof payload.environment !== "string" ||
-      !["sandbox", "development", "production"].includes(payload.environment) ||
-      !("products" in payload) || !Array.isArray(payload.products) || !payload.products.every((product: unknown) => typeof product === "string") ||
-      !("nonce" in payload) || typeof payload.nonce !== "string"
-    ) {
-      throw new Error(
-        getErrorMessage(payload, "Unable to start a secure bank connection."),
-      );
-    }
-
-    await loadTellerLink();
-    if (!window.TellerConnect) {
-      throw new Error("Teller Connect did not initialize correctly.");
-    }
-
-    const resetButton = (): void => {
-      button.disabled = false;
-      button.innerHTML = `<span aria-hidden="true">＋</span> Connect a bank`;
-    };
-    const nonce = payload.nonce;
-    const handler = window.TellerConnect.setup({
-      applicationId: payload.applicationId,
-      environment: payload.environment,
-      products: payload.products as string[],
-      nonce,
-      onSuccess: (enrollment): void => {
-        void completeTellerConnection(enrollment, nonce);
-      },
-      onExit: resetButton,
-      onFailure: (): void => {
-        setAccountsMessage("Teller could not complete the connection. Please try again.", true);
-        resetButton();
-      },
-    });
-    handler.open();
-  } catch (error: unknown) {
-    button.disabled = false;
-    button.innerHTML = `<span aria-hidden="true">＋</span> Connect a bank`;
-    setAccountsMessage(
-      error instanceof Error
-        ? error.message
-        : "Unable to start a secure bank connection.",
       true,
     );
   }
@@ -788,45 +508,19 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           <div>
             <p class="eyebrow">YOUR FINANCES</p>
             <h1>Accounts</h1>
-            <p class="subheading">Bank accounts connected to your Finance profile.</p>
-          </div>
-          <div class="accounts-page-actions">
-            <button class="secondary-button sync-all-button" id="sync-all-institutions" type="button" hidden>
-              <svg class="sync-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.3 8A6.5 6.5 0 0 0 5 4.8L3.5 6.3M3.5 6.3V2.8M3.5 6.3H7M3.7 12a6.5 6.5 0 0 0 11.3 3.2l1.5-1.5m0 0v3.5m0-3.5H13" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Sync all
-            </button>
-            <button class="primary-button" id="connect-bank" type="button" hidden>
-              <span aria-hidden="true">＋</span> Connect a bank
-            </button>
+            <p class="subheading">Previously saved bank accounts and balances.</p>
           </div>
         </section>
 
-        <section class="panel teller-setup-notice" id="teller-setup-notice" hidden>
-          <h2>Secure bank connections</h2>
-          <p>
-            <a class="text-button" href="/settings">Configure Teller in Settings</a>
-            to enable bank linking. Sandbox needs only your application ID; live
-            environments also require a matching certificate, private key and public signing key.
-            Bank sign-in is handled by Teller and never stored by Finance.
-          </p>
-        </section>
-
-        <section class="panel account-data-notice">
-          <strong>Your data, kept to what this page needs</strong>
-          <p>
-            Teller securely connects your selected bank accounts. You can manually
-            sync available transaction history from your accounts page.
-            Finance stores transaction details and account snapshots encrypted at rest.
-          </p>
-        </section>
+        <p class="bank-data-notice">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
 
         <div id="connected-accounts" class="connected-accounts" aria-live="polite">
-          <div class="panel accounts-loading">Loading your connected accounts…</div>
+          <div class="panel accounts-loading">Loading saved accounts…</div>
         </div>
 
         <footer class="page-footer">
           Your finances, in focus.
-          <span>Bank connections provided by Teller</span>
+          <span>Previously saved bank data</span>
         </footer>
       </main>
     </div>
@@ -857,17 +551,16 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
       <main class="main-content accounts-content">
 
         <section class="page-heading accounts-page-heading">
-          <div><p class="eyebrow">CONNECTED ACCOUNT</p><h1>Account details</h1><p class="subheading">A current snapshot and recent activity for this account.</p></div>
+          <div><p class="eyebrow">SAVED ACCOUNT</p><h1>Account details</h1><p class="subheading">A saved snapshot and saved activity for this account.</p></div>
           <div class="account-detail-actions">
             <a class="text-button account-all-link" href="/accounts">All accounts</a>
-            <button class="primary-button" id="sync-account-transactions" type="button">Sync transactions</button>
           </div>
         </section>
-        <p id="account-transaction-status" class="auth-message" role="status" aria-live="polite" hidden></p>
+        <p class="bank-data-notice" role="status">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
         <div id="account-detail-content" class="account-detail-content" aria-live="polite">
           <div class="panel accounts-loading">Loading account details and transactions…</div>
         </div>
-        <footer class="page-footer">Your finances, in focus.<span>Bank connections provided by Teller</span></footer>
+        <footer class="page-footer">Your finances, in focus.<span>Previously saved bank data</span></footer>
       </main>
     </div>
   `;
@@ -876,42 +569,6 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
 export async function initializeAccountDetailPage(accountId: string): Promise<void> {
   const container = document.querySelector<HTMLDivElement>("#account-detail-content");
   if (!container) return;
-
-  const syncButton = document.querySelector<HTMLButtonElement>("#sync-account-transactions");
-  const syncStatus = document.querySelector<HTMLParagraphElement>("#account-transaction-status");
-  if (syncButton && syncButton.dataset["handlerAttached"] !== "true") {
-    syncButton.dataset["handlerAttached"] = "true";
-    syncButton.addEventListener("click", async (): Promise<void> => {
-      syncButton.disabled = true;
-      if (syncStatus) {
-        syncStatus.hidden = false;
-        syncStatus.classList.remove("error", "success");
-        syncStatus.textContent = "Syncing transactions for connected accounts…";
-      }
-      try {
-        const response = await fetch("/api/accounts/transactions/sync", {
-          method: "POST",
-          credentials: "same-origin",
-        });
-        const payload: unknown = await readJson(response);
-        if (!response.ok) {
-          throw new Error(getErrorMessage(payload, "Unable to sync transactions."));
-        }
-        await initializeAccountDetailPage(accountId);
-        if (syncStatus) {
-          syncStatus.textContent = "Transactions synced.";
-          syncStatus.classList.add("success");
-        }
-      } catch (error: unknown) {
-        if (syncStatus) {
-          syncStatus.textContent = error instanceof Error ? error.message : "Unable to sync transactions.";
-          syncStatus.classList.add("error");
-        }
-      } finally {
-        syncButton.disabled = false;
-      }
-    });
-  }
 
   try {
     const response = await fetch(
@@ -936,20 +593,7 @@ export async function initializeAccountDetailPage(accountId: string): Promise<vo
 }
 
 export function initializeBankAccountsPage(): void {
-  document
-    .querySelector<HTMLButtonElement>("#connect-bank")
-    ?.addEventListener("click", (): void => {
-      void connectBank();
-    });
-  const syncAllButton = document.querySelector<HTMLButtonElement>("#sync-all-institutions");
-  syncAllButton?.addEventListener("click", (): void => {
-    void syncAllInstitutions(syncAllButton);
-  });
   void refreshAccounts();
-  if (new URLSearchParams(location.search).get("connect") === "teller") {
-    history.replaceState(null, "", "/accounts");
-    void connectBank();
-  }
 }
 
 export async function initializeConnectionsPage(): Promise<void> {

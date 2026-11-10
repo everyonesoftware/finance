@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { auth } from "./auth.js";
 import { bankAccountsRouter } from "./bank_accounts.js";
 import { realEstateRouter } from "./real_estate.js";
-import { settingsRouter } from "./settings.js";
+
 import {
   checkDatabase,
   closeDatabase,
@@ -23,7 +23,7 @@ app.get("/api/health", async (context) => {
 app.all("/api/auth/*", (context) => auth.handler(context.req.raw));
 app.route("/api/accounts", bankAccountsRouter);
 app.route("/api/real-estate", realEstateRouter);
-app.route("/api/settings", settingsRouter);
+app.all("/api/*", context => context.json({ error: "API endpoint not found." }, 404));
 app.use("*", serveStatic({ root: "./dist" }));
 app.get("*", async (context) =>
   context.html(await readFile("./dist/index.html", "utf8")),

@@ -209,7 +209,7 @@ export function renderTransactionList(
   options: TransactionListRenderOptions = {},
 ): string {
   const groups = groupInternalTransfers(transactions, accounts);
-  if (groups.length === 0) return "No transactions yet. Connect a bank and sync to get started.";
+  if (groups.length === 0) return "No saved transactions are available.";
 
   return groups.map((group): string => {
     if (group.type === "single") return renderTransactionRow(group.transactions[0], accounts, options.showAccount === true);

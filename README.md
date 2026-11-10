@@ -1,6 +1,6 @@
 # Finance
 
-A personal-finance app with a Vite/TypeScript frontend, Hono TypeScript API, Better Auth username/password authentication, SQLite, and Teller-connected accounts. Account snapshots and synced transaction data are stored encrypted at rest.
+A personal-finance app with a Vite/TypeScript frontend, Hono TypeScript API, Better Auth username/password authentication, SQLite, saved bank-account views, and real-estate tracking. Saved financial data is encrypted at rest.
 
 ## Requirements
 
@@ -30,22 +30,14 @@ npm run dev
 
 The Vite server prints its URL when ready. The API creates the SQLite database and applies migrations at startup using `DATABASE_PATH` from `.env`; `.env.example` stores it under `./data`. The root page provides account creation and username/password login. Registration also asks for an email address, which is stored with the profile. Email verification and email-based password recovery are not configured because no email delivery provider is set up. Authenticated users can update their display name, username, or password in settings.
 
-### Teller bank connections
+### Saved bank data
 
-Open **Settings → Teller integration** after signing in. Integration settings are saved per Finance user in SQLite; no Teller environment variables or API restart are required.
+The app currently has no bank-data provider integration. Connecting banks, refreshing balances, and syncing transactions are unavailable. Previously saved compatible account snapshots and transactions remain available as read-only data; their timestamps indicate when they were last retrieved, not a live balance.
 
-- **Application ID:** copy the application ID from your Teller dashboard.
-- **Environment:** start with `sandbox` for simulated bank accounts. `development` and `production` connect to real institutions.
-- **Client certificate and private key:** paste the PEM values or upload the PEM files in Settings. Teller requires matching credentials in development and production; sandbox does not require them.
-- **Token signing key:** copy the application's public token signing key from the Teller dashboard. Live environments require it to verify the signed enrollment and prevent token replay.
+Account and transaction reads remain scoped to the signed-in user. Bank mutation endpoints are unavailable and do not contact external services. Settings contains only profile, password, and sign-out controls.
 
-Saved certificate/private-key values are never returned to the browser. Blank credential fields preserve saved credentials; use the explicit clear-credentials control to remove them. Credentials, access tokens, institution names, account snapshots, and transactions are encrypted at rest using a purpose-specific key derived from `BETTER_AUTH_SECRET`. Back up this secret securely and separately from the database. Changing or losing it makes saved integration data unreadable. Serve the app over HTTPS outside local development.
+Saved compatible bank data is encrypted using a purpose-specific key derived from `BETTER_AUTH_SECRET`. Back up this secret securely and separately from the database. Changing or losing it makes that saved data unreadable. Older incompatible legacy records remain stored but are not displayed. Removing provider integration does not delete existing financial records or rewrite their encrypted contents. Create a database backup before upgrading.
 
-The Accounts page uses Teller Connect for bank authentication; Finance does not receive the bank's login credentials. Connect requests balance and transaction access. Clicking an account opens its saved balance/details snapshot and recent synced transactions. Use **Sync transactions** to refresh balances and retrieve transaction history; each enrollment is updated atomically only after all its pages are retrieved. Failed retrievals preserve the prior saved data. Background and webhook sync are not implemented.
-
-Existing connections from a previous integration are retained in the database as legacy records but are not displayed or sent to Teller. They cannot be converted to Teller tokens: reconnect institutions through Teller Connect. Switching Teller applications or environments also requires reconnecting accounts for that configuration. Create a database backup before upgrading.
-
-See Teller's official Connect and API authentication guides for dashboard setup and credential issuance.
 
 Each successful push to `main` receives an integer application version from the GitHub Actions workflow run number. The version appears in the lower-left account profile area and is also published as the matching numeric GHCR tag (for example, `ghcr.io/everyonesoftware/finance:42`); `latest` and `sha-...` tags remain available. Local builds show `Version dev` unless `APP_VERSION` is set.
 
@@ -91,4 +83,4 @@ The `app` service serves both the Vite frontend and TypeScript API from one Node
 
 ## Current backend scope
 
-Better Auth manages registration, username/password login, sessions, profile names, and password changes. SQLite stores authentication data, per-user Teller settings, enrollments, bank-account snapshots, and transactions. Settings, account, and transaction APIs enforce per-user ownership; financial data and integration secrets are encrypted at rest. The dashboard displays imported transactions and does not invent income, expense, balance-trend, or chart values. Transactions can be synced manually; background and webhook sync are not implemented. Only deployment/bootstrap settings (authentication secret, public origin, database path, and optional server port) remain environment-based.
+Better Auth manages registration, username/password login, sessions, profile names, and password changes. SQLite stores authentication data, saved bank-account snapshots and transactions, properties, and valuation history. Bank-account and transaction APIs provide authenticated, owner-scoped reads only. Real-estate creation and valuation controls remain available. The dashboard displays saved transactions and does not invent income, expense, balance-trend, or chart values. Bank linking and synchronization are not implemented. Deployment/bootstrap settings (authentication secret, public origin, database path, and optional server port) remain environment-based.

@@ -2,7 +2,6 @@ import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
 import { renderMainNavigation } from "./navigation.ts";
-import { renderTellerSettings, initializeTellerSettings } from "./teller-settings.ts";
 import { appVersion } from "./app-version.ts";
 import { renderDashboard } from "./dashboard";
 import { initializeTransactionsPage, renderTransactionsPage } from "./transactions-page";
@@ -106,7 +105,7 @@ function renderLanding(): void {
             <div><span aria-hidden="true">✓</span><span>Keep your financial picture in one place</span></div>
             <div><span aria-hidden="true">✓</span><span>Manage your account securely</span></div>
           </div>
-          <p class="landing-disclaimer">Connect an institution to view account balances and recent transactions.</p>
+          <p class="landing-disclaimer">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
         </div>
         <section class="auth-card" aria-labelledby="auth-title">
           <div class="auth-tabs" role="tablist" aria-label="Account access">
@@ -260,7 +259,6 @@ function renderSettings(user: AuthUser): void {
             <button class="primary-button" type="submit">Update password</button>
           </form>
         </section>
-        ${renderTellerSettings()}
         <section class="settings-card settings-logout-section">
           <h2>Log out</h2>
           <p>Sign out of your Finance account on this device.</p>
@@ -334,7 +332,6 @@ function renderSettings(user: AuthUser): void {
       }
     });
 
-  void initializeTellerSettings();
   attachLogoutHandler();
 }
 
@@ -477,7 +474,6 @@ function render(): void {
     attachLogoutHandler();
     void initializeOverviewBankAccounts();
     const transactionList = document.querySelector<HTMLDivElement>("#transaction-list");
-    const transactionStatus = document.querySelector<HTMLParagraphElement>("#transaction-status");
     const renderTransactions = async (): Promise<void> => {
       try {
         const response = await fetch("/api/accounts/transactions", { credentials: "same-origin" });
@@ -493,27 +489,6 @@ function render(): void {
       } catch { if (transactionList) transactionList.textContent = "Unable to load transactions."; }
     };
     void renderTransactions();
-    document.querySelector<HTMLButtonElement>("#sync-transactions")?.addEventListener("click", async (event) => {
-      const button = event.currentTarget as HTMLButtonElement;
-      button.disabled = true;
-      if (transactionStatus) {
-        transactionStatus.hidden = false;
-        transactionStatus.textContent = "Syncing transactions…";
-      }
-      try {
-        const response = await fetch("/api/accounts/transactions/sync", { method: "POST", credentials: "same-origin" });
-        const body = await response.json() as { error?: string };
-        if (!response.ok) throw new Error(body.error ?? "Sync failed.");
-        if (transactionStatus) transactionStatus.textContent = "Transactions synced.";
-        await renderTransactions();
-      } catch (error) {
-        if (transactionStatus) {
-          transactionStatus.textContent = error instanceof Error ? error.message : "Sync failed.";
-        }
-      } finally {
-        button.disabled = false;
-      }
-    });
     return;
   }
 
