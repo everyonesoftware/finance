@@ -65,7 +65,7 @@ export function renderDashboard(user: DashboardUser): string {
 
       </section>
 
-      <p class="bank-data-notice">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
+      <p class="bank-data-notice">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
 
       <section class="summary-grid" aria-label="Financial summary">
         <article class="summary-card balance-card">
@@ -86,7 +86,7 @@ export function renderDashboard(user: DashboardUser): string {
 
         <article class="panel accounts-panel" id="accounts">
           <div class="panel-heading">
-            <div><h2>Bank accounts</h2><p>Previously saved accounts</p></div>
+            <div><h2>Bank accounts</h2><p>Manual accounts and saved balances</p></div>
             <a class="text-button" href="/accounts">See all</a>
           </div>
           <div id="overview-bank-accounts" aria-live="polite">

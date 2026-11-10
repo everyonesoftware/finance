@@ -28,9 +28,11 @@ test('every bank read and unknown mutation authenticates before returning JSON',
     for (const path of [...readPaths, ...removedPaths]) {
       for (const method of ['POST','PUT','PATCH','DELETE','OPTIONS']) {
         const response = await f.router.request(path, {method,headers:{origin:'https://untrusted.example'}});
-        assert.equal(response.status,404,method+' '+path);
+        const isCreation = method === 'POST' && path === '/';
+        assert.equal(response.status,isCreation ? 403 : 404,method+' '+path);
         assert.equal(response.headers.get('cache-control'),'no-store');
-        assert.deepEqual(await response.json(),{error:'API endpoint not found.'});
+        if (isCreation) assert.match((await response.json()).error, /origin/i);
+        else assert.deepEqual(await response.json(),{error:'API endpoint not found.'});
       }
     }
     for (const path of removedPaths) {

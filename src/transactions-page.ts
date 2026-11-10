@@ -76,7 +76,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
           </div>
 
         </section>
-        <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
+        <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
 
         <section class="panel transaction-filters" aria-labelledby="transaction-filters-title">
           <div class="transaction-filter-toolbar">
@@ -154,7 +154,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
           </div>
           <div id="all-transactions-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
         </section>
-        <footer class="page-footer">Your finances, in focus.<span>Previously saved transactions</span></footer>
+        <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
       </main>
     </div>
   `;
@@ -453,7 +453,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     renderResults();
     if (status) {
       status.hidden = false;
-      status.textContent = "Bank connections and syncing are unavailable. Previously saved data remains available.";
+      status.textContent = "Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.";
     }
   };
 

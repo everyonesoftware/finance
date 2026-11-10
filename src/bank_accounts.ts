@@ -3,6 +3,7 @@ import { escapeHtml } from "./html-utils.ts";
 import { renderMainNavigation } from "./navigation.ts";
 import { renderTransactionList } from "./transaction-list.ts";
 import { renderRealEstateCards } from "./real-estate.ts";
+import { renderManualAccountDialog, renderImportDialog, initializeManualAccountCreation, initializeAccountImport } from "./account-import.ts";
 export {
   findReferencedAccount,
   formatTransactionAmount,
@@ -29,6 +30,8 @@ export interface BankAccount {
   currencyCode: string | null;
   updatedAt: string;
   lastRetrievedAt?: string;
+  source?: string;
+  canImport?: boolean;
 }
 
 export interface BankConnection {
@@ -204,12 +207,14 @@ export function renderAccountDetail(
         <div><span>Current balance</span><strong>${escapeHtml(formatAccountBalance(account))}</strong></div>
         <div><span>Available balance</span><strong>${escapeHtml(formatBalance(account.availableBalance, account.currencyCode))}</strong></div>
       </div>
-      <p class="account-detail-updated">Account details retrieved ${escapeHtml(updatedLabel)}</p>
+      <p class="account-detail-updated">${account.source === "manual" ? "Manually maintained account · Updated" : "Account details retrieved"} ${escapeHtml(updatedLabel)}</p>
     </section>
     <section class="panel account-detail-transactions">
-      <div class="panel-heading"><div><h2>Transactions</h2><p>Recent activity for this account</p></div></div>
+      <div class="panel-heading"><div><h2>Transactions</h2><p>Recent activity for this account</p></div>${account.canImport ? `<button id="import-transactions" class="primary-button" type="button">Import transactions</button>` : ""}</div>
+      <p id="account-import-message" class="auth-message success" role="status" hidden></p>
       <div class="account-transaction-list">${transactionRows}</div>
     </section>
+    ${account.canImport ? renderImportDialog(account) : ""}
   `;
 }
 
@@ -218,8 +223,8 @@ export function renderAccounts(accounts: BankAccount[]): string {
     return `
       <div class="accounts-empty">
         <div class="empty-icon" aria-hidden="true">▣</div>
-        <strong>No saved bank accounts</strong>
-        <span>No previously saved accounts are available.</span>
+        <strong>No accounts yet</strong>
+        <span>Add an account to start importing your transactions.</span>
       </div>
     `;
   }
@@ -237,9 +242,10 @@ export function renderAccounts(accounts: BankAccount[]): string {
       const lastRetrievedAt: Date = new Date(
         group[0]?.lastRetrievedAt ?? group[0]?.updatedAt ?? "",
       );
+      const manual = group[0]?.source === "manual";
       const updateLabel: string = Number.isNaN(lastRetrievedAt.getTime())
         ? "Last retrieved time unavailable"
-        : `Last retrieved ${escapeHtml(
+        : `${manual ? "Updated" : "Last retrieved"} ${escapeHtml(
             new Intl.DateTimeFormat(undefined, {
               dateStyle: "medium",
               timeStyle: "short",
@@ -282,7 +288,7 @@ export function renderAccounts(accounts: BankAccount[]): string {
         <section class="institution-card" aria-label="${institutionName} accounts">
           <header class="institution-heading">
             <div>
-              <p class="eyebrow">SAVED INSTITUTION</p>
+              <p class="eyebrow">${manual ? "MANUAL ACCOUNT" : "SAVED INSTITUTION"}</p>
               <h2>${institutionName}</h2>
             </div>
             <div class="institution-actions">
@@ -319,7 +325,7 @@ export function renderConnectionsPage(user: BankAccountsPageUser): string {
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
   const container: string = accounts.length === 0
     ? `<div class="account-empty">
-        <span>No saved bank accounts yet.</span>
+        <span>No accounts yet. Add one from the Accounts page.</span>
       </div>`
     : accounts
         .slice(0, 4)
@@ -508,19 +514,21 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
           <div>
             <p class="eyebrow">YOUR FINANCES</p>
             <h1>Accounts</h1>
-            <p class="subheading">Previously saved bank accounts and balances.</p>
+            <p class="subheading">Your accounts, balances, and imported activity.</p>
           </div>
+          <button class="primary-button" id="add-account" type="button">＋ Add account</button>
         </section>
 
-        <p class="bank-data-notice">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
+        <p class="bank-data-notice">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
 
         <div id="connected-accounts" class="connected-accounts" aria-live="polite">
-          <div class="panel accounts-loading">Loading saved accounts…</div>
+          <div class="panel accounts-loading">Loading accounts…</div>
         </div>
+        ${renderManualAccountDialog()}
 
         <footer class="page-footer">
           Your finances, in focus.
-          <span>Previously saved bank data</span>
+          <span>Manual accounts and saved bank data</span>
         </footer>
       </main>
     </div>
@@ -551,16 +559,16 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
       <main class="main-content accounts-content">
 
         <section class="page-heading accounts-page-heading">
-          <div><p class="eyebrow">SAVED ACCOUNT</p><h1>Account details</h1><p class="subheading">A saved snapshot and saved activity for this account.</p></div>
+          <div><p class="eyebrow">YOUR ACCOUNT</p><h1>Account details</h1><p class="subheading">Account balances and transaction history.</p></div>
           <div class="account-detail-actions">
             <a class="text-button account-all-link" href="/accounts">All accounts</a>
           </div>
         </section>
-        <p class="bank-data-notice" role="status">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
+        <p class="bank-data-notice" role="status">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
         <div id="account-detail-content" class="account-detail-content" aria-live="polite">
           <div class="panel accounts-loading">Loading account details and transactions…</div>
         </div>
-        <footer class="page-footer">Your finances, in focus.<span>Previously saved bank data</span></footer>
+        <footer class="page-footer">Your finances, in focus.<span>Manual accounts and saved bank data</span></footer>
       </main>
     </div>
   `;
@@ -580,6 +588,14 @@ export async function initializeAccountDetailPage(accountId: string): Promise<vo
       throw new Error(getErrorMessage(payload, "Unable to load this account."));
     }
     container.innerHTML = renderAccountDetail(payload.account, payload.transactions, payload.accounts);
+    if (payload.account.canImport) initializeAccountImport(payload.account, async result => {
+      await initializeAccountDetailPage(accountId);
+      const message = document.querySelector<HTMLElement>("#account-import-message");
+      if (message) {
+        message.textContent = `Imported ${result.imported} transaction${result.imported === 1 ? "" : "s"}. Skipped ${result.skipped} duplicate${result.skipped === 1 ? "" : "s"}.`;
+        message.hidden = false;
+      }
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Unable to load this account.";
     container.innerHTML = `
@@ -593,6 +609,9 @@ export async function initializeAccountDetailPage(accountId: string): Promise<vo
 }
 
 export function initializeBankAccountsPage(): void {
+  initializeManualAccountCreation(async account => {
+    window.location.assign(`/accounts/${encodeURIComponent(account.id)}`);
+  });
   void refreshAccounts();
 }
 

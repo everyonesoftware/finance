@@ -2306,3 +2306,59 @@ a.text-button {
   .real-estate-details { grid-template-columns: 1fr; padding: 14px; }
   .property-map-frame { grid-column: 1; grid-row: auto; justify-self: stretch; width: 100%; max-width: none; aspect-ratio: 1; }
 }
+
+.account-workflow-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  border: 1px solid #dfe5dd;
+  border-radius: 14px;
+  color: #303730;
+  background: #fff;
+  box-shadow: 0 24px 80px rgb(20 35 22 / 22%);
+}
+.account-workflow-dialog::backdrop { background: rgb(18 30 22 / 48%); backdrop-filter: blur(3px); }
+.import-workflow-dialog { width: min(740px, calc(100vw - 32px)); }
+.account-workflow {
+  display: flex;
+  height: min(720px, calc(100dvh - 36px));
+  min-height: 0;
+  flex-direction: column;
+  padding: 24px;
+}
+.account-workflow header { flex-shrink: 0; }
+.account-workflow header h2 { margin-bottom: 6px; font-size: 22px; }
+.account-workflow header > p:last-child { margin-bottom: 18px; color: var(--muted); font-size: 12px; }
+.account-workflow-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding: 2px 3px; }
+.account-workflow [hidden] { display: none !important; }
+.account-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 16px; }
+.account-workflow .form-field { min-width: 0; font-size: 12px; }
+.account-workflow .form-field small { font-size: 11px; line-height: 1.5; }
+.account-workflow select {
+  width: 100%; min-width: 0; height: 40px; padding: 0 9px; border: 1px solid #e5e8e2;
+  border-radius: 6px; color: #20251f; background: #fff; font: inherit; font-weight: 400;
+}
+.account-workflow select:focus-visible { outline: 2px solid #6e9b76; outline-offset: 1px; }
+.account-workflow input[type="file"] { height: auto; padding: 10px; }
+.account-workflow input::file-selector-button { margin-right: 8px; padding: 6px 8px; border: 1px solid #dfe5dd; border-radius: 5px; background: #f0f7ee; color: #245b35; }
+.account-workflow-note { padding: 12px; border-left: 3px solid #2e6749; border-radius: 0 6px 6px 0; background: #eff7ed; font-size: 12px; line-height: 1.6; }
+.account-workflow-hint, #import-preview-step > p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.account-workflow-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 18px; border-top: 1px solid #e9ebe6; }
+.account-workflow .auth-message { flex-shrink: 0; max-height: 80px; overflow: auto; white-space: pre-line; }
+.account-workflow button:disabled { opacity: .55; cursor: not-allowed; }
+#import-column-mapping { min-width: 0; margin: 16px 0; padding: 14px; border: 1px solid #dfe5dd; border-radius: 8px; }
+#import-column-mapping legend { font-size: 13px; font-weight: 600; }
+#import-column-mapping > p { color: var(--muted); font-size: 12px; line-height: 1.6; }
+.import-preview-table-wrap { overflow-x: auto; }
+.import-preview-table { width: 100%; border-collapse: collapse; font-size: 12px; text-align: left; }
+.import-preview-table th, .import-preview-table td { padding: 10px 8px; border-bottom: 1px solid #e9ebe6; vertical-align: top; }
+.import-preview-table th { color: #42634b; background: #f6faf5; }
+.import-preview-table th:last-child, .import-preview-table td:last-child { text-align: right; white-space: nowrap; }
+.import-preview-table td:first-child { white-space: nowrap; }
+.import-preview-table td:nth-child(2) { overflow-wrap: anywhere; }
+@media (max-width: 620px) {
+  .account-workflow { padding: 18px; }
+  .account-form-grid { grid-template-columns: 1fr; }
+  .account-detail-transactions .panel-heading { align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .import-preview-table th, .import-preview-table td { padding: 9px 4px; font-size: 11px; }
+}

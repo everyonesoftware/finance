@@ -6,7 +6,7 @@ import { renderDashboard } from '../src/dashboard.ts';
 import { renderTransactionsPage } from '../src/transactions-page.ts';
 import { renderTransactionList } from '../src/transaction-list.ts';
 
-const notice = 'Bank connections and syncing are unavailable. Previously saved data remains available.';
+const notice = 'Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.';
 const user = { displayName: 'Offline User', username: 'offline' };
 const account = { id: 'saved-1', providerAccountId: 'saved-1', itemId: 'saved-item', institutionName: 'Saved Bank', name: 'Saved Checking', officialName: null, type: 'depository', subtype: 'checking', mask: '1234', currentBalance: 125, availableBalance: 100, currencyCode: 'USD', updatedAt: '2026-01-01T00:00:00Z' };
 const transaction = { id: 'tx-1', account_id: account.id, name: 'Saved purchase', amount: 12, date: '2026-01-01' };

@@ -105,7 +105,7 @@ function renderLanding(): void {
             <div><span aria-hidden="true">✓</span><span>Keep your financial picture in one place</span></div>
             <div><span aria-hidden="true">✓</span><span>Manage your account securely</span></div>
           </div>
-          <p class="landing-disclaimer">Bank connections and syncing are unavailable. Previously saved data remains available.</p>
+          <p class="landing-disclaimer">Create manual financial accounts and import transactions from your bank exports. No automatic bank connection is required.</p>
         </div>
         <section class="auth-card" aria-labelledby="auth-title">
           <div class="auth-tabs" role="tablist" aria-label="Account access">

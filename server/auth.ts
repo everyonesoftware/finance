@@ -15,7 +15,7 @@ if (!originUrl) {
   throw new Error("ORIGIN_URL must be set to the app's public URL.");
 }
 
-const trustedOrigins: string[] = [
+export const trustedOrigins: string[] = [
   originUrl,
   "http://localhost:5173",
   "http://127.0.0.1:5173",

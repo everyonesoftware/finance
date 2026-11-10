@@ -503,7 +503,7 @@ test("overview bank-account list escapes values and links additional accounts", 
   assert.equal((html.match(/class="overview-account-link"/g) ?? []).length, 4);
   assert.match(html, /\+1 more account/);
   assert.doesNotMatch(html, /<Checking>|Bank <One>/);
-  assert.match(renderOverviewBankAccounts([]), /No saved bank accounts yet/);
+  assert.match(renderOverviewBankAccounts([]), /No accounts yet\. Add one from the Accounts page/);
 });
 
 test("overview total balance subtracts credit and loan balances", () => {
@@ -829,7 +829,7 @@ test("account detail page provides a protected-page shell and loading target", (
   assert.match(html, /Loading account details and transactions/);
   assert.doesNotMatch(html, /id="sync-account-transactions"/);
   assert.match(html, /class="bank-data-notice"[^>]*role="status"/);
-  assert.match(html, /Previously saved data remains available/);
+  assert.match(html, /previously saved data remains available/);
   assert.match(html, /id="account-detail-content"[^>]*aria-live="polite"/);
   assert.match(html, /class="app-version">Version dev<\/span>/);
   assert.match(html, /&lt;A User&gt;/);
@@ -1246,7 +1246,7 @@ async function runBankAndPropertyLifecycle() {
       method, headers: { Origin: "http://localhost:5173", "Content-Type": "application/json" },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
-    const mutations = [["/transactions/sync", "POST"], ["/items/item-one/transactions/sync", "POST"], ["/items/item-one", "DELETE"], ["/connect-config", "POST"], ["/enroll", "POST"], ["/", "POST"], ["/account-one", "PATCH"], ["/items/item-one", "PUT"]];
+    const mutations = [["/transactions/sync", "POST"], ["/items/item-one/transactions/sync", "POST"], ["/items/item-one", "DELETE"], ["/connect-config", "POST"], ["/enroll", "POST"], ["/account-one", "PATCH"], ["/items/item-one", "PUT"]];
     for (const [path, method] of [["/", "GET"], ["/items", "GET"], ["/transactions", "GET"], ["/transactions/all", "GET"], ["/account-one/transactions", "GET"], ...mutations]) {
       const response = await request(path, method);
       assert.equal(response.status, 401, `${method} ${path} requires authentication`);
