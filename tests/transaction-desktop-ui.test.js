@@ -18,8 +18,8 @@ test('crossing the mobile breakpoint moves the same fields without resetting lis
     close() { this.open = false; this.closed = true; }
   }
   const nodes = Object.fromEntries([...renderTransactionsPage(user).matchAll(/id="([^"]+)"/g)].map(match => ['#' + match[1], new Node()]));
-  const heading = new Node(), actions = new Node();
-  const root = Object.assign(new Node(), { querySelector: selector => selector === '.transactions-page-heading' ? heading : selector === '.transaction-heading-actions' ? actions : nodes[selector] ?? null });
+  const heading = new Node(), actions = new Node(), sidebar = new Node();
+  const root = Object.assign(new Node(), { querySelector: selector => selector === '.sidebar' ? sidebar : selector === '.transactions-page-heading' ? heading : selector === '.transaction-heading-actions' ? actions : nodes[selector] ?? null });
   const media = { matches: false, addEventListener(_, fn) { this.change = fn; }, removeEventListener() {} };
   page.initializeResponsiveTransactions(root, media);
   const fields = nodes['#transaction-account-fields'], amount = nodes['#transaction-amount-fields'], sort = nodes['#transaction-sort-fields'];
@@ -29,8 +29,12 @@ test('crossing the mobile breakpoint moves the same fields without resetting lis
   assert.equal(sort.parentElement, nodes['#transaction-desktop-sort']);
   assert.equal(nodes['#open-batch-import'].parentElement, nodes['#transaction-desktop-import']);
   assert.equal(nodes['#all-transactions-count'].parentElement, nodes['#transaction-desktop-toolbar']);
+  assert.equal(nodes['#transaction-search-fields'].parentElement, nodes['#transaction-desktop-search']);
+  assert.equal(actions.parentElement, heading);
   media.matches = true; media.change();
-  assert.equal(heading.parentElement, nodes['#transaction-mobile-heading']);
+  assert.equal(heading.parentElement, nodes['#transaction-desktop-heading']);
+  assert.equal(actions.parentElement, sidebar);
+  assert.equal(nodes['#transaction-search-fields'].parentElement, nodes['#transaction-mobile-search']);
   assert.equal(fields.parentElement, nodes['#transaction-filter-sheet-body']);
   assert.equal(amount.parentElement, nodes['#transaction-filter-sheet-body']);
   assert.equal(sort.parentElement, nodes['#transaction-sort-sheet-body']);
@@ -39,6 +43,9 @@ test('crossing the mobile breakpoint moves the same fields without resetting lis
   media.matches = false; media.change();
   assert.equal(nodes['#transaction-filters-dialog'].open, false);
   assert.equal(fields.parentElement, nodes['#accounts-filter-popover']);
+  assert.equal(actions.parentElement, heading);
+  assert.equal(nodes['#transaction-search-fields'].parentElement, nodes['#transaction-desktop-search']);
+  assert.equal(nodes['#transaction-search'].value, 'preserved');
   assert.equal(fields.value, 'preserved');
   assert.equal(nodes['#all-transactions-list'].value, 'preserved');
 });
@@ -52,7 +59,8 @@ test('Transactions retains the desktop toolbar while sharing a single set of con
   assert.match(html, /id="transaction-desktop-sort"/);
   assert.match(html, /id="transaction-desktop-import"/);
   assert.match(html, /class="transaction-import-label">Import Transactions<\/span>/);
-  assert.match(html, /Search saved activity across your accounts/);
+  assert.match(html, /<h1>Transactions<\/h1>/);
+  assert.doesNotMatch(html, /ALL ACCOUNTS|Search saved activity across your accounts/);
   const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
   assert.equal(new Set(ids).size, ids.length, 'Responsive layouts must not duplicate form IDs');
   for (const id of ['account-options', 'transaction-sort-order', 'minimum-transaction-amount', 'maximum-transaction-amount', 'open-batch-import', 'all-transactions-list']) {

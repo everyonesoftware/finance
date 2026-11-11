@@ -51,12 +51,9 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
         <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite" hidden></p>
         <div class="transactions-workspace">
         <div class="transactions-sticky-controls">
-        <div id="transaction-mobile-heading">
         <section class="page-heading transactions-page-heading">
           <div>
-            <p class="eyebrow"><span class="transaction-desktop-only">ALL ACCOUNTS</span><span class="transaction-mobile-only">YOUR MONEY, IN MOTION</span></p>
             <h1>Transactions</h1>
-            <p class="subheading transaction-desktop-only">Search saved activity across your accounts.</p>
           </div>
           <div class="transaction-heading-actions">
             <button class="transaction-icon-button" id="transaction-filters-trigger" type="button" aria-label="Filter transactions" title="Filter transactions" aria-haspopup="dialog" aria-controls="transaction-filters-dialog" aria-expanded="false" disabled>
@@ -66,13 +63,20 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4v16m-4-4 4 4 4-4M15 5h6m-6 5h4m-4 5h2" /></svg>
             </button>
             <button id="open-batch-import" class="primary-button transaction-icon-button transactions-import-button" type="button" aria-label="Import transactions" title="Import transactions">
-              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-4 4 4-4 4 4M4 15v5h16v-5" /></svg>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5" /></svg>
               <span class="transaction-import-label">Import Transactions</span>
             </button>
           </div>
         </section>
-        </div>
+        <div id="transaction-mobile-search"></div>
         <section id="transaction-desktop-toolbar" class="panel transaction-filters" aria-label="Transaction filters">
+          <div id="transaction-desktop-search">
+            <div id="transaction-search-fields" class="transaction-search" role="search" aria-label="Transaction search">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg>
+              <input id="transaction-search" type="search" aria-label="Search transactions" aria-controls="all-transactions-list" placeholder="Search transactions" autocomplete="off" />
+              <button id="clear-transaction-search" type="button" aria-label="Clear transaction search" title="Clear transaction search" hidden>×</button>
+            </div>
+          </div>
           <div class="transaction-filter-toolbar">
             <span class="transaction-filter-label">Filter</span>
             <div class="transaction-filter-controls">
@@ -97,10 +101,6 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <div id="transaction-desktop-import"></div>
           </div>
         </section>
-        <div class="transaction-activity-status">
-          <span id="transaction-activity-count">Loading activity…</span>
-          <span id="transaction-sort-summary">Newest first</span>
-        </div>
         <p id="all-transactions-count" class="transaction-results-status" aria-live="polite">Loading transactions…</p>
         </div>
         <section class="panel transactions-results" aria-label="Transactions">
@@ -184,6 +184,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
 export function initializeResponsiveTransactions(root: HTMLElement, viewport: MediaQueryList): void {
   const heading = root.querySelector<HTMLElement>(".transactions-page-heading");
   const actions = root.querySelector<HTMLElement>(".transaction-heading-actions");
+  const searchFields = root.querySelector<HTMLElement>("#transaction-search-fields");
   const accountFields = root.querySelector<HTMLElement>("#transaction-account-fields");
   const amountFields = root.querySelector<HTMLElement>("#transaction-amount-fields");
   const sortFields = root.querySelector<HTMLElement>("#transaction-sort-fields");
@@ -206,7 +207,9 @@ export function initializeResponsiveTransactions(root: HTMLElement, viewport: Me
       root.querySelector(`#${kind}-filter-trigger`)?.setAttribute("aria-expanded", "false");
     }
     const mobile = viewport.matches;
-    root.querySelector(mobile ? "#transaction-mobile-heading" : "#transaction-desktop-heading")?.append(heading);
+    root.querySelector("#transaction-desktop-heading")?.append(heading);
+    (mobile ? root.querySelector(".sidebar") : heading)?.append(actions);
+    if (searchFields) root.querySelector(mobile ? "#transaction-mobile-search" : "#transaction-desktop-search")?.append(searchFields);
     root.querySelector(mobile ? "#transaction-filter-sheet-body" : "#accounts-filter-popover")?.append(accountFields);
     root.querySelector(mobile ? "#transaction-filter-sheet-body" : "#amount-filter-popover")?.append(amountFields);
     root.querySelector(mobile ? "#transaction-sort-sheet-body" : "#transaction-desktop-sort")?.append(sortFields);
@@ -277,8 +280,6 @@ export async function initializeTransactionsPage(): Promise<void> {
   const sortDialog = document.querySelector<HTMLDialogElement>("#transaction-sort-dialog");
   const cancelSort = document.querySelector<HTMLButtonElement>("#cancel-transaction-sort");
   const applySort = document.querySelector<HTMLButtonElement>("#apply-transaction-sort");
-  const activityCount = document.querySelector<HTMLSpanElement>("#transaction-activity-count");
-  const sortSummary = document.querySelector<HTMLSpanElement>("#transaction-sort-summary");
   const desktopAccountSummary = document.querySelector<HTMLSpanElement>("#desktop-accounts-filter-summary");
   const desktopAmountSummary = document.querySelector<HTMLSpanElement>("#desktop-amount-filter-summary");
   const accountTrigger = document.querySelector<HTMLButtonElement>("#accounts-filter-trigger");
@@ -288,6 +289,8 @@ export async function initializeTransactionsPage(): Promise<void> {
   const accountSelected = document.querySelector<HTMLSpanElement>("#accounts-filter-selected");
   const accountTotal = document.querySelector<HTMLSpanElement>("#accounts-filter-total");
   const accountSearch = document.querySelector<HTMLInputElement>("#account-filter-search");
+  const transactionSearch = document.querySelector<HTMLInputElement>("#transaction-search");
+  const clearTransactionSearch = document.querySelector<HTMLButtonElement>("#clear-transaction-search");
 
   const selectAllAccounts = document.querySelector<HTMLButtonElement>("#select-all-accounts");
   const deselectAllAccounts = document.querySelector<HTMLButtonElement>("#deselect-all-accounts");
@@ -372,6 +375,7 @@ export async function initializeTransactionsPage(): Promise<void> {
         minimumAmount: selectedMinimumAmount,
         maximumAmount: selectedMaximumAmount,
         sort: appliedSort,
+        searchQuery: transactionSearch?.value ?? "",
       });
     }
     // Keep the complete history reachable if the browser cannot observe scrolling.
@@ -379,11 +383,6 @@ export async function initializeTransactionsPage(): Promise<void> {
     const nextGroups = filteredGroups.slice(renderedGroupCount, visibleGroupCount);
     const transactionCount = filteredGroups.reduce((total, group) => total + group.transactions.length, 0);
     count.textContent = `Showing rows ${filteredGroups.length ? 1 : 0}–${visibleGroupCount} of ${filteredGroups.length} · ${transactionCount} transaction${transactionCount === 1 ? "" : "s"}`;
-    if (activityCount) activityCount.textContent = `${filteredGroups.length} activity item${filteredGroups.length === 1 ? "" : "s"}`;
-    if (sortSummary) sortSummary.textContent = {
-      "date-desc": "Newest first", "date-asc": "Oldest first",
-      "amount-desc": "Amount · highest", "amount-asc": "Amount · lowest",
-    }[appliedSort];
     filterTrigger.setAttribute("data-active", String(selectedAccountIds.length !== accounts.length || selectedMinimumAmount > minimumAmount || selectedMaximumAmount < maximumAmount));
     scrollSentinel.hidden = visibleGroupCount >= filteredGroups.length;
     updateAccountSummary();
@@ -394,7 +393,7 @@ export async function initializeTransactionsPage(): Promise<void> {
         ? "No accounts are selected. Select one or more accounts to view transactions."
         : transactions.length === 0
           ? "No saved transactions are available."
-          : "No transactions match these filters.";
+          : "No transactions match this search and filters.";
       return;
     }
     list.className = "transaction-list all-transactions-list";
@@ -651,6 +650,24 @@ export async function initializeTransactionsPage(): Promise<void> {
   deselectAllAccounts.addEventListener("click", () => updateAccountSelection(false));
   accountOptions.addEventListener("change", () => renderResults());
   accountSearch.addEventListener("input", applyAccountSearch);
+  const updateTransactionSearch = (): void => {
+    if (clearTransactionSearch) clearTransactionSearch.hidden = !transactionSearch?.value;
+    if (hasLoadedTransactions) renderResults();
+  };
+  const clearSearch = (): void => {
+    if (!transactionSearch) return;
+    transactionSearch.value = "";
+    updateTransactionSearch();
+    transactionSearch.focus({ preventScroll: true });
+  };
+  transactionSearch?.addEventListener("input", updateTransactionSearch);
+  transactionSearch?.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (event.key === "Escape" && transactionSearch.value) {
+      event.preventDefault();
+      clearSearch();
+    }
+  });
+  clearTransactionSearch?.addEventListener("click", clearSearch);
   sortSelect.addEventListener("change", () => {
     if (sortDialog.open) return;
     appliedSort = sortSelect.value as TransactionSortOrder;
@@ -777,6 +794,5 @@ export async function initializeTransactionsPage(): Promise<void> {
     list.className = "transaction-empty";
     list.textContent = error instanceof Error ? error.message : "Unable to load transactions.";
     count.textContent = "Transactions could not be loaded";
-    if (activityCount) activityCount.textContent = "Unable to load activity";
   }
 }

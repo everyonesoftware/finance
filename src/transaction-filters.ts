@@ -1,4 +1,5 @@
 import { escapeHtml } from "./html-utils.ts";
+import { formatTransactionAmount } from "./account-transaction-utils.ts";
 import type { BankAccount } from "./bank_accounts.ts";
 import type { TransactionGroup } from "./transaction-list.ts";
 
@@ -10,6 +11,7 @@ export interface TransactionListFilters {
   minimumAmount: number;
   maximumAmount: number;
   sort: TransactionSortOrder;
+  searchQuery?: string;
 }
 
 export function getAccountSelectionOnLoad(
@@ -176,7 +178,30 @@ export function filterAndSortTransactionGroups(
 
   const included = new Set(filters.includeAccountIds);
   const excluded = new Set(filters.excludeAccountIds);
+  const searchQuery = filters.searchQuery?.trim().toLowerCase() ?? "";
+  const matchesText = (fields: unknown[]): boolean => fields.some((field) =>
+    typeof field === "string" && field.toLowerCase().includes(searchQuery),
+  );
   const matches = groups.flatMap((group, index) => {
+    const matchesGroup = searchQuery && group.type !== "single" && matchesText([
+      group.type === "credit-card-payment" ? "Credit Card Payment" : "Transfer",
+      ...[group.fromAccount, group.toAccount].flatMap((account) =>
+        [account.name, account.officialName, account.institutionName, account.mask],
+      ),
+    ]);
+    if (searchQuery && !matchesGroup && !group.transactions.some((transaction) => {
+      const account = typeof transaction.account_id === "string"
+        ? accountsByProviderId.get(transaction.account_id)
+        : undefined;
+      const currency = typeof transaction.iso_currency_code === "string"
+        ? transaction.iso_currency_code
+        : typeof transaction.unofficial_currency_code === "string" ? transaction.unofficial_currency_code : null;
+      const fields = [transaction.name, transaction.merchant_name, transaction.date,
+        typeof transaction.amount === "number" && Number.isFinite(transaction.amount)
+          ? formatTransactionAmount(transaction.amount, currency) : null,
+        account?.name, account?.officialName, account?.institutionName, account?.mask];
+      return matchesText(fields);
+    })) return [];
     const accountIds = getTransactionGroupAccountIds(group, accountsByProviderId);
     if (included.size === 0 || !accountIds.some((id) => included.has(id))) return [];
     if (accountIds.some((id) => excluded.has(id))) return [];

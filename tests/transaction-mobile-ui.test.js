@@ -40,7 +40,11 @@ test('Transactions has icon-only funnel, sort, import actions and separate sheet
   const heading = html.match(/<section class="page-heading transactions-page-heading">[\s\S]*?<\/section>/)?.[0];
   assert.ok(heading);
   assert.match(heading, /id="transaction-filters-trigger"[\s\S]*id="transaction-sort-trigger"[\s\S]*id="open-batch-import"/);
-  assert.match(heading, /class="subheading transaction-desktop-only">Search saved activity across your accounts/);
+  assert.doesNotMatch(html, /YOUR MONEY, IN MOTION|transaction-activity-count|transaction-sort-summary/);
+  assert.match(html, /id="transaction-search"[^>]*type="search"[^>]*aria-label="Search transactions"/);
+  assert.match(html, /id="clear-transaction-search"[^>]*aria-label="Clear transaction search"/);
+  assert.match(heading, /M12 3v12m-4-4 4 4 4-4M4 15v5h16v-5/);
+  assert.doesNotMatch(heading, /ALL ACCOUNTS|Search saved activity across your accounts/);
   assert.doesNotMatch(heading, /class="subheading"|All your accounts/);
   const filter = html.match(/<dialog[^>]*id="transaction-filters-dialog"[\s\S]*?<\/dialog>/)?.[0];
   const sort = html.match(/<dialog[^>]*id="transaction-sort-dialog"[\s\S]*?<\/dialog>/)?.[0];

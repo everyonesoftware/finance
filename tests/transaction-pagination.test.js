@@ -14,7 +14,7 @@ class Element {
   value = ''; hidden = false; disabled = false; textContent = ''; checked = false;
   handlers = {}; dataset = {}; style = { setProperty() {} }; checkboxes = []; html = '';
   addEventListener(name, handler) { (this.handlers[name] ??= []).push(handler); }
-  async emit(name) { for (const handler of this.handlers[name] ?? []) await handler({ target: this, preventDefault() {} }); }
+  async emit(name, extra = {}) { for (const handler of this.handlers[name] ?? []) await handler({ target: this, preventDefault() {}, ...extra }); }
   setAttribute() {} focus() {} scrollIntoView() {}
   set innerHTML(value) {
     this.html = value;
@@ -73,6 +73,45 @@ function reachEnd(nodes, isIntersecting = true) {
   assert.ok(nodes.observer, 'Infinite scroll must observe the end of the list');
   nodes.observer.callback([{ target: nodes['#transactions-scroll-sentinel'], isIntersecting }]);
 }
+
+test('transaction search reaches unseen history, composes with filters, and clearing resets pagination', async t => {
+  const nodes = await setup(t, transactions(151));
+  const input = nodes['#transaction-search'];
+  assert.ok(input);
+  input.value = 'purchase 150';
+  await input.emit('input');
+  assert.equal(renderedRows(nodes), 1);
+  assert.match(nodes['#all-transactions-list'].innerHTML, />Purchase 150<\/strong>/);
+  assert.match(nodes['#all-transactions-count'].textContent, /1–1 of 1/);
+  assert.equal(nodes['#clear-transaction-search'].hidden, false);
+  await nodes['#deselect-all-accounts'].emit('click');
+  assert.match(nodes['#all-transactions-list'].textContent, /No accounts are selected/);
+  await nodes['#select-all-accounts'].emit('click');
+  assert.equal(renderedRows(nodes), 1);
+  nodes['#minimum-transaction-amount'].value = '-100';
+  await nodes['#minimum-transaction-amount'].emit('input');
+  assert.match(nodes['#all-transactions-list'].textContent, /No transactions match/);
+  await nodes['#reset-amount-filter'].emit('click');
+  assert.equal(renderedRows(nodes), 1);
+  await nodes['#clear-transaction-search'].emit('click');
+  assert.equal(input.value, '');
+  assert.equal(nodes['#clear-transaction-search'].hidden, true);
+  assert.equal(renderedRows(nodes), 50);
+  assert.equal(nodes['#transactions-scroll-sentinel'].hidden, false);
+  reachEnd(nodes);
+  assert.equal(renderedRows(nodes), 100);
+  input.value = 'not present';
+  await input.emit('input');
+  assert.match(nodes['#all-transactions-list'].textContent, /No transactions match/);
+  await input.emit('keydown', { key: 'Escape' });
+  assert.equal(input.value, '');
+  assert.equal(renderedRows(nodes), 50);
+  input.value = 'Purchase';
+  await input.emit('input');
+  nodes['#transaction-sort-order'].value = 'amount-asc';
+  await nodes['#transaction-sort-order'].emit('change');
+  assert.match(nodes['#all-transactions-list'].innerHTML, />Purchase 150<\/strong>/);
+});
 
 test('Overview recent transactions panel links to all transactions from its heading', () => {
   const html = renderDashboard({ displayName: 'Tester', username: 'tester' });
