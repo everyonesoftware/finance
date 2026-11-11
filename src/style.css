@@ -434,6 +434,7 @@ h1 span {
 }
 
 .panel {
+  --transaction-list-right-gutter: 20px;
   padding: 20px;
 }
 
@@ -1058,10 +1059,12 @@ a.text-button {
   font-size: 10px;
 }
 
-.transaction-row > b {
+.transaction-row > b,
+.transfer-pair-amount {
   flex: 0 0 auto;
   color: #343b33;
   font-size: 11px;
+  font-weight: 700;
 }
 
 .transaction-transfer-pair {
@@ -1070,6 +1073,10 @@ a.text-button {
   border: 0;
   border-radius: 0;
   background: #fff;
+}
+
+.transaction-transfer-pair:not(:last-child) {
+  border-bottom: 1px solid #f0f1ee;
 }
 
 .transaction-transfer-pair::before {
@@ -1117,16 +1124,17 @@ a.text-button {
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
-  color: #343b33;
-  font-size: 11px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
 .transfer-pair-rows {
   margin: 0;
+  /* Meet the rail and panel edge without shifting text or the amount column. */
+  margin-left: calc(var(--transaction-group-copy-offset, 0px) - 7px);
+  margin-right: calc(-1 * var(--transaction-list-right-gutter, 20px));
   padding: 11px 13px 4px;
+  padding-left: calc(var(--transaction-child-copy-offset, 13px) - var(--transaction-group-copy-offset, 0px) + 7px);
+  padding-right: var(--transaction-list-right-gutter, 20px);
   border: 0;
   border-radius: 0;
   background: #f5f5f4;
@@ -1170,9 +1178,6 @@ a.text-button {
 .transfer-pair-rows .transaction-row > b {
   grid-column: 3;
   justify-self: end;
-  font-size: 13px;
-  font-weight: 650;
-  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -1841,6 +1846,7 @@ a.text-button {
   }
 
   .account-detail-transactions {
+    --transaction-list-right-gutter: 16px;
     padding: 16px;
   }
 
@@ -1869,6 +1875,7 @@ a.text-button {
   }
 
   .panel {
+    --transaction-list-right-gutter: 17px;
     padding: 17px;
   }
 
@@ -2576,7 +2583,7 @@ a.text-button {
 }
 .transactions-content .transaction-transfer-pair { --transaction-group-copy-offset: 44px; }
 .transactions-content .transfer-pair-copy { grid-column: 2; }
-.transactions-content .transfer-pair-rows { padding-left: 44px; }
+.transactions-content .transfer-pair-rows { --transaction-child-copy-offset: 44px; }
 .transactions-content .transfer-pair-rows .transaction-row { min-height: 65px; }
 .transactions-content .transfer-pair-rows .transaction-copy strong { font-weight: 400; }
 }
@@ -2676,7 +2683,7 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
   .transactions-content .transactions-page-heading { gap: 8px; align-items: flex-end; }
   .transactions-content .transactions-page-heading h1 { font-size: 26px; letter-spacing: -1px; }
   .transactions-content .transactions-page-heading .eyebrow { margin-bottom: 6px; font-size: 9px; letter-spacing: .8px; }
-  .transactions-content .transactions-results { padding: 0 0 8px; background: #fafbf8; box-shadow: none; }
+  .transactions-content .transactions-results { --transaction-list-right-gutter: 0px; padding: 0 0 8px; background: #fafbf8; box-shadow: none; }
   .transactions-content .transaction-copy .transaction-account-label { font-size: 11px; }
   .transactions-content .transaction-row,
   .transactions-content .transaction-transfer-pair summary { gap: 8px; }
