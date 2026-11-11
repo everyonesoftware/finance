@@ -58,7 +58,8 @@ function validateStructure(content:string):void {
  const body=content.slice(start).replace(/<!--[\s\S]*?-->/g,'');
  const stack:Array<{tag:string;leaf:boolean}>=[];
  let end=0,finished=false;
- const tags=/<(\/?)([A-Za-z][A-Za-z0-9_]*)(\s*\/?)>/g;
+ // QFX metadata includes dotted tag names such as INTU.BID.
+ const tags=/<(\/?)([A-Za-z][A-Za-z0-9_.]*)(\s*\/?)>/g;
  for(const match of body.matchAll(tags)){
   const between=body.slice(end,match.index);
   if(between.includes('<') || (finished && between.trim()))throw Error('Malformed OFX markup.');

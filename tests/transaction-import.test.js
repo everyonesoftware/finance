@@ -2,6 +2,23 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseTransactionImport as parse} from '../server/transaction-import.ts';
 const map={dateColumn:0,nameColumn:1,amountColumn:2,dateFormat:'mdy',amountConvention:'outflow-positive'};
+test('QFX dotted metadata tags preserve transactions in SGML and XML statements',()=>{
+ for(const xml of [false,true]) {
+  const field=(tag,value)=>`<${tag}>${value}${xml?`</${tag}>`:''}`;
+  const metadata='<SIGNONMSGSRSV1><SONRS>'+field('INTU.BID','1234')+'</SONRS></SIGNONMSGSRSV1>';
+  const statement='<STMTRS>'+field('CURDEF','USD')+'<BANKTRANLIST><STMTTRN>'+field('DTPOSTED','20261101')+field('TRNAMT','-25.50')+field('NAME','Example transfer')+field('FITID','example-reference')+'</STMTTRN></BANKTRANLIST></STMTRS>';
+  const content=(xml?'<?xml version="1.0"?>':'OFXHEADER:100\nVERSION:102\n\n')+'<OFX>'+metadata+statement+'</OFX>';
+  const parsed=parse('statement.qfx',content,'USD');
+  assert.deepEqual(parsed.errors,[]);
+  assert.equal(parsed.total,1);
+  assert.deepEqual(parsed.transactions,[{date:'2026-11-01',name:'Example transfer',amount:25.5,iso_currency_code:'USD',sourceId:'example-reference'}]);
+  if(xml) {
+   for(const invalid of [content.replace('</INTU.BID>','</INTU.OTHER>'),content.replace('</INTU.BID>',''),content.replace('INTU.BID','INTU@BID')]) {
+    assert.ok(parse('statement.qfx',invalid,'USD').errors.length);
+   }
+  }
+ }
+});
 test('OFX comments cannot introduce transactions or truncate descriptions', () => {
  const real='<STMTTRN><DTPOSTED>20261101</DTPOSTED><TRNAMT>-5</TRNAMT><NAME>Coffee<!-- note --> shop</NAME><FITID>real</FITID></STMTTRN>';
  const ignored='<STMTTRN><DTPOSTED>20261102</DTPOSTED><TRNAMT>-999</TRNAMT><NAME>Not a transaction</NAME><FITID>commented</FITID></STMTTRN>';
