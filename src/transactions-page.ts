@@ -6,7 +6,6 @@ import {
   getAccountSelectionOnLoad,
   getFuzzyMatchPositions,
   getTransactionGroupAmount,
-  getTransactionGroupDate,
   parseAmountRangeInput,
   reconcileAmountRangeInput,
   renderFuzzyHighlightedText,
@@ -399,13 +398,10 @@ export async function initializeTransactionsPage(): Promise<void> {
       return;
     }
     list.className = "transaction-list all-transactions-list";
-    const previousGroup = renderedGroupCount > 0 ? filteredGroups[renderedGroupCount - 1] : undefined;
     const html = renderTransactionGroups(nextGroups, accounts, {
       showAccount: true,
       activityStyle: true,
       responsiveActivity: true,
-      groupByDate: appliedSort.startsWith("date"),
-      previousDate: previousGroup ? getTransactionGroupDate(previousGroup) : undefined,
     });
     if (resetVisible) list.innerHTML = html;
     else list.insertAdjacentHTML("beforeend", html);

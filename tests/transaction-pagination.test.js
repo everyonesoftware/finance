@@ -52,6 +52,23 @@ async function setup(t, records, accounts = [account], observerAvailable = true)
   return nodes;
 }
 const renderedRows = nodes => (nodes['#all-transactions-list'].innerHTML.match(/class="account-row transaction-row"/g) ?? []).length;
+test('Transactions keeps dates in each row without day headings after sorting and appending', async t => {
+  const nodes = await setup(t, transactions(101));
+  const checkDates = () => {
+    const html = nodes['#all-transactions-list'].innerHTML;
+    assert.doesNotMatch(html, /transaction-date-heading/);
+    assert.equal((html.match(/class="transaction-mobile-date">2026-11-01<\/span>/g) ?? []).length, renderedRows(nodes));
+  };
+  checkDates();
+  reachEnd(nodes);
+  checkDates();
+  for (const sort of ['date-asc', 'amount-desc', 'date-desc']) {
+    nodes['#transaction-sort-order'].value = sort;
+    await nodes['#transaction-sort-order'].emit('change');
+    checkDates();
+  }
+});
+
 function reachEnd(nodes, isIntersecting = true) {
   assert.ok(nodes.observer, 'Infinite scroll must observe the end of the list');
   nodes.observer.callback([{ target: nodes['#transactions-scroll-sentinel'], isIntersecting }]);

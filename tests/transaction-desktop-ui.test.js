@@ -119,5 +119,10 @@ test('ordinary activity rows and the mobile toolbar remain confined to the mobil
   const desktop = activity.slice(0, start);
   assert.doesNotMatch(desktop, /min-height:\s*69px|grid-template-columns:\s*34px|font-size:\s*14px/);
   assert.match(desktop, /\.transaction-heading-actions[\s\S]*display:\s*none/);
-  assert.match(activity.slice(start), /grid-template-columns:\s*34px minmax\(0, 1fr\) auto/);
+  const mobile = activity.slice(start);
+  assert.match(mobile, /grid-template-columns:\s*minmax\(0, 1fr\) auto/);
+  assert.doesNotMatch(mobile, /\.transaction-avatar\s*\{[^}]*display:\s*grid/);
+  assert.doesNotMatch(mobile, /\.transaction-date-heading\s*\{[^}]*display:\s*block/);
+  assert.match(mobile, /\.transactions-content \.transaction-copy\s*\{[^}]*grid-column:\s*1;/);
+  assert.match(mobile, /\.transactions-content \.transfer-pair-copy\s*\{[^}]*grid-column:\s*1;/);
 });

@@ -25,5 +25,6 @@ test('shared transaction groups use ordinary amounts, rail-to-edge details and r
   assert.match(css, /\.panel\s*\{[^}]*--transaction-list-right-gutter:\s*17px/);
   assert.match(css, /\.account-detail-transactions\s*\{[^}]*--transaction-list-right-gutter:\s*16px/);
   assert.match(css, /\.transactions-content \.transactions-results\s*\{[^}]*--transaction-list-right-gutter:\s*0px/);
-  assert.match(css, /--transaction-child-copy-offset:\s*44px/);
+  assert.match(css, /\.transactions-content \.transaction-transfer-pair\s*\{[^}]*--transaction-group-copy-offset:\s*0px/);
+  assert.match(css, /\.transactions-content \.transfer-pair-rows\s*\{[^}]*--transaction-child-copy-offset:\s*13px/);
 });
