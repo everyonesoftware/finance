@@ -19,7 +19,7 @@ export interface TransactionListRenderOptions {
 export type TransactionGroup =
   | { type: "single"; transactions: [TransactionRecord] }
   | {
-      type: "transfer";
+      type: "transfer" | "credit-card-payment";
       transactions: TransactionRecord[];
       fromAccount: BankAccount;
       toAccount: BankAccount;
@@ -153,11 +153,12 @@ function* counterpartIndexes(
   candidate: TransferCandidate,
   candidates: TransferCandidateIndex,
   afterIndex: number,
+  windowDays = 3,
 ): Generator<number> {
   const dates = candidates.get(candidate.counterpartKey);
   if (!dates) return;
   const cursors: { indexes: number[]; position: number }[] = [];
-  for (let day = candidate.ordinal - 3; day <= candidate.ordinal + 3; day += 1) {
+  for (let day = candidate.ordinal - windowDays; day <= candidate.ordinal + windowDays; day += 1) {
     const indexes = dates.get(day);
     if (!indexes) continue;
     // Buckets retain input order. Jump over earlier records rather than rescanning them.
@@ -187,6 +188,70 @@ function* counterpartIndexes(
   }
 }
 
+const creditCardPaymentRules = [
+  {
+    issuer: "citi",
+    outgoing: /^CITI\s+CARD\s+ONLINE\s+PAYMENT$/i,
+    incoming: /^ONLINE\s+PAYMENT,\s*THANK\s+YOU$/i,
+    institution: /^Citi$/i,
+  },
+  {
+    issuer: "capital-one",
+    outgoing: /^CAPITAL\s+ONE\s+ONLINE\s+PMT$/i,
+    incoming: /^CAPITAL\s+ONE\s+ONLINE\s+PYMT\s+CAPITAL\s+ONE\s+ONLINE\s+PYMT$/i,
+    institution: /^Capital\s*One$/i,
+  },
+];
+
+function creditCardPaymentPairs(
+  transactions: TransactionRecord[],
+  accountsByProviderId: Map<string, BankAccount>,
+): Map<number, number> {
+  // Recognize only observed issuer-specific descriptors, never generic payment text.
+  const candidates: TransferCandidateIndex = new Map();
+  const metadata = transactions.map((transaction, index): TransferCandidate | null => {
+    if (!transaction || transaction["pending"] === true) return null;
+    const name = stringField(transaction, "name")?.trim() ?? "";
+    const rule = creditCardPaymentRules.find((candidate) => candidate.outgoing.test(name) || candidate.incoming.test(name));
+    if (!rule) return null;
+    const outgoing = rule.outgoing.test(name);
+    const account = accountsByProviderId.get(stringField(transaction, "account_id") ?? "");
+    if (!account || (outgoing ? account.type !== "depository"
+      : account.type !== "credit" || account.subtype !== "credit card" || !rule.institution.test(account.institutionName.trim()))) return null;
+    const amount = numberField(transaction, "amount");
+    const currency = currencyCode(transaction);
+    const date = stringField(transaction, "date");
+    const ordinal = date ? dateOrdinal(date) : null;
+    if (amount === null || (outgoing ? amount <= 0 : amount >= 0) || !currency || ordinal === null) return null;
+    if (new Date(ordinal * 86_400_000).toISOString().slice(0, 10) !== date) return null;
+    const cents = Math.round(Math.abs(amount) * 100);
+    if (cents === 0) return null;
+    const candidate = {
+      key: JSON.stringify([rule.issuer, outgoing, cents, currency]),
+      counterpartKey: JSON.stringify([rule.issuer, !outgoing, cents, currency]),
+      ordinal,
+    };
+    let dates = candidates.get(candidate.key);
+    if (!dates) {
+      dates = new Map();
+      candidates.set(candidate.key, dates);
+    }
+    const indexes = dates.get(ordinal);
+    if (indexes) indexes.push(index);
+    else dates.set(ordinal, [index]);
+    return candidate;
+  });
+  const uniqueMatches = new Map<number, number>();
+  metadata.forEach((candidate, index) => {
+    if (!candidate) return;
+    const matches = counterpartIndexes(candidate, candidates, -1, 5);
+    const first = matches.next();
+    if (!first.done && matches.next().done) uniqueMatches.set(index, first.value);
+  });
+  // Require uniqueness in both directions, not a greedy first match.
+  return new Map([...uniqueMatches].filter(([index, counterpart]) => uniqueMatches.get(counterpart) === index));
+}
+
 export function groupInternalTransfers(
   transactions: TransactionRecord[],
   accounts: BankAccount[],
@@ -195,6 +260,7 @@ export function groupInternalTransfers(
   for (const account of accounts) {
     if (account.providerAccountId) accountsByProviderId.set(account.providerAccountId, account);
   }
+  const paymentPairs = creditCardPaymentPairs(transactions, accountsByProviderId);
 
   const candidates: TransferCandidateIndex = new Map();
   const metadata = transactions.map((transaction, index) => {
@@ -218,6 +284,18 @@ export function groupInternalTransfers(
     if (consumed.has(index)) continue;
     const transaction = transactions[index];
     if (!transaction) continue;
+
+    const paymentIndex = paymentPairs.get(index);
+    const paymentCounterpart = paymentIndex === undefined ? undefined : transactions[paymentIndex];
+    if (paymentIndex !== undefined && paymentCounterpart && !consumed.has(paymentIndex)) {
+      const outgoing = numberField(transaction, "amount")! > 0 ? transaction : paymentCounterpart;
+      const incoming = outgoing === transaction ? paymentCounterpart : transaction;
+      const fromAccount = accountsByProviderId.get(stringField(outgoing, "account_id")!)!;
+      const toAccount = accountsByProviderId.get(stringField(incoming, "account_id")!)!;
+      consumed.add(paymentIndex);
+      groups.push({ type: "credit-card-payment", transactions: [transaction, paymentCounterpart], fromAccount, toAccount });
+      continue;
+    }
 
     let counterpartIndex = -1;
     let pairedAccounts: { fromAccount: BankAccount; toAccount: BankAccount } | null = null;
@@ -338,17 +416,19 @@ export function renderTransactionGroups(
     const amountTransaction = group.transactions.find((transaction) => numberField(transaction, "amount") !== null);
     const transferAmount = amountTransaction ? Math.abs(numberField(amountTransaction, "amount") ?? 0) : Number.NaN;
     const amountCurrency = amountTransaction ? currencyCode(amountTransaction) : null;
+    const groupLabel = group.type === "credit-card-payment" ? "Credit Card Payment" : "Transfer";
+    const detailLabel = group.type === "credit-card-payment" ? "credit card payment" : "transfer";
     return `${heading}
       <details class="transaction-transfer-pair">
-        <summary aria-label="Expand or collapse original transfer transactions">
+        <summary aria-label="Expand or collapse original ${detailLabel} transactions">
           <div class="transaction-copy transfer-pair-copy">
-            <strong>Transfer: ${escapeHtml(group.fromAccount.name)} → ${escapeHtml(group.toAccount.name)}</strong>
+            <strong>${groupLabel}: ${escapeHtml(group.fromAccount.name)} → ${escapeHtml(group.toAccount.name)}</strong>
             <span>${escapeHtml(dateLabel ?? "Date unavailable")}</span>
           </div>
           <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-transferAmount, amountCurrency))}</b>
         </summary>
         <div class="transfer-pair-rows">
-          <div class="transfer-pair-details-label">Transactions included in this transfer</div>
+          <div class="transfer-pair-details-label">Transactions included in this ${detailLabel}</div>
           ${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts, options.showAccount === true)).join("")}
         </div>
       </details>

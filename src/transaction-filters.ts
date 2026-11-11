@@ -142,7 +142,7 @@ export function getTransactionGroupAmount(group: TransactionGroup): number | nul
     typeof candidate.amount === "number" && Number.isFinite(candidate.amount),
   );
   if (!transaction || typeof transaction.amount !== "number") return null;
-  return group.type === "transfer" ? Math.abs(transaction.amount) : -transaction.amount;
+  return group.type !== "single" ? Math.abs(transaction.amount) : -transaction.amount;
 }
 
 export function getTransactionGroupDate(group: TransactionGroup): string | null {
@@ -157,7 +157,7 @@ function getTransactionGroupAccountIds(
   group: TransactionGroup,
   accountsByProviderId: Map<string, BankAccount>,
 ): string[] {
-  if (group.type === "transfer") return [group.fromAccount.id, group.toAccount.id];
+  if (group.type !== "single") return [group.fromAccount.id, group.toAccount.id];
   const accountId = group.transactions[0].account_id;
   if (typeof accountId !== "string") return [];
   const account = accountsByProviderId.get(accountId);

@@ -4,26 +4,25 @@ import { readFile } from 'node:fs/promises';
 import { initializeTransactionsPage, renderTransactionsPage } from '../src/transactions-page.ts';
 
 const user = { displayName: 'Tester', username: 'tester' };
-test('mobile transfers use one outer rail with flush included transactions', async () => {
+test('mobile transfers inherit one shared outer rail with flush included transactions', async () => {
   const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8');
-  const activity = css.slice(css.indexOf('/* Transactions: everyday activity.'));
-  const mobile = activity.slice(activity.indexOf('@media (max-width: 800px)'));
+  const shared = css.slice(0, css.indexOf('@media'));
   const rule = selector => {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return [...mobile.matchAll(new RegExp(escaped + '\\s*\\{([^}]+)\\}', 'g'))]
+    return [...shared.matchAll(new RegExp(escaped + '\\s*\\{([^}]+)\\}', 'g'))]
       .map(match => match[1]).join('\n');
   };
-  const container = rule('.transactions-content .transaction-transfer-pair');
+  const container = rule('.transaction-transfer-pair');
   assert.match(container, /border-left:\s*3px solid #356747/);
   assert.match(container, /background:\s*#f7faf4/);
-  const children = rule('.transactions-content .transfer-pair-rows');
+  const children = rule('.transfer-pair-rows');
   assert.match(children, /border:\s*0/);
   assert.match(children, /margin:\s*0/);
   assert.match(children, /background:\s*transparent/);
-  const summary = rule('.transactions-content .transaction-transfer-pair summary');
+  const summary = rule('.transaction-transfer-pair summary');
   assert.match(summary, /background:\s*#edf4e8/);
   assert.match(summary, /border-bottom:\s*1px solid #dce8d6/);
-  assert.match(rule('.transactions-content .transfer-pair-details-label'), /border-bottom:\s*0/);
+  assert.match(rule('.transfer-pair-details-label'), /border-bottom:\s*0/);
 });
 
 const accounts = [

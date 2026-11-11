@@ -158,6 +158,27 @@ test('infinite scroll keeps both sides of a transfer together across batch bound
   assert.equal(nodes['#transactions-scroll-sentinel'].hidden, true);
 });
 
+test('payment groups span history batches and remain visible when filtering by the credit card', async t => {
+  const card = { ...account, id: 'citi-card', providerAccountId: 'citi-card', institutionName: 'Citi', name: 'Costco Card', type: 'credit', subtype: 'credit card' };
+  const records = transactions(49).map(record => ({ ...record, date: '2026-11-10' }));
+  records.push(
+    { account_id: 'checking', name: 'CITI CARD ONLINE PAYMENT', amount: 646.67, date: '2026-11-10', iso_currency_code: 'USD' },
+    ...transactions(10),
+    { account_id: 'citi-card', name: 'ONLINE PAYMENT, THANK YOU', amount: -646.67, date: '2026-11-09', iso_currency_code: 'USD' },
+  );
+  const nodes = await setup(t, records, [account, card]);
+  assert.equal((nodes['#all-transactions-list'].innerHTML.match(/class="transaction-transfer-pair"/g) ?? []).length, 1);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /Credit Card Payment: Checking → Costco Card/);
+  assert.match(nodes['#all-transactions-count'].textContent, /1–50 of 60/);
+  reachEnd(nodes);
+  assert.equal((nodes['#all-transactions-list'].innerHTML.match(/class="transaction-transfer-pair"/g) ?? []).length, 1);
+  const options = nodes['#account-options'];
+  options.checkboxes.find(input => input.value === account.id).checked = false;
+  await options.emit('change');
+  assert.match(nodes['#all-transactions-count'].textContent, /1–1 of 1/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /Credit Card Payment: Checking → Costco Card/);
+});
+
 test('detached transaction lists disconnect their observer without appending rows', async t => {
   const nodes = await setup(t, transactions(101));
   nodes['#transactions-scroll-sentinel'].isConnected = false;
