@@ -327,7 +327,7 @@ export function renderConnections(connections: BankConnection[]): string {
 }
 
 export function renderConnectionsPage(user: BankAccountsPageUser): string {
-  return `<div class="app-shell">${renderAppNavigation(user, "real-estate")}<main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Real Estate</h1><p class="subheading">Track property values and estimate history.</p></div><button class="primary-button" id="add-property" type="button">＋ Add Real Estate</button></section><section class="panel inline-property-form" id="new-property-panel" hidden><h2>New property</h2><form id="add-property-form"><label>Address<input id="property-address" name="address" required maxlength="500" autocomplete="off" placeholder="Enter an address"></label><div id="address-suggestions" role="listbox"></div><div id="zillow-url-field" hidden><label>Zillow URL<input id="zillow-property-url" name="zillowUrl" type="url" required placeholder="https://www.zillow.com/homedetails/…"></label></div><div class="property-form-actions"><button class="primary-button" id="done-property" type="submit" disabled>Done</button></div><p id="property-form-message" role="status"></p></form></section><div id="real-estate-properties" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading properties…</div></div><footer class="page-footer">Your finances, in focus.</footer></main></div>`;
+  return `<div class="app-shell">${renderAppNavigation(user, "real-estate")}<main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Real Estate</h1><p class="subheading">Track property values and estimate history.</p></div><button class="primary-button" id="add-property" type="button">＋ Add Real Estate</button></section><section class="panel inline-property-form" id="new-property-panel" hidden><h2>New property</h2><form id="add-property-form"><label>Address<input id="property-address" name="address" required maxlength="500" autocomplete="off" placeholder="Enter an address"></label><div id="address-suggestions" role="listbox"></div><div id="zillow-url-field" hidden><label>Zillow URL<input id="zillow-property-url" name="zillowUrl" type="url" required placeholder="https://www.zillow.com/homedetails/…"></label></div><div class="property-form-actions"><button class="primary-button" id="done-property" type="submit" disabled>Done</button></div><p id="property-form-message" role="status"></p></form></section><div id="real-estate-properties" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading properties…</div></div></main></div>`;
 }
 
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
@@ -511,10 +511,7 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
         </div>
         ${renderManualAccountDialog()}
 
-        <footer class="page-footer">
-          Your finances, in focus.
-          <span>Manual accounts and saved bank data</span>
-        </footer>
+
       </main>
     </div>
   `;
@@ -536,7 +533,7 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
         <div id="account-detail-content" class="account-detail-content" aria-live="polite">
           <div class="panel accounts-loading">Loading account details and transactions…</div>
         </div>
-        <footer class="page-footer">Your finances, in focus.<span>Manual accounts and saved bank data</span></footer>
+
       </main>
     </div>
   `;

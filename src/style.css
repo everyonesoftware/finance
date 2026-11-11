@@ -1152,13 +1152,6 @@ a.text-button {
   font-size: 9px;
 }
 
-.page-footer {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 18px;
-  color: #9aa097;
-  font-size: 9px;
-}
 
 .transactions-page-heading {
   margin-top: 32px;
@@ -1846,8 +1839,7 @@ a.text-button {
   padding: 0;
 }
 
-.landing-header-note,
-.landing-footer {
+.landing-header-note {
   color: #858b83;
   font-size: 11px;
 }
@@ -2056,13 +2048,6 @@ a.text-button {
   display: none;
 }
 
-.landing-footer {
-  display: flex;
-  justify-content: space-between;
-  padding: 17px 0 22px;
-  border-top: 1px solid #e7eae4;
-  font-size: 9px;
-}
 
 .settings-page {
   padding-bottom: 50px;
@@ -2148,9 +2133,7 @@ a.text-button {
     font-size: 38px;
   }
 
-  .landing-footer {
-    margin-top: 0;
-  }
+
 }
 
 @media (max-width: 520px) {
@@ -2207,10 +2190,7 @@ a.text-button {
     margin-top: 32px;
   }
 
-  .landing-footer {
-    gap: 12px;
-    font-size: 8px;
-  }
+
 }
 
 .inline-property-form[hidden] { display: none; }
@@ -2665,7 +2645,7 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
   .transactions-content .transaction-copy .transaction-account-label { font-size: 11px; }
   .transactions-content .transaction-row,
   .transactions-content .transaction-transfer-pair summary { gap: 8px; }
-  .transactions-content .page-footer { gap: 12px; flex-wrap: wrap; }
+
   .mobile-navigation {
     position: fixed;
     z-index: 30;

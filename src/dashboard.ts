@@ -76,7 +76,7 @@ export function renderDashboard(user: DashboardUser): string {
         </article>
       </section>
 
-      <footer class="page-footer">Your finances, in focus. <span>Finance · Personal finance</span></footer>
+
     </main>
   </div>
   `;

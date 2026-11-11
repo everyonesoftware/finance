@@ -109,7 +109,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
           <div id="transactions-scroll-sentinel" class="transaction-scroll-sentinel" aria-hidden="true" hidden></div>
         </section>
         </div>
-        <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
+
       </main>
 
       <dialog id="transaction-filters-dialog" class="transaction-controls-dialog" aria-labelledby="transaction-filters-title">

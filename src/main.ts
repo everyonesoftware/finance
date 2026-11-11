@@ -129,7 +129,7 @@ function renderLanding(): void {
           <p class="auth-terms">Your account is hosted by this application.</p>
         </section>
       </section>
-      <footer class="landing-footer">Finance <span>Thoughtful tools for your financial life.</span></footer>
+
     </main>
   `;
 
