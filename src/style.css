@@ -773,8 +773,16 @@ h1 span {
 
 .institution-actions {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 7px;
+}
+
+.institution-account-count {
+  align-self: flex-end;
+  color: #477858;
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .institution-last-retrieved {

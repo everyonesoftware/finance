@@ -231,21 +231,30 @@ export function renderAccounts(accounts: BankAccount[]): string {
 
   const groups: Map<string, BankAccount[]> = new Map();
   for (const account of accounts) {
-    const group: BankAccount[] = groups.get(account.itemId) ?? [];
+    const bankKey = account.institutionName.trim().toLowerCase();
+    const group: BankAccount[] = groups.get(bankKey) ?? [];
     group.push(account);
-    groups.set(account.itemId, group);
+    groups.set(bankKey, group);
   }
 
   return [...groups.entries()]
     .map(([, group]): string => {
-      const institutionName: string = escapeHtml(group[0]?.institutionName ?? "Bank");
-      const lastRetrievedAt: Date = new Date(
-        group[0]?.lastRetrievedAt ?? group[0]?.updatedAt ?? "",
-      );
-      const manual = group[0]?.source === "manual";
+      const institutionName: string = escapeHtml(group[0]?.institutionName.trim() || "Bank");
+      const latestTimestamp = group.reduce((latest, account) => {
+        const timestamp = new Date(
+          account.source === "manual" ? account.updatedAt : account.lastRetrievedAt ?? account.updatedAt,
+        ).getTime();
+        return Number.isNaN(timestamp) ? latest : Math.max(latest, timestamp);
+      }, -Infinity);
+      const lastRetrievedAt = new Date(latestTimestamp);
+      const manual = group.every(account => account.source === "manual");
+      const hasManual = group.some(account => account.source === "manual");
+      const sourceLabel = manual
+        ? `MANUAL ACCOUNT${group.length === 1 ? "" : "S"}`
+        : hasManual ? "ACCOUNTS" : "SAVED INSTITUTION";
       const updateLabel: string = Number.isNaN(lastRetrievedAt.getTime())
-        ? "Last retrieved time unavailable"
-        : `${manual ? "Updated" : "Last retrieved"} ${escapeHtml(
+        ? `${hasManual ? "Update" : "Last retrieved"} time unavailable`
+        : `${hasManual ? "Updated" : "Last retrieved"} ${escapeHtml(
             new Intl.DateTimeFormat(undefined, {
               dateStyle: "medium",
               timeStyle: "short",
@@ -288,10 +297,11 @@ export function renderAccounts(accounts: BankAccount[]): string {
         <section class="institution-card" aria-label="${institutionName} accounts">
           <header class="institution-heading">
             <div>
-              <p class="eyebrow">${manual ? "MANUAL ACCOUNT" : "SAVED INSTITUTION"}</p>
+              <p class="eyebrow">${sourceLabel}</p>
               <h2>${institutionName}</h2>
             </div>
             <div class="institution-actions">
+              <span class="institution-account-count">${group.length} ${group.length === 1 ? "account" : "accounts"}</span>
               <span class="institution-last-retrieved">${updateLabel}</span>
             </div>
           </header>
