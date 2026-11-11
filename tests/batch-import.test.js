@@ -128,12 +128,12 @@ function fixture(t) {
 const csv=(fileName='activity.csv',rows='2026-11-01,Coffee,-5',extra={})=>({fileName,content:'Date,Description,Amount\n'+rows,...extra});
 const ofx=(id='source-one',amount='-5',accountId='99991234',extra='',statement='STMTRS',accountTag='BANKACCTFROM',currency='USD')=>({fileName:'statement.qfx',content:`OFXHEADER:100\nVERSION:102\n\n<OFX><${statement}><CURDEF>${currency}<${accountTag}><ACCTID>${accountId}</${accountTag}><BANKTRANLIST><STMTTRN><DTPOSTED>20261101<TRNAMT>${amount}<NAME>Coffee<FITID>${id}${extra}</STMTTRN></BANKTRANLIST></${statement}></OFX>`});
 
-test('batch preview preserves input order, requires a choice for CSV, and never writes',async t=>{
+test('batch preview preserves input order, requires a choice for unidentified CSV, and never writes',async t=>{
  const {post,account,state}=fixture(t);const a=await account();const before=state();
- const response=await post('/import-batch/preview',{files:[csv('1234.csv'),csv('chosen.csv',undefined,{accountId:a.id})]});
+ const response=await post('/import-batch/preview',{files:[csv('activity.csv'),csv('chosen.csv',undefined,{accountId:a.id})]});
  assert.equal(response.status,200);
  const {files}=await response.json();assert.equal(files.length,2);
- assert.deepEqual(files.map(f=>[f.fileName,f.accountId,f.status,f.total,f.importable]),[['1234.csv',null,'needs-account',1,0],['chosen.csv',a.id,'ready',1,1]]);
+ assert.deepEqual(files.map(f=>[f.fileName,f.accountId,f.status,f.total,f.importable]),[['activity.csv',null,'needs-account',1,0],['chosen.csv',a.id,'ready',1,1]]);
  for(const f of files){assert.equal(typeof f.reason,'string');assert.deepEqual(f.errors,[]);assert.deepEqual(f.columns,['Date','Description','Amount']);assert.equal(f.mapping.amountColumn,2);assert.equal(f.duplicates,0);}
  assert.deepEqual(state(),before);
 });
@@ -143,7 +143,7 @@ test('only unique statement source masks with matching currency and account type
  const preview=async files=>{const r=await post('/import-batch/preview',{files});assert.equal(r.status,200);return (await r.json()).files;};
  let [f]=await preview([ofx('a','-5','99991234','<BANKACCTTO><ACCTID>77775678</BANKACCTTO><BANKACCTFROM><ACCTID>77775678</BANKACCTFROM>')]);
  assert.equal(f.accountId,a.id);assert.equal(f.status,'ready');
- for(const file of [ofx('a','-5','99995678'),ofx('a','-5','99991234','','STMTRS','BANKACCTFROM','EUR'),ofx('a','-5','99991234','','CCSTMTRS','CCACCTFROM'),csv('1234.csv')]) {
+ for(const file of [ofx('a','-5','99995678'),ofx('a','-5','99991234','','STMTRS','BANKACCTFROM','EUR'),ofx('a','-5','99991234','','CCSTMTRS','CCACCTFROM'),csv('activity.csv')]) {
   [f]=await preview([file]);assert.equal(f.accountId,null);assert.equal(f.status,'needs-account');
  }
  const b=await account({name:'Other same mask'});
@@ -155,4 +155,39 @@ test('only unique statement source masks with matching currency and account type
  for(const file of [{...ofx('a','-5','99995678'),accountId:a.id},{...ofx('a','-5','99991234','','STMTRS','BANKACCTFROM','EUR'),accountId:a.id},{...ofx('a','-5','99991234','','CCSTMTRS','CCACCTFROM'),accountId:a.id}]) {
   [f]=await preview([file]);assert.equal(f.status,'error');assert.equal(f.importable,0);assert.ok(f.errors.length);
  }
+});
+
+test('filename account numbers automatically select unique destinations and preserve approval and idempotency',async t=>{
+ const {post,account,state}=fixture(t);
+ const a=await account({mask:'7461',type:'investment',subtype:'brokerage'});
+ const b=await account({mask:'3243',type:'investment',subtype:'brokerage'});
+ const c=await account({mask:'1283',type:'investment',subtype:'brokerage'});
+ const files=['History_for_Account_Z30217461.csv','History_for_Account_250103243.csv','History_for_Account_X77621283.csv'].map(name=>csv(name));
+ const before=state();
+ const response=await post('/import-batch/preview',{files});assert.equal(response.status,200);
+ const preview=(await response.json()).files;
+ assert.deepEqual(preview.map(f=>[f.accountId,f.status,f.importable]),[a,b,c].map(a=>[a.id,'ready',1]));
+ for(const f of preview) assert.match(f.reason,/file.*name/i);
+ assert.deepEqual(state(),before);
+ assert.equal((await post('/import-batch',{files})).status,400,'Automatic match still requires explicit approval destinations');
+ const approved=files.map((f,i)=>({...f,accountId:preview[i].accountId}));
+ assert.equal((await(await post('/import-batch',{files:approved})).json()).imported,3);
+ assert.equal((await(await post('/import-batch/preview',{files})).json()).files.every(f=>f.importable===0&&f.duplicates===1),true);
+});
+
+test('filename matching respects ambiguity, ownership, manual choices and statement-source precedence',async t=>{
+ const {post,account,db}=fixture(t);
+ const a=await account(),b=await account({mask:'5678'});
+ const preview=async file=>(await(await post('/import-batch/preview',{files:[file]})).json()).files[0];
+ let f=await preview(csv('checking_1234.csv'));assert.equal(f.accountId,a.id);
+ await account({},'bob');f=await preview(csv('checking_1234.csv'));assert.equal(f.accountId,a.id);
+ const inactive=await account();db.prepare('UPDATE bank_account SET is_active=0 WHERE id=?').run(inactive.id);
+ const saved=await account();db.prepare("UPDATE bank_item SET provider='imported' WHERE item_id=?").run(saved.itemId);
+ f=await preview(csv('checking_1234.csv'));assert.equal(f.accountId,a.id);
+ f=await preview(csv('accounts_1234_5678.csv'));assert.equal(f.accountId,null);assert.equal(f.status,'needs-account');
+ await account();f=await preview(csv('checking_1234.csv'));assert.equal(f.accountId,null);assert.equal(f.status,'needs-account');
+ f=await preview(csv('checking_1234.csv',undefined,{accountId:b.id}));assert.equal(f.accountId,b.id);assert.equal(f.status,'ready');
+ f=await preview({...ofx('one','-5','99995678'),fileName:'checking_1234.qfx'});assert.equal(f.accountId,b.id,'Statement source wins over filename');
+ f=await preview({...ofx('two','-5','99990000'),fileName:'checking_5678.qfx'});assert.equal(f.accountId,null,'Unknown statement source must not fall back to filename');
+ f=await preview({...ofx('three','-5','99995678','','STMTRS','BANKACCTFROM','EUR'),fileName:'checking_5678.qfx'});assert.equal(f.accountId,null,'Filename cannot bypass currency validation');
 });

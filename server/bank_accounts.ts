@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { importCandidates, classifyImport, writeImport, ImportConflictError } from "./import-candidates.js";
 import { parseTransactionImport } from "./transaction-import.js";
 import { ofxSource } from "./ofx-import.js";
+import { filenameAccountMasks } from "./filename-account.js";
 import { listAccountTransactions, listAllUserTransactions } from "./account-storage.js";
 import { getRecentTransactions } from "./transaction-sync.js";
 
@@ -185,8 +186,12 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
       const accounts = accountsFor(userId);
       const prepared = body.files.map((file: { fileName: string; content: string; accountId?: string; csv?: unknown }) => {
         const source = /\.(?:ofx|qfx)$/i.test(file.fileName) ? ofxSource(file.content) : {};
-        const matches = source.mask && source.currency && source.type ? accounts.filter(a =>
-          a.canImport && a.mask === source.mask && a.currencyCode === source.currency && a.type === source.type) : [];
+        const filenameMasks = filenameAccountMasks(file.fileName);
+        // Statement source identity outranks a potentially renamed export file.
+        const matches = source.mask ? accounts.filter(a =>
+          a.canImport && a.mask === source.mask && a.currencyCode === source.currency && a.type === source.type) : accounts.filter(a =>
+          a.canImport && typeof a.mask === "string" && filenameMasks.includes(a.mask) &&
+          (!source.currency || a.currencyCode === source.currency) && (!source.type || a.type === source.type));
         const account = file.accountId !== undefined
           ? accounts.find(a => a.id === file.accountId && a.canImport)
           : matches.length === 1 ? matches[0] : undefined;
@@ -196,7 +201,7 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
         const result = {
           fileName: file.fileName, accountId: account?.id ?? null,
           status: parsed.errors.length ? "error" : account ? "ready" : "needs-account",
-          reason: parsed.errors[0] ?? (account ? "Destination selected." : matches.length > 1 ? "Multiple destination accounts match; select one." : "Select a destination account."),
+          reason: parsed.errors[0] ?? (account ? file.accountId === undefined && !source.mask ? "Account number matched from filename." : "Destination selected." : matches.length > 1 ? "Multiple destination accounts match; select one." : "Select a destination account."),
           total: parsed.total, duplicates: 0, importable: account && !parsed.errors.length ? parsed.total : 0,
           errors: parsed.errors, columns: parsed.columns, mapping: parsed.mapping, ...(parsed.notes ? { notes: parsed.notes } : {}),
         };
