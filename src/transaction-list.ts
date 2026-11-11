@@ -10,6 +10,9 @@ import { escapeHtml } from "./html-utils.ts";
 export type TransactionRecord = Record<string, unknown>;
 export interface TransactionListRenderOptions {
   showAccount?: boolean;
+  activityStyle?: boolean;
+  groupByDate?: boolean;
+  previousDate?: string | null;
 }
 
 export type TransactionGroup =
@@ -260,6 +263,8 @@ function renderTransactionRow(
   transaction: TransactionRecord,
   accounts: BankAccount[],
   showAccount: boolean,
+  activity = false,
+  hideDate = false,
 ): string {
   const name = stringField(transaction, "name") ?? "Transaction";
   const date = stringField(transaction, "date") ?? "Date unavailable";
@@ -272,6 +277,21 @@ function renderTransactionRow(
   const accountLabel = account
     ? `<span class="transaction-account-label">${escapeHtml(account.institutionName)} · ${escapeHtml(account.name)}</span>`
     : "";
+  if (activity) {
+    const monogram = Array.from(name.trim())[0]?.toLocaleUpperCase("en-US") ?? "T";
+    return `
+      <div class="account-row transaction-row" data-activity="true">
+        <span class="transaction-avatar" aria-hidden="true">${escapeHtml(monogram)}</span>
+        <div class="transaction-copy">
+          <strong>${renderLinkedTransactionName(name, accounts)}</strong>
+          ${hideDate ? "" : `<span>${escapeHtml(date)}</span>`}
+          ${accountLabel}
+          ${transaction["pending"] === true ? '<span class="transaction-pending">Pending</span>' : ""}
+        </div>
+        <b${amount < 0 ? ' class="transaction-income"' : ""}>${escapeHtml(formatTransactionAmount(amount, currencyCode(transaction)))}</b>
+      </div>
+    `;
+  }
   return `
     <div class="account-row transaction-row">
       <div class="transaction-copy">
@@ -299,17 +319,23 @@ export function renderTransactionGroups(
 ): string {
   if (groups.length === 0) return "No saved transactions are available.";
 
+  let previousDate = options.previousDate;
   return groups.map((group): string => {
-    if (group.type === "single") return renderTransactionRow(group.transactions[0], accounts, options.showAccount === true);
     const dates = group.transactions
       .map((transaction) => stringField(transaction, "date"))
       .filter((date): date is string => date !== null)
       .sort();
+    const date = dates[0] ?? null;
+    const heading = options.groupByDate === true && date !== previousDate
+      ? `<h3 class="transaction-date-heading">${escapeHtml(date ?? "Date unavailable")}</h3>`
+      : "";
+    previousDate = date;
+    if (group.type === "single") return heading + renderTransactionRow(group.transactions[0], accounts, options.showAccount === true, options.groupByDate === true || options.activityStyle === true, options.groupByDate === true);
     const dateLabel = dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} – ${dates.at(-1)}`;
     const amountTransaction = group.transactions.find((transaction) => numberField(transaction, "amount") !== null);
     const transferAmount = amountTransaction ? Math.abs(numberField(amountTransaction, "amount") ?? 0) : Number.NaN;
     const amountCurrency = amountTransaction ? currencyCode(amountTransaction) : null;
-    return `
+    return `${heading}
       <details class="transaction-transfer-pair">
         <summary aria-label="Expand or collapse original transfer transactions">
           <div class="transaction-copy transfer-pair-copy">

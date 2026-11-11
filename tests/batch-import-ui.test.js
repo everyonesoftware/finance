@@ -24,12 +24,12 @@ const result = (extra = {}) => ({ fileName: 'checking.csv', accountId: account.i
 
 test('Transactions page includes styled import button and multi-file review dialog', () => {
   const html = renderTransactionsPage({ displayName: 'Tester', username: 'tester' });
-  assert.match(html, /id="open-batch-import"[^>]*>Import Transactions<\/button>/);
+  assert.match(html, /id="open-batch-import"[^>]*aria-label="Import transactions"[^>]*>[\s\S]*?<svg/);
   const stickyStart = html.indexOf('class="transactions-sticky-controls"');
   const resultsStart = html.indexOf('<section class="panel transactions-results"');
-  assert.ok(stickyStart > html.indexOf('Search saved activity across your accounts.'));
+  assert.ok(stickyStart >= 0);
   const stickyControls = html.slice(stickyStart, resultsStart);
-  assert.match(stickyControls, /class="panel transaction-filters"[\s\S]*id="open-batch-import"[\s\S]*<\/section>/);
+  assert.match(stickyControls, /class="page-heading transactions-page-heading"[\s\S]*id="open-batch-import"[\s\S]*<\/section>/);
   assert.doesNotMatch(html, /id="all-transactions-title"|transactions-results-heading/);
   assert.match(stickyControls, /id="all-transactions-count" class="transaction-results-status" aria-live="polite"/);
   assert.match(html, /<section class="panel transactions-results" aria-label="Transactions">/);

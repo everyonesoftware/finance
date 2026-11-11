@@ -372,19 +372,20 @@ test("amount range handles cannot cross and text-entry updates the opposite boun
   assert.deepEqual(updateTransactionAmountRange(-5, 5, "minimum", 99, -10, 10), { minimum: 10, maximum: 10 });
 });
 
-test("transactions page keeps compact account and amount popovers with sort controls", () => {
+test("transactions page keeps account and amount controls in a filter sheet separate from sort", () => {
   const html = renderTransactionsPage({ displayName: "Test", username: "test" });
   assert.ok(html.includes('class="nav-link active" href="/transactions" aria-current="page"'));
-  assert.match(html, /class="transaction-filter-label"[^>]*>Filter<\/span>/);
-  assert.match(html, /id="accounts-filter-trigger"[^>]*>\s*Accounts: <span id="accounts-filter-selected">0<\/span> \/ <span id="accounts-filter-total">0<\/span> selected/);
-  assert.match(html, /id="accounts-filter-popover"[^>]*hidden/);
+  assert.match(html, /id="transaction-filters-trigger"[^>]*aria-label="Filter transactions"/);
+  assert.match(html, /<span id="accounts-filter-selected">0<\/span> \/ <span id="accounts-filter-total">0<\/span> selected/);
+  assert.match(html, /<dialog id="transaction-filters-dialog"/);
   assert.doesNotMatch(html, /id="account-filter-mode"/);
   assert.match(html, /id="select-all-accounts"/);
   assert.match(html, /id="deselect-all-accounts"/);
   assert.match(html, /id="account-filter-search" type="search"/);
   assert.match(html, /id="account-options"/);
-  assert.match(html, /id="amount-filter-trigger"/);
-  assert.match(html, /id="amount-filter-popover"[^>]*hidden/);
+  assert.match(html, /id="amount-filter-summary"/);
+  assert.match(html, /<dialog id="transaction-sort-dialog"/);
+  assert.doesNotMatch(html.match(/<dialog id="transaction-filters-dialog"[\s\S]*?<\/dialog>/)?.[0], /id="transaction-sort-order"/);
   assert.match(html, /class="transaction-amount-reset-row">\s*<button id="reset-amount-filter"[^>]*>Reset<\/button>/);
   assert.ok(html.indexOf('class="transaction-amount-reset-row"') < html.indexOf('id="transaction-amount-range"'));
   assert.equal(formatFilterAmount(-1234.5), "-$1,234.50");
