@@ -94,6 +94,7 @@ interface CsvMapping {
 }
 interface ImportRequest { fileName: string; content: string; csv?: CsvMapping }
 interface ImportPreview {
+  notes?: string[];
   columns: string[];
   mapping: CsvMapping | null;
   transactions: Array<{ date: string; name: string; amount: number; iso_currency_code: string }>;
@@ -202,7 +203,7 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
         if (result.errors.length) throw new Error(result.errors.join("\n"));
         confirmedRequest = request;
         const summary = document.querySelector<HTMLElement>("#import-preview-summary");
-        if (summary) summary.textContent = `${result.total} transactions found · ${result.importable} new · ${result.duplicates} duplicates will be skipped`;
+        if (summary) summary.textContent = [`${result.total} transactions found · ${result.importable} new · ${result.duplicates} duplicates will be skipped`, ...(result.notes ?? [])].join("\n");
         const rows = document.querySelector<HTMLElement>("#import-preview-rows");
         if (rows) rows.innerHTML = result.transactions.map(transaction => {
           const value = transaction.amount === 0 ? 0 : -transaction.amount;

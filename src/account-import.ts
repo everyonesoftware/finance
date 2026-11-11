@@ -35,7 +35,7 @@ export function renderImportDialog(account: BankAccount): string {
               <label class="form-field"><span>CSV date format</span><select id="import-date-format"><option value="mdy">Month / day / year</option><option value="dmy">Day / month / year</option><option value="ymd">Year / month / day</option></select></label>
               <label class="form-field"><span>CSV signed amounts</span><select id="import-amount-convention"><option value="inflow-positive">Positive = money in</option><option value="outflow-positive">Positive = money out</option></select></label>
             </div>
-            <p class="account-workflow-hint">Choose the conventions used in your export. Separate debit/credit columns and OFX/QFX amounts are handled automatically.</p>
+            <p class="account-workflow-hint">Choose the conventions used in your export. Fidelity history CSV columns and its disclaimer footer are recognized automatically: Run Date, full Action, and Amount ($). Use month/day/year and positive = money in. Separate debit/credit columns and OFX/QFX amounts are handled automatically.</p>
             <fieldset id="import-column-mapping" hidden><legend>CSV columns</legend><p>Check the suggested columns or choose your own. Use one signed amount column, or separate debit and credit columns.</p><div id="import-mapping-fields" class="account-form-grid"></div></fieldset>
           </div>
           <p class="account-workflow-note">Keep full descriptions and add the last four digits to your accounts so existing transfer recognition can match references. Overlapping files without transaction IDs are matched by date, description, amount, and occurrence count.</p>

@@ -1,7 +1,57 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseTransactionImport as parse} from '../server/transaction-import.ts';
+import { fidelityHeader, fidelityRows, fidelityFooter, fidelityHistory } from './fixtures/fidelity-history.js';
 const map={dateColumn:0,nameColumn:1,amountColumn:2,dateFormat:'mdy',amountConvention:'outflow-positive'};
+test('Fidelity history automatically maps cash activity and excludes its disclaimer from totals',()=>{
+ for(const content of [fidelityHistory,fidelityHistory.replace(/\n/g,'\r\n')]) {
+  const parsed=parse('history.csv',content,'USD');
+  assert.deepEqual(parsed.errors,[]);
+  assert.equal(parsed.total,fidelityRows.length);
+  assert.equal(parsed.mapping.dateColumn,0);
+  assert.equal(parsed.mapping.nameColumn,1);
+  assert.equal(parsed.mapping.amountColumn,10);
+  assert.equal(parsed.mapping.dateFormat,'mdy');
+  assert.equal(parsed.transactions[0].date,'2026-10-30');
+  assert.equal(parsed.transactions[0].name,'REINVESTMENT EXAMPLE FUND (DEMO) (Cash)');
+  assert.deepEqual(parsed.transactions.map(t=>t.amount),[25,-25,-0.01,100,100,-200,30,-30]);
+  assert.equal(parsed.transactions[5].date,'2026-10-26','Use run date, not settlement date');
+  assert.match(parsed.notes.join(' '),/Fidelity.*cash activity/i);
+  assert.match(parsed.notes.join(' '),/disclaimer.*ignored/i);
+ }
+});
+test('Fidelity footer recognition works at end of file and never hides invalid transaction rows',()=>{
+ const firstFooterLine=fidelityFooter.trim().split('\n')[0];
+ const noNewline=parse('history.csv',fidelityHeader+'\n'+fidelityRows[0]+'\n'+firstFooterLine,'USD');
+ assert.deepEqual(noNewline.errors,[]);
+ assert.equal(noNewline.total,1);
+ for(const badRow of [fidelityRows[0].replace('10/30/2026','02/30/2026'),fidelityRows[0].replace('"-25"','bad'),',,,,,,,,,,,,','not a transaction']) {
+  const result=parse('history.csv',fidelityHeader+'\n'+fidelityRows[0]+'\n\n'+badRow+fidelityFooter,'USD');
+  assert.ok(result.errors.length,badRow);
+  assert.equal(result.total,2);
+ }
+ const generic=parse('other.csv','Date,Description,Amount\n2026-10-30,Shop,-25\n'+firstFooterLine+'\n','USD');
+ assert.ok(generic.errors.length,'Generic CSV must not silently discard prose');
+ const unknown=parse('history.csv',fidelityHeader+'\n'+fidelityRows[0]+'\nUnknown disclaimer\n','USD');
+ assert.ok(unknown.errors.length,'Unknown Fidelity trailing rows must fail validation');
+});
+test('Fidelity mappings remain editable and quoted multiline actions are not mistaken for the footer',()=>{
+ const explicit={dateColumn:12,nameColumn:3,amountColumn:10,dateFormat:'mdy',amountConvention:'outflow-positive'};
+ const mapped=parse('history.csv',fidelityHeader+'\n'+fidelityRows[5]+fidelityFooter,'USD',explicit);
+ assert.deepEqual(mapped.errors,[]);
+ assert.equal(mapped.transactions[0].name,'EXAMPLE FUND');
+ assert.equal(mapped.transactions[0].date,'2026-10-27');
+ assert.equal(mapped.transactions[0].amount,200);
+ const action='Action, "quoted"\n'+fidelityFooter.trim().split('\n')[0];
+ const row=fidelityRows[0].replace('REINVESTMENT EXAMPLE FUND (DEMO) (Cash)','"'+action.replace(/"/g,'""')+'"');
+ const multiline=parse('history.csv',fidelityHeader+'\n'+row+fidelityFooter,'USD');
+ assert.deepEqual(multiline.errors,[]);
+ assert.equal(multiline.transactions[0].name,action);
+ const columns=fidelityHeader.split(',').reverse().join(',');
+ const reordered=parse('history.csv',columns+'\n'+fidelityRows[0].split(',').reverse().join(',')+fidelityFooter,'USD');
+ assert.deepEqual(reordered.errors,[]);
+ assert.deepEqual(reordered.transactions,parse('history.csv',fidelityHeader+'\n'+fidelityRows[0],'USD').transactions);
+});
 test('OFX account validation ignores transaction-level destination and source references',()=>{
  for(const xml of [false,true]) {
   for(const creditCard of [false,true]) {

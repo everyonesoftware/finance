@@ -94,6 +94,17 @@ function importNodes(t) {
 }
 const preview = { columns: ['Date', 'Description', 'Amount'], mapping: { dateColumn: 0, nameColumn: 1, amountColumn: 2, dateFormat: 'mdy', amountConvention: 'inflow-positive' }, transactions: [{ date: '2026-11-01', name: '<Groceries>', amount: 10, iso_currency_code: 'USD' }], total: 1, importable: 1, duplicates: 0, errors: [] };
 
+test('Fidelity preview explains cash-only activity and ignored footer before confirmation', async t => {
+  const nodes = importNodes(t);
+  const notes = ['Fidelity history detected. Importing cash activity only; holdings are not imported.', 'Fidelity disclaimer and download footer ignored.'];
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ ...preview, notes }) });
+  workflow.initializeAccountImport(account, async () => assert.fail('Preview must not commit'));
+  await nodes['#account-import-form'].emit('submit');
+  assert.match(nodes['#import-preview-summary'].textContent, /1 transactions found/);
+  for (const note of notes) assert.ok(nodes['#import-preview-summary'].textContent.includes(note));
+  assert.match(workflow.renderImportDialog(account), /Fidelity.*automatically/i);
+});
+
 test('import requires preview, supports Back, escapes data and preserves retry after failure', async t => {
   assert.equal(typeof workflow.initializeAccountImport, 'function');
   const nodes = importNodes(t), calls = [], imported = [];

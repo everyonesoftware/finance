@@ -22,25 +22,31 @@ export interface ParsedImport {
   transactions: ImportedTransaction[];
   errors: string[];
   total: number;
+  notes?: string[];
 }
 export function parseTransactionImport(fileName:string,content:string,currency:string,csv?:unknown,target?:{mask?:string|null}):ParsedImport {
  const result:ParsedImport={columns:[],mapping:null,transactions:[],errors:[],total:0};
  try {
   if(/\.(?:ofx|qfx)$/i.test(fileName))return readOfx(content,currency,target);
   if(!/\.csv$/i.test(fileName)) throw Error('Supported files: CSV, OFX and QFX.');
-  const rows=readCsv(content.replace(/^\uFEFF/,''));
+  const { rows, ignoredFooter }=readCsv(content.replace(/^\uFEFF/,''));
   result.columns=rows.shift() ?? [];result.total=rows.length;
   if(!rows.length) throw Error('File contains no transactions.');
   const headers=result.columns.map(h=>h.trim().toLowerCase());
+  const fidelity=isFidelityHistory(result.columns);
+  if(fidelity) result.notes=[
+    'Fidelity history detected. Importing cash activity only; share quantities, holdings and investment valuations are not imported.',
+    ...(ignoredFooter ? ['Fidelity disclaimer and download footer ignored.'] : []),
+  ];
   const find=(names:string[])=>{const n=headers.findIndex(h=>names.includes(h));return n<0?undefined:n;};
   if(csv!==undefined && (!csv || typeof csv!=='object' || Array.isArray(csv)))throw Error('Invalid CSV mapping.');
   const options=(csv ?? {}) as Partial<CsvMapping>;
   const explicit=Object.keys(options).some(k=>k.endsWith('Column'));
-  const amount=find(['amount']);
+  const amount=find(fidelity ? ['amount ($)'] : ['amount']);
   const idColumn=find(['id','transaction id','fitid']);
   const detected = {
-    dateColumn: find(['date', 'transaction date', 'posted date']),
-    nameColumn: find(['description', 'name', 'payee', 'memo']),
+    dateColumn: find(fidelity ? ['run date'] : ['date', 'transaction date', 'posted date']),
+    nameColumn: find(fidelity ? ['action'] : ['description', 'name', 'payee', 'memo']),
     ...(idColumn !== undefined ? { idColumn } : {}),
     ...(amount !== undefined ? { amountColumn: amount } : {
       debitColumn: find(['debit', 'withdrawal']), creditColumn: find(['credit', 'deposit']),
@@ -48,7 +54,7 @@ export function parseTransactionImport(fileName:string,content:string,currency:s
   };
   // Format-only options allow the UI to request autodetection before it knows columns.
   const mapping = {
-    ...(explicit ? {} : detected), dateFormat: 'ymd', amountConvention: 'inflow-positive', ...options,
+    ...(explicit ? {} : detected), dateFormat: fidelity ? 'mdy' : 'ymd', amountConvention: 'inflow-positive', ...options,
   } as CsvMapping;
   const indices = [
     mapping.dateColumn, mapping.nameColumn,
@@ -102,9 +108,19 @@ function money(raw:string):number {
  if(!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(value))throw Error('Invalid amount.');
  const number=Number(value.replace(/,/g,''));if(!Number.isFinite(number)||Math.abs(number)>Number.MAX_SAFE_INTEGER/100)throw Error('Amount outside supported range.');return number;
 }
-function readCsv(content: string): string[][] {
+function isFidelityHistory(columns: string[]): boolean {
+  const expected = ['run date', 'action', 'symbol', 'description', 'type', 'price ($)', 'quantity',
+    'commission ($)', 'fees ($)', 'accrued interest ($)', 'amount ($)', 'cash balance ($)', 'settlement date'];
+  const headers = columns.map(value => value.trim().toLowerCase());
+  return headers.length === expected.length && expected.every(value => headers.includes(value));
+}
+function readCsv(content: string): { rows: string[][]; ignoredFooter: boolean } {
   const maxColumns = 100, maxCellLength = 16_384, maxTransactions = 50_000;
   const rows: string[][] = [];
+  let fidelity = false;
+  const isFooter = (record: string[]) => fidelity && record.length === 1 && record[0].startsWith(
+    'The data and information in this spreadsheet is provided to you solely for your use and is not for distribution.',
+  );
   let row: string[] = [];
   let field = '', quoted = false, closed = false;
   for (let i = 0; i < content.length; i++) {
@@ -126,8 +142,12 @@ function readCsv(content: string): string[][] {
       field = '';
       closed = false;
       if (c !== ',') {
+        // Fidelity appends prose, not CSV records. Stop only at its recognized
+        // single-field disclaimer record, never at a blank or invalid data row.
+        if (isFooter(row)) return { rows, ignoredFooter: true };
         // Ignore empty physical lines, not empty transaction records (",,").
         if (row.length > 1 || row.some(v => v.trim())) rows.push(row);
+        if (rows.length === 1) fidelity = isFidelityHistory(rows[0]);
         if (rows.length > maxTransactions + 1) throw Error('CSV exceeds 50000 transactions.');
         row = [];
         if (c === '\r' && content[i + 1] === '\n') i++;
@@ -140,7 +160,8 @@ function readCsv(content: string): string[][] {
   if (quoted) throw Error('Unterminated CSV quote.');
   if (field.length > maxCellLength) throw Error('CSV cell exceeds 16384 characters.');
   row.push(field);
+  if (isFooter(row)) return { rows, ignoredFooter: true };
   if (row.length > 1 || row.some(v => v.trim())) rows.push(row);
   if (rows.length > maxTransactions + 1) throw Error('CSV exceeds 50000 transactions.');
-  return rows;
+  return { rows, ignoredFooter: false };
 }

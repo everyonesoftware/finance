@@ -6,6 +6,8 @@ import { applySqlMigration } from '../server/migration-utils.ts';
 import { createBankAccountsRouter } from '../server/bank_accounts.ts';
 import { decryptBankValue, encryptBankValue } from '../server/bank-crypto.ts';
 import { groupInternalTransfers } from '../src/transaction-list.ts';
+import { renderAccountDetail } from '../src/bank_accounts.ts';
+import { fidelityHistory, fidelityRows, fidelityHeader, fidelityFooter } from './fixtures/fidelity-history.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -179,6 +181,63 @@ test('stable CSV source IDs reject changed contents atomically and stay scoped p
  assert.equal((await f.post(path,file('2026-11-03,One,-3,repeat\n2026-11-03,Two,-4,repeat'))).status,409);assert.deepEqual(f.db.serialize(),before);
  const {account:second}=await (await f.post('/',input)).json();assert.equal((await (await f.post('/'+second.id+'/import',file('2026-11-01,Original,-10,private-id'))).json()).imported,1);
  assert.ok(!f.db.prepare('SELECT transaction_id FROM bank_transaction').all().some(t=>t.transaction_id.includes('private-id')));
+ }finally{f.db.close();}
+});
+test('Fidelity history preview and commit preserve cash activity and identical EFT rows without changing balances',async()=>{
+ const f=await fixture();try {
+ const {account}=await (await f.post('/',{...input,name:'Brokerage',institutionName:'Fidelity Investments',type:'investment',subtype:'brokerage'})).json();
+ const path='/'+account.id+'/import';const file={fileName:'fidelity-history.csv',content:fidelityHistory};
+ const expected=[
+  ['2026-10-30','REINVESTMENT EXAMPLE FUND (DEMO) (Cash)',25],
+  ['2026-10-30','DIVIDEND RECEIVED EXAMPLE FUND (DEMO) (Cash)',-25],
+  ['2026-10-30','INTEREST EARNED CASH (Cash)',-0.01],
+  ['2026-10-27','Electronic Funds Transfer Paid (Cash)',100],
+  ['2026-10-27','Electronic Funds Transfer Paid (Cash)',100],
+  ['2026-10-26','YOU SOLD EXAMPLE FUND (DEMO) (Cash)',-200],
+  ['2026-10-20','YOU BOUGHT EXAMPLE FUND (DEMO) (Cash)',30],
+  ['2026-10-20','Electronic Funds Transfer Received (Cash)',-30],
+ ];
+ const canonical=transactions=>transactions.map(t=>[t.date,t.name,t.amount]);
+ const before=f.db.serialize();
+ const response=await f.post(path+'/preview',file);assert.equal(response.status,200);
+ const preview=await response.json();assert.deepEqual(preview.errors,[]);assert.equal(preview.total,8);assert.equal(preview.importable,8);assert.equal(preview.duplicates,0);
+ assert.deepEqual(preview.columns,fidelityHeader.split(','));
+ assert.deepEqual(preview.mapping,{dateColumn:0,nameColumn:1,amountColumn:10,dateFormat:'mdy',amountConvention:'inflow-positive'});
+ assert.deepEqual(canonical(preview.transactions),expected);
+ assert.equal(preview.notes.length,2);assert.match(preview.notes[0],/cash activity only.*holdings.*not imported/i);assert.match(preview.notes[1],/disclaimer.*footer ignored/i);
+ assert.deepEqual(f.db.serialize(),before,'Preview must not change any stored bytes');
+ const committed=await f.post(path,file);assert.equal(committed.status,200);assert.deepEqual(await committed.json(),{imported:8,skipped:0,account});
+ const read=await f.router.request('/'+account.id+'/transactions');assert.equal(read.status,200);
+ const stored=(await read.json()).transactions;
+ assert.deepEqual(canonical(stored).sort(),[...expected].sort());assert.ok(stored.every(t=>t.account_id===account.providerAccountId && t.iso_currency_code==='USD'));
+ assert.equal(new Set(stored.map(t=>t.transaction_id)).size,8);
+ assert.equal(stored.filter(t=>t.name==='Electronic Funds Transfer Paid (Cash)' && t.date==='2026-10-27' && t.amount===100).length,2);
+ const html=renderAccountDetail(account,stored);
+ for(const name of ['REINVESTMENT EXAMPLE FUND (DEMO) (Cash)','DIVIDEND RECEIVED EXAMPLE FUND (DEMO) (Cash)','Electronic Funds Transfer Paid (Cash)','Electronic Funds Transfer Received (Cash)'])assert.ok(html.includes(name),name);
+ assert.ok(!html.includes('No Description'));
+ const after=f.db.serialize();
+ const repeated=await f.post(path+'/preview',file);assert.equal(repeated.status,200);
+ const repeatPreview=await repeated.json();assert.deepEqual(repeatPreview.errors,[]);assert.equal(repeatPreview.total,8);assert.equal(repeatPreview.duplicates,8);assert.equal(repeatPreview.importable,0);assert.deepEqual(repeatPreview.notes,preview.notes);
+ assert.deepEqual(f.db.serialize(),after);
+ const repeatedCommit=await f.post(path,file);assert.equal(repeatedCommit.status,200);assert.deepEqual(await repeatedCommit.json(),{imported:0,skipped:8,account});
+ assert.deepEqual(f.db.serialize(),after,'Repeated commit must preserve both identical EFT transactions without writes');
+ assert.equal((await (await f.router.request('/')).json()).accounts[0].currentBalance,500);
+ assert.deepEqual(canonical((await (await f.router.request('/'+account.id+'/transactions')).json()).transactions).sort(),[...expected].sort());
+ }finally{f.db.close();}
+});
+test('Fidelity history invalid transaction before the recognized footer blocks the whole import atomically',async()=>{
+ const f=await fixture();try {
+ const {account}=await (await f.post('/',input)).json();const path='/'+account.id+'/import';
+ const file={fileName:'invalid-fidelity-history.csv',content:fidelityHeader+'\n'+fidelityRows.join('\n')+'\n'+fidelityRows[0].replace('10/30/2026','02/30/2026')+fidelityFooter};
+ const before=f.db.serialize();
+ const response=await f.post(path+'/preview',file);assert.equal(response.status,200);
+ const preview=await response.json();assert.equal(preview.total,9);assert.equal(preview.transactions.length,8);assert.equal(preview.importable,0);assert.match(preview.errors.join(' '),/invalid calendar date/i);
+ assert.ok(preview.notes.some(note=>/footer ignored/i.test(note)));
+ assert.deepEqual(f.db.serialize(),before);
+ const rejected=await f.post(path,file);assert.equal(rejected.status,400);assert.match((await rejected.json()).errors.join(' '),/invalid calendar date/i);
+ assert.deepEqual(f.db.serialize(),before,'Invalid row must reject all preceding valid Fidelity transactions');
+ assert.deepEqual((await (await f.router.request('/'+account.id+'/transactions')).json()).transactions,[]);
+ assert.equal((await (await f.router.request('/')).json()).accounts[0].currentBalance,500);
  }finally{f.db.close();}
 });
 test('CSV preview and commit persist canonical encrypted transactions idempotently without changing balances',async()=>{
