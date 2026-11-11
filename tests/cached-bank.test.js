@@ -57,7 +57,7 @@ test('cached transaction reads are owner-scoped, exclude incompatible rows and r
     assert.equal(recent.transactions[0].transaction_id,'saved-tx');
     const detail = await (await f.router.request('/stable-id/transactions')).json();
     assert.equal(detail.account.id,'stable-id');
-    assert.equal(detail.transactions.length,50);
+    assert.equal(detail.transactions.length,61, 'Account details must group complete days before applying a display limit');
     assert.deepEqual(detail.accounts.map(a=>a.id),['stable-id']);
     for (const id of ['foreign-id','external-stable-id','old-id','inactive','missing']) {
       const response = await f.router.request('/'+id+'/transactions');

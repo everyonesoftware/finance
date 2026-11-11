@@ -238,6 +238,41 @@ test('payment groups span history batches and remain visible when filtering by t
   assert.match(nodes['#all-transactions-list'].innerHTML, /<span class="transaction-group-type">Credit Card Payment<\/span>/);
 });
 
+test('TreasuryDirect batches stay complete across pagination, total search, and amount filters', async t => {
+  const payment = (amount, index) => ({
+    transaction_id: `treasury-${index}`, account_id: account.providerAccountId,
+    name: `APA TREAS 310 MISC PAY~ Future Amount: ${amount.toFixed(2)} ~ Tran: DDIR`,
+    date: '2026-11-02', amount: -amount, iso_currency_code: 'USD', pending: false,
+  });
+  const payments = [45.38, 37.13, 41.25, 11.56, 11.56, 12.19, 12.19, 22.75, 22.75].map(payment);
+  const input = [
+    ...transactions(49).map(record => ({ ...record, date: '2026-11-03' })),
+    payments[0], ...transactions(10), ...payments.slice(1),
+  ];
+  const nodes = await setup(t, input);
+  const list = nodes['#all-transactions-list'];
+  assert.match(nodes['#all-transactions-count'].textContent, /1–50 of 60/);
+  assert.match(list.innerHTML, /Bond payments · 9 transactions/);
+  assert.match(list.innerHTML, /class="transfer-pair-amount">\$216\.76/);
+  assert.equal(renderedRows(nodes), 58);
+  reachEnd(nodes);
+  assert.equal(renderedRows(nodes), 68);
+  assert.equal((list.innerHTML.match(/class="transaction-transfer-pair"/g) ?? []).length, 1);
+  const inputSearch = nodes['#transaction-search'];
+  for (const query of ['$216.76', 'Future Amount: 37.13']) {
+    inputSearch.value = query;
+    await inputSearch.emit('input');
+    assert.equal(renderedRows(nodes), 9);
+    assert.match(nodes['#all-transactions-count'].textContent, /1–1 of 1/);
+  }
+  await nodes['#clear-transaction-search'].emit('click');
+  nodes['#minimum-transaction-amount'].value = '216';
+  await nodes['#minimum-transaction-amount'].emit('input');
+  assert.equal(renderedRows(nodes), 9);
+  await nodes['#deselect-all-accounts'].emit('click');
+  assert.match(list.textContent, /No accounts are selected/);
+});
+
 test('detached transaction lists disconnect their observer without appending rows', async t => {
   const nodes = await setup(t, transactions(101));
   nodes['#transactions-scroll-sentinel'].isConnected = false;

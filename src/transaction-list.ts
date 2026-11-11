@@ -19,6 +19,11 @@ export interface TransactionListRenderOptions {
 export type TransactionGroup =
   | { type: "single"; transactions: [TransactionRecord] }
   | {
+      type: "treasury-payment";
+      transactions: TransactionRecord[];
+      receivingAccount: BankAccount;
+    }
+  | {
       type: "transfer" | "credit-card-payment";
       transactions: TransactionRecord[];
       fromAccount: BankAccount;
@@ -252,6 +257,31 @@ function creditCardPaymentPairs(
   return new Map([...uniqueMatches].filter(([index, counterpart]) => uniqueMatches.get(counterpart) === index));
 }
 
+function treasuryPaymentKey(
+  transaction: TransactionRecord,
+  accountsByProviderId: Map<string, BankAccount>,
+): string | null {
+  const name = stringField(transaction, "name")?.trim();
+  const amount = numberField(transaction, "amount");
+  const accountId = stringField(transaction, "account_id");
+  const date = stringField(transaction, "date");
+  const currency = currencyCode(transaction);
+  const ordinal = date ? dateOrdinal(date) : null;
+  // Only the observed TreasuryDirect descriptor is supported; generic Treasury
+  // deposits can be tax refunds or benefits, not bond payments.
+  if (!name || !/^APA\s+TREAS\s+310\s+MISC\s+PAY\s*~\s*Future Amount:\s*\d+(?:\.\d{1,2})?\s*~\s*Tran:\s*DDIR$/i.test(name)
+    || transaction["pending"] === true || amount === null || amount >= 0
+    || !Number.isSafeInteger(Math.round(-amount * 100)) || Math.round(-amount * 100) === 0
+    || !accountId || accountsByProviderId.get(accountId)?.type !== "depository"
+    || !currency || ordinal === null
+    || new Date(ordinal * 86_400_000).toISOString().slice(0, 10) !== date) return null;
+  return JSON.stringify([accountId, currency, date]);
+}
+
+export function getTreasuryPaymentAmount(transactions: TransactionRecord[]): number {
+  return transactions.reduce((cents, transaction) => cents - Math.round(numberField(transaction, "amount")! * 100), 0) / 100;
+}
+
 export function groupInternalTransfers(
   transactions: TransactionRecord[],
   accounts: BankAccount[],
@@ -261,6 +291,16 @@ export function groupInternalTransfers(
     if (account.providerAccountId) accountsByProviderId.set(account.providerAccountId, account);
   }
   const paymentPairs = creditCardPaymentPairs(transactions, accountsByProviderId);
+  const treasuryCandidates = new Map<string, number[]>();
+  const treasuryKeys = transactions.map((transaction, index) => {
+    const key = transaction ? treasuryPaymentKey(transaction, accountsByProviderId) : null;
+    if (key !== null) {
+      const indexes = treasuryCandidates.get(key);
+      if (indexes) indexes.push(index);
+      else treasuryCandidates.set(key, [index]);
+    }
+    return key;
+  });
 
   const candidates: TransferCandidateIndex = new Map();
   const metadata = transactions.map((transaction, index) => {
@@ -284,6 +324,18 @@ export function groupInternalTransfers(
     if (consumed.has(index)) continue;
     const transaction = transactions[index];
     if (!transaction) continue;
+
+    const treasuryKey = treasuryKeys[index];
+    const treasuryIndexes = treasuryKey ? treasuryCandidates.get(treasuryKey) : undefined;
+    if (treasuryIndexes && treasuryIndexes.length > 1) {
+      treasuryIndexes.forEach((candidateIndex) => consumed.add(candidateIndex));
+      groups.push({
+        type: "treasury-payment",
+        transactions: treasuryIndexes.map((candidateIndex) => transactions[candidateIndex]!),
+        receivingAccount: accountsByProviderId.get(stringField(transaction, "account_id")!)!,
+      });
+      continue;
+    }
 
     const paymentIndex = paymentPairs.get(index);
     const paymentCounterpart = paymentIndex === undefined ? undefined : transactions[paymentIndex];
@@ -385,6 +437,18 @@ function renderTransactionRow(
   `;
 }
 
+export function renderRecentTransactionList(
+  transactions: TransactionRecord[],
+  accounts: BankAccount[],
+  limit = 5,
+): string {
+  const sorted = [...transactions].sort((left, right) =>
+    (stringField(right, "date") ?? "").localeCompare(stringField(left, "date") ?? ""),
+  );
+  // Limit summaries, not raw records, so a day's payments are never truncated.
+  return renderTransactionGroups(groupInternalTransfers(sorted, accounts).slice(0, limit), accounts);
+}
+
 export function renderTransactionList(
   transactions: TransactionRecord[],
   accounts: BankAccount[],
@@ -412,6 +476,24 @@ export function renderTransactionGroups(
       : "";
     previousDate = date;
     if (group.type === "single") return heading + renderTransactionRow(group.transactions[0], accounts, options.showAccount === true, options.groupByDate === true || options.activityStyle === true, options.groupByDate === true, options.responsiveActivity === true);
+    if (group.type === "treasury-payment") {
+      return `${heading}
+        <details class="transaction-transfer-pair">
+          <summary aria-label="Expand or collapse original TreasuryDirect payments">
+            <div class="transaction-copy transfer-pair-copy">
+              <strong>TreasuryDirect → ${escapeHtml(group.receivingAccount.name)}</strong>
+              <span>${escapeHtml(date ?? "Date unavailable")}</span>
+              <span class="transaction-group-type">Bond payments · ${group.transactions.length} transactions</span>
+            </div>
+            <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-getTreasuryPaymentAmount(group.transactions), currencyCode(group.transactions[0]!)))}</b>
+          </summary>
+          <div class="transfer-pair-rows">
+            <div class="transfer-pair-details-label">Original payments</div>
+            ${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts, options.showAccount === true)).join("")}
+          </div>
+        </details>
+      `;
+    }
     const dateLabel = dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} – ${dates.at(-1)}`;
     const amountTransaction = group.transactions.find((transaction) => numberField(transaction, "amount") !== null);
     const transferAmount = amountTransaction ? Math.abs(numberField(amountTransaction, "amount") ?? 0) : Number.NaN;

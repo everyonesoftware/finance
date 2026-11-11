@@ -64,7 +64,9 @@ export function listAccountTransactions(
   const transactions = rows.map((row) =>
     JSON.parse(decryptBankValue(row.encryptedData, encryptionKey)) as Record<string, unknown> & { date?: unknown },
   );
-  return getRecentTransactions(transactions);
+  // The renderer limits grouped summaries; limiting records here can cut a
+  // same-day TreasuryDirect batch in half and display an incorrect total.
+  return getRecentTransactions(transactions, transactions.length);
 }
 
 export function listAllUserTransactions(

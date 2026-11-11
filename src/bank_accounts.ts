@@ -1,6 +1,6 @@
 import { escapeHtml } from "./html-utils.ts";
 import { renderAppNavigation } from "./navigation.ts";
-import { renderTransactionList } from "./transaction-list.ts";
+import { renderRecentTransactionList } from "./transaction-list.ts";
 import { renderRealEstateCards } from "./real-estate.ts";
 import { renderManualAccountDialog, renderImportDialog, initializeManualAccountCreation, initializeAccountImport } from "./account-import.ts";
 export {
@@ -190,7 +190,7 @@ export function renderAccountDetail(
     ? "Update time unavailable"
     : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(updatedAt);
   const transactionRows = transactions.length > 0
-    ? renderTransactionList(transactions, accounts)
+    ? renderRecentTransactionList(transactions, accounts, 50)
     : `<div class="account-empty">No transactions are available for this account yet.</div>`;
 
   return `

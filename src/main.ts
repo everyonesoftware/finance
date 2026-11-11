@@ -14,7 +14,7 @@ import {
   renderConnectionsPage,
   type BankAccount,
 } from "./bank_accounts";
-import { renderTransactionList } from "./transaction-list";
+import { renderRecentTransactionList } from "./transaction-list";
 
 function getAppRoot(): HTMLDivElement {
   const root: HTMLDivElement | null =
@@ -445,7 +445,7 @@ function render(): void {
     const transactionList = document.querySelector<HTMLDivElement>("#transaction-list");
     const renderTransactions = async (): Promise<void> => {
       try {
-        const response = await fetch("/api/accounts/transactions", { credentials: "same-origin" });
+        const response = await fetch("/api/accounts/transactions/all", { credentials: "same-origin" });
         if (!response.ok) throw new Error("Unable to load transactions.");
         const body = await response.json() as {
           transactions: Array<Record<string, unknown>>;
@@ -454,7 +454,7 @@ function render(): void {
         const transactions = body.transactions;
         if (!transactionList) return;
         transactionList.className = transactions.length ? "transaction-list" : "transaction-empty";
-        transactionList.innerHTML = renderTransactionList(transactions, body.accounts ?? []);
+        transactionList.innerHTML = renderRecentTransactionList(transactions, body.accounts ?? []);
       } catch { if (transactionList) transactionList.textContent = "Unable to load transactions."; }
     };
     void renderTransactions();

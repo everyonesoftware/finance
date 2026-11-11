@@ -1,7 +1,7 @@
 import { escapeHtml } from "./html-utils.ts";
 import { formatTransactionAmount } from "./account-transaction-utils.ts";
 import type { BankAccount } from "./bank_accounts.ts";
-import type { TransactionGroup } from "./transaction-list.ts";
+import { getTreasuryPaymentAmount, type TransactionGroup } from "./transaction-list.ts";
 
 export type TransactionSortOrder = "date-desc" | "date-asc" | "amount-desc" | "amount-asc";
 
@@ -140,6 +140,7 @@ export function renderFuzzyHighlightedText(text: string, positions: number[]): s
 }
 
 export function getTransactionGroupAmount(group: TransactionGroup): number | null {
+  if (group.type === "treasury-payment") return getTreasuryPaymentAmount(group.transactions);
   const transaction = group.transactions.find((candidate) =>
     typeof candidate.amount === "number" && Number.isFinite(candidate.amount),
   );
@@ -159,6 +160,7 @@ function getTransactionGroupAccountIds(
   group: TransactionGroup,
   accountsByProviderId: Map<string, BankAccount>,
 ): string[] {
+  if (group.type === "treasury-payment") return [group.receivingAccount.id];
   if (group.type !== "single") return [group.fromAccount.id, group.toAccount.id];
   const accountId = group.transactions[0].account_id;
   if (typeof accountId !== "string") return [];
@@ -183,9 +185,17 @@ export function filterAndSortTransactionGroups(
     typeof field === "string" && field.toLowerCase().includes(searchQuery),
   );
   const matches = groups.flatMap((group, index) => {
+    const amount = getTransactionGroupAmount(group);
+    const first = group.transactions[0];
+    const summaryCurrency = typeof first?.iso_currency_code === "string" ? first.iso_currency_code
+      : typeof first?.unofficial_currency_code === "string" ? first.unofficial_currency_code : null;
     const matchesGroup = searchQuery && group.type !== "single" && matchesText([
-      group.type === "credit-card-payment" ? "Credit Card Payment" : "Transfer",
-      ...[group.fromAccount, group.toAccount].flatMap((account) =>
+      group.type === "treasury-payment" ? `TreasuryDirect → ${group.receivingAccount.name}`
+        : group.type === "credit-card-payment" ? "Credit Card Payment" : "Transfer",
+      group.type === "treasury-payment" ? `Bond payments · ${group.transactions.length} transactions` : null,
+      group.type === "treasury-payment" ? "Original payments" : null,
+      group.type === "treasury-payment" && amount !== null ? formatTransactionAmount(-amount, summaryCurrency) : null,
+      ...(group.type === "treasury-payment" ? [group.receivingAccount] : [group.fromAccount, group.toAccount]).flatMap((account) =>
         [account.name, account.officialName, account.institutionName, account.mask],
       ),
     ]);
@@ -206,7 +216,6 @@ export function filterAndSortTransactionGroups(
     if (included.size === 0 || !accountIds.some((id) => included.has(id))) return [];
     if (accountIds.some((id) => excluded.has(id))) return [];
 
-    const amount = getTransactionGroupAmount(group);
     if (amount === null || amount < filters.minimumAmount || amount > filters.maximumAmount) return [];
     return [{ group, index, amount, date: getTransactionGroupDate(group) ?? "" }];
   });
