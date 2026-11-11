@@ -155,7 +155,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <div><h2 id="all-transactions-title">All transactions</h2><p id="all-transactions-count" aria-live="polite">Loading transactions…</p></div>
           </div>
           <div id="all-transactions-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
-          <button id="transactions-view-more" class="text-button transaction-view-more" type="button" aria-controls="all-transactions-list" hidden>View More</button>
+          <div id="transactions-scroll-sentinel" class="transaction-scroll-sentinel" aria-hidden="true" hidden></div>
         </section>
         <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
       </main>
@@ -234,8 +234,8 @@ export async function initializeTransactionsPage(): Promise<void> {
   const minimumInput = document.querySelector<HTMLInputElement>("#minimum-transaction-amount");
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
-  const viewMore = document.querySelector<HTMLButtonElement>("#transactions-view-more");
-  if (!viewMore) return;
+  const scrollSentinel = document.querySelector<HTMLDivElement>("#transactions-scroll-sentinel");
+  if (!scrollSentinel) return;
   if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !resetAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
@@ -245,6 +245,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   const batchSize = 50;
   let visibleGroupLimit = batchSize;
   let renderedGroupCount = 0;
+  let scrollObserver: IntersectionObserver | null = null;
   let hasLoadedTransactions = false;
   let minimumAmount = -1;
   let maximumAmount = 1;
@@ -329,6 +330,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const renderResults = (resetVisible = true): void => {
+    scrollObserver?.disconnect();
     const selectedAccountIds = getSelectedAccountIds(accountOptions);
     if (resetVisible) {
       visibleGroupLimit = batchSize;
@@ -341,11 +343,12 @@ export async function initializeTransactionsPage(): Promise<void> {
         sort: sortSelect.value as TransactionSortOrder,
       });
     }
-    const visibleGroupCount = Math.min(visibleGroupLimit, filteredGroups.length);
+    // Keep the complete history reachable if the browser cannot observe scrolling.
+    const visibleGroupCount = Math.min(scrollObserver ? visibleGroupLimit : filteredGroups.length, filteredGroups.length);
     const nextGroups = filteredGroups.slice(renderedGroupCount, visibleGroupCount);
     const transactionCount = filteredGroups.reduce((total, group) => total + group.transactions.length, 0);
     count.textContent = `Showing rows ${filteredGroups.length ? 1 : 0}–${visibleGroupCount} of ${filteredGroups.length} · ${transactionCount} transaction${transactionCount === 1 ? "" : "s"}`;
-    viewMore.hidden = visibleGroupCount >= filteredGroups.length;
+    scrollSentinel.hidden = visibleGroupCount >= filteredGroups.length;
     updateAccountSummary();
     updateAmountSummary();
     if (filteredGroups.length === 0) {
@@ -362,7 +365,21 @@ export async function initializeTransactionsPage(): Promise<void> {
     if (resetVisible) list.innerHTML = html;
     else list.insertAdjacentHTML("beforeend", html);
     renderedGroupCount = visibleGroupCount;
+    // Re-arm after appending, including when a tall viewport still contains the sentinel.
+    if (!scrollSentinel.hidden) scrollObserver?.observe(scrollSentinel);
   };
+
+  if (typeof IntersectionObserver !== "undefined") {
+    scrollObserver = new IntersectionObserver((entries) => {
+      if (!scrollSentinel.isConnected) {
+        scrollObserver?.disconnect();
+        return;
+      }
+      if (scrollSentinel.hidden || !entries.some((entry) => entry.target === scrollSentinel && entry.isIntersecting)) return;
+      visibleGroupLimit += batchSize;
+      renderResults(false);
+    }, { rootMargin: "0px 0px 400px 0px" });
+  }
 
   const updateAccountSelection = (shouldSelect: boolean): void => {
     const targetAccountIds = accountSearch.value.trim().length > 0
@@ -501,11 +518,6 @@ export async function initializeTransactionsPage(): Promise<void> {
   accountOptions.addEventListener("change", () => renderResults());
   accountSearch.addEventListener("input", applyAccountSearch);
   sortSelect.addEventListener("change", () => renderResults());
-  viewMore.addEventListener("click", () => {
-    if (viewMore.hidden) return;
-    visibleGroupLimit += batchSize;
-    renderResults(false);
-  });
   document.addEventListener("click", (event: MouseEvent) => {
     const target = event.target;
     if (!(target instanceof Node)) return;

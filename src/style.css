@@ -1547,17 +1547,11 @@ a.text-button {
   min-height: 60px;
 }
 
-.transaction-view-more {
-  display: block;
-  width: 100%;
-  min-height: 44px;
-  margin-top: 16px;
-  padding: 16px 0 0;
-  border-top: 1px solid #e9ebe6;
-  font-size: 11px;
+.transaction-scroll-sentinel {
+  height: 1px;
 }
 
-.transaction-view-more[hidden] {
+.transaction-scroll-sentinel[hidden] {
   display: none;
 }
 
