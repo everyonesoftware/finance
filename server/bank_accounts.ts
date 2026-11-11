@@ -152,7 +152,7 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
       const userId = uid(context);
       const transactions = listAllUserTransactions(db, userId, deps.getEncryptionKey());
       return context.json({
-        transactions: path.endsWith("/all") ? transactions : getRecentTransactions(transactions),
+        transactions: path.endsWith("/all") ? transactions : getRecentTransactions(transactions, 10),
         accounts: accountsFor(userId),
         configured: false,
       });

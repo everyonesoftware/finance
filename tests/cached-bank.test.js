@@ -53,7 +53,7 @@ test('cached transaction reads are owner-scoped, exclude incompatible rows and r
     assert.equal(all.transactions.length,61);
     assert.deepEqual(all.accounts.map(a=>a.id),['stable-id']);
     const recent = await (await f.router.request('/transactions')).json();
-    assert.equal(recent.transactions.length,50);
+    assert.equal(recent.transactions.length,10);
     assert.equal(recent.transactions[0].transaction_id,'saved-tx');
     const detail = await (await f.router.request('/stable-id/transactions')).json();
     assert.equal(detail.account.id,'stable-id');

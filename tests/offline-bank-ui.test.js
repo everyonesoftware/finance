@@ -99,7 +99,8 @@ test('batch import refresh expands an unfiltered amount range to include newly i
   await nodes['#batch-import-files'].emit('change');
   await nodes['#batch-import-form'].emit('submit');
   assert.equal(saved, true);
-  assert.match(nodes['#all-transactions-count'].textContent, /Showing 2 transactions/);
+  assert.equal(nodes['#all-transactions-count'].textContent, 'Showing rows 1–2 of 2 · 2 transactions');
+  assert.equal(nodes['#transactions-page-status'].textContent, 'Page 1 of 1');
   assert.match(nodes['#all-transactions-list'].innerHTML, /New purchase/);
 });
 test('frontend source has no retired integration assets or bank writes and preserves settings', async () => {

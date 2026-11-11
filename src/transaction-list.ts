@@ -120,6 +120,69 @@ function plausiblePair(
   return { fromAccount, toAccount };
 }
 
+interface TransferCandidate {
+  key: string;
+  counterpartKey: string;
+  ordinal: number;
+}
+
+type TransferCandidateIndex = Map<string, Map<number, number[]>>;
+
+function transferCandidate(transaction: TransactionRecord): TransferCandidate | null {
+  const name = stringField(transaction, "name");
+  const amount = numberField(transaction, "amount");
+  const currency = currencyCode(transaction);
+  const date = stringField(transaction, "date");
+  const direction = name ? transferDirection(name) : null;
+  const ordinal = date ? dateOrdinal(date) : null;
+  if (!direction || amount === null || amount === 0 || !currency || ordinal === null) return null;
+  const cents = Math.round(Math.abs(amount) * 100);
+  const sign = Math.sign(amount);
+  return {
+    key: JSON.stringify([direction, sign, cents, currency]),
+    counterpartKey: JSON.stringify([direction === "to" ? "from" : "to", -sign, cents, currency]),
+    ordinal,
+  };
+}
+
+function* counterpartIndexes(
+  candidate: TransferCandidate,
+  candidates: TransferCandidateIndex,
+  afterIndex: number,
+): Generator<number> {
+  const dates = candidates.get(candidate.counterpartKey);
+  if (!dates) return;
+  const cursors: { indexes: number[]; position: number }[] = [];
+  for (let day = candidate.ordinal - 3; day <= candidate.ordinal + 3; day += 1) {
+    const indexes = dates.get(day);
+    if (!indexes) continue;
+    // Buckets retain input order. Jump over earlier records rather than rescanning them.
+    let low = 0;
+    let high = indexes.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      if (indexes[middle]! <= afterIndex) low = middle + 1;
+      else high = middle;
+    }
+    if (low < indexes.length) cursors.push({ indexes, position: low });
+  }
+  // Merge at most seven date buckets to preserve the original first-match order.
+  while (true) {
+    let next: { indexes: number[]; position: number } | undefined;
+    let nextIndex = Infinity;
+    for (const cursor of cursors) {
+      const index = cursor.indexes[cursor.position];
+      if (index !== undefined && index < nextIndex) {
+        next = cursor;
+        nextIndex = index;
+      }
+    }
+    if (!next) return;
+    next.position += 1;
+    yield nextIndex;
+  }
+}
+
 export function groupInternalTransfers(
   transactions: TransactionRecord[],
   accounts: BankAccount[],
@@ -128,6 +191,22 @@ export function groupInternalTransfers(
   for (const account of accounts) {
     if (account.providerAccountId) accountsByProviderId.set(account.providerAccountId, account);
   }
+
+  const candidates: TransferCandidateIndex = new Map();
+  const metadata = transactions.map((transaction, index) => {
+    const candidate = transaction ? transferCandidate(transaction) : null;
+    if (candidate) {
+      let dates = candidates.get(candidate.key);
+      if (!dates) {
+        dates = new Map();
+        candidates.set(candidate.key, dates);
+      }
+      const indexes = dates.get(candidate.ordinal);
+      if (indexes) indexes.push(index);
+      else dates.set(candidate.ordinal, [index]);
+    }
+    return candidate;
+  });
 
   const groups: TransactionGroup[] = [];
   const consumed = new Set<number>();
@@ -138,7 +217,9 @@ export function groupInternalTransfers(
 
     let counterpartIndex = -1;
     let pairedAccounts: { fromAccount: BankAccount; toAccount: BankAccount } | null = null;
-    for (let candidateIndex = index + 1; candidateIndex < transactions.length; candidateIndex += 1) {
+    const candidateMetadata = metadata[index];
+    const possibleCounterparts = candidateMetadata ? counterpartIndexes(candidateMetadata, candidates, index) : [];
+    for (const candidateIndex of possibleCounterparts) {
       if (consumed.has(candidateIndex)) continue;
       const candidate = transactions[candidateIndex];
       if (!candidate) continue;
@@ -208,7 +289,14 @@ export function renderTransactionList(
   accounts: BankAccount[],
   options: TransactionListRenderOptions = {},
 ): string {
-  const groups = groupInternalTransfers(transactions, accounts);
+  return renderTransactionGroups(groupInternalTransfers(transactions, accounts), accounts, options);
+}
+
+export function renderTransactionGroups(
+  groups: TransactionGroup[],
+  accounts: BankAccount[],
+  options: TransactionListRenderOptions = {},
+): string {
   if (groups.length === 0) return "No saved transactions are available.";
 
   return groups.map((group): string => {

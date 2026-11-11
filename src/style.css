@@ -1547,6 +1547,28 @@ a.text-button {
   min-height: 60px;
 }
 
+.transaction-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e9ebe6;
+  color: #65806a;
+  font-size: 11px;
+}
+
+.transaction-pagination[hidden] {
+  display: none;
+}
+
+.transaction-pagination .secondary-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .transaction-copy .transaction-account-label {
   color: #65806a;
   font-size: 9px;

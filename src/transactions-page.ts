@@ -16,7 +16,8 @@ import {
 } from "./transaction-filters.ts";
 import {
   groupInternalTransfers,
-  renderTransactionList,
+  renderTransactionGroups,
+  type TransactionGroup,
   type TransactionRecord,
 } from "./transaction-list.ts";
 import type { BankAccount } from "./bank_accounts.ts";
@@ -154,6 +155,11 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <div><h2 id="all-transactions-title">All transactions</h2><p id="all-transactions-count" aria-live="polite">Loading transactions…</p></div>
           </div>
           <div id="all-transactions-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
+          <nav id="transactions-pagination" class="transaction-pagination" aria-label="Transaction pages" hidden>
+            <button id="transactions-previous-page" class="secondary-button" type="button" aria-controls="all-transactions-list" disabled>Previous</button>
+            <span id="transactions-page-status" role="status" aria-live="polite"></span>
+            <button id="transactions-next-page" class="secondary-button" type="button" aria-controls="all-transactions-list" disabled>Next</button>
+          </nav>
         </section>
         <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
       </main>
@@ -201,8 +207,7 @@ export function getTransactionAmountBounds(values: number[]): { minimum: number;
   return { minimum, maximum };
 }
 
-function allTransactionAmountBounds(transactions: TransactionRecord[], accounts: BankAccount[]): { minimum: number; maximum: number } {
-  const groups = groupInternalTransfers(transactions, accounts);
+function allTransactionAmountBounds(groups: TransactionGroup[]): { minimum: number; maximum: number } {
   const values = groups
     .map((group) => getTransactionGroupAmount(group))
     .filter((value): value is number => value !== null && Number.isFinite(value));
@@ -233,10 +238,19 @@ export async function initializeTransactionsPage(): Promise<void> {
   const minimumInput = document.querySelector<HTMLInputElement>("#minimum-transaction-amount");
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
+  const pagination = document.querySelector<HTMLElement>("#transactions-pagination");
+  const previousPage = document.querySelector<HTMLButtonElement>("#transactions-previous-page");
+  const nextPage = document.querySelector<HTMLButtonElement>("#transactions-next-page");
+  const pageStatus = document.querySelector<HTMLSpanElement>("#transactions-page-status");
+  if (!pagination || !previousPage || !nextPage || !pageStatus) return;
   if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !resetAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
+  let transactionGroups: TransactionGroup[] = [];
+  let filteredGroups: TransactionGroup[] = [];
+  let currentPage = 1;
+  const pageSize = 50;
   let hasLoadedTransactions = false;
   let minimumAmount = -1;
   let maximumAmount = 1;
@@ -320,22 +334,31 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
   };
 
-  const renderResults = (): void => {
+  const renderResults = (resetPage = true): void => {
     const selectedAccountIds = getSelectedAccountIds(accountOptions);
-    const groups = groupInternalTransfers(transactions, accounts);
-    const filtered = filterAndSortTransactionGroups(groups, accounts, {
-      includeAccountIds: selectedAccountIds,
-      excludeAccountIds: [],
-      minimumAmount: selectedMinimumAmount,
-      maximumAmount: selectedMaximumAmount,
-      sort: sortSelect.value as TransactionSortOrder,
-    });
-    const filteredTransactions = filtered.flatMap((group) => group.transactions);
-    const visibleTransactionCount = filtered.reduce((total, group) => total + group.transactions.length, 0);
-    count.textContent = `Showing ${visibleTransactionCount} transaction${visibleTransactionCount === 1 ? "" : "s"} in ${filtered.length} row${filtered.length === 1 ? "" : "s"}`;
+    if (resetPage) {
+      currentPage = 1;
+      filteredGroups = filterAndSortTransactionGroups(transactionGroups, accounts, {
+        includeAccountIds: selectedAccountIds,
+        excludeAccountIds: [],
+        minimumAmount: selectedMinimumAmount,
+        maximumAmount: selectedMaximumAmount,
+        sort: sortSelect.value as TransactionSortOrder,
+      });
+    }
+    const pageCount = Math.max(1, Math.ceil(filteredGroups.length / pageSize));
+    currentPage = Math.max(1, Math.min(currentPage, pageCount));
+    const start = (currentPage - 1) * pageSize;
+    const pageGroups = filteredGroups.slice(start, start + pageSize);
+    const transactionCount = filteredGroups.reduce((total, group) => total + group.transactions.length, 0);
+    count.textContent = `Showing rows ${filteredGroups.length ? start + 1 : 0}–${start + pageGroups.length} of ${filteredGroups.length} · ${transactionCount} transaction${transactionCount === 1 ? "" : "s"}`;
+    pagination.hidden = pageCount <= 1;
+    previousPage.disabled = currentPage === 1;
+    nextPage.disabled = currentPage === pageCount;
+    pageStatus.textContent = `Page ${currentPage} of ${pageCount}`;
     updateAccountSummary();
     updateAmountSummary();
-    if (filtered.length === 0) {
+    if (filteredGroups.length === 0) {
       list.className = "transaction-empty";
       list.textContent = selectedAccountIds.length === 0
         ? "No accounts are selected. Select one or more accounts to view transactions."
@@ -345,7 +368,7 @@ export async function initializeTransactionsPage(): Promise<void> {
       return;
     }
     list.className = "transaction-list all-transactions-list";
-    list.innerHTML = renderTransactionList(filteredTransactions, accounts, { showAccount: true });
+    list.innerHTML = renderTransactionGroups(pageGroups, accounts, { showAccount: true });
   };
 
   const updateAccountSelection = (shouldSelect: boolean): void => {
@@ -436,6 +459,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
     transactions = payload.transactions;
     accounts = payload.accounts;
+    transactionGroups = groupInternalTransfers(transactions, accounts);
     accountTotal.textContent = String(accounts.length);
     accountOptions.innerHTML = renderAccountOptions(accounts);
     const accountIdsToSelect = getAccountSelectionOnLoad(
@@ -449,7 +473,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
     applyAccountSearch();
     hasLoadedTransactions = true;
-    const bounds = allTransactionAmountBounds(transactions, accounts);
+    const bounds = allTransactionAmountBounds(transactionGroups);
     minimumAmount = bounds.minimum;
     maximumAmount = bounds.maximum;
     syncRangeBounds(preserveAmountSelection);
@@ -481,9 +505,21 @@ export async function initializeTransactionsPage(): Promise<void> {
   });
   selectAllAccounts.addEventListener("click", () => updateAccountSelection(true));
   deselectAllAccounts.addEventListener("click", () => updateAccountSelection(false));
-  accountOptions.addEventListener("change", renderResults);
+  accountOptions.addEventListener("change", () => renderResults());
   accountSearch.addEventListener("input", applyAccountSearch);
-  sortSelect.addEventListener("change", renderResults);
+  sortSelect.addEventListener("change", () => renderResults());
+  previousPage.addEventListener("click", () => {
+    if (previousPage.disabled) return;
+    currentPage--;
+    renderResults(false);
+    count.scrollIntoView({ block: "start" });
+  });
+  nextPage.addEventListener("click", () => {
+    if (nextPage.disabled) return;
+    currentPage++;
+    renderResults(false);
+    count.scrollIntoView({ block: "start" });
+  });
   document.addEventListener("click", (event: MouseEvent) => {
     const target = event.target;
     if (!(target instanceof Node)) return;
