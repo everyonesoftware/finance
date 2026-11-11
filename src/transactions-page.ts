@@ -155,11 +155,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <div><h2 id="all-transactions-title">All transactions</h2><p id="all-transactions-count" aria-live="polite">Loading transactions…</p></div>
           </div>
           <div id="all-transactions-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
-          <nav id="transactions-pagination" class="transaction-pagination" aria-label="Transaction pages" hidden>
-            <button id="transactions-previous-page" class="secondary-button" type="button" aria-controls="all-transactions-list" disabled>Previous</button>
-            <span id="transactions-page-status" role="status" aria-live="polite"></span>
-            <button id="transactions-next-page" class="secondary-button" type="button" aria-controls="all-transactions-list" disabled>Next</button>
-          </nav>
+          <button id="transactions-view-more" class="text-button transaction-view-more" type="button" aria-controls="all-transactions-list" hidden>View More</button>
         </section>
         <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
       </main>
@@ -238,19 +234,17 @@ export async function initializeTransactionsPage(): Promise<void> {
   const minimumInput = document.querySelector<HTMLInputElement>("#minimum-transaction-amount");
   const maximumInput = document.querySelector<HTMLInputElement>("#maximum-transaction-amount");
   const sortSelect = document.querySelector<HTMLSelectElement>("#transaction-sort-order");
-  const pagination = document.querySelector<HTMLElement>("#transactions-pagination");
-  const previousPage = document.querySelector<HTMLButtonElement>("#transactions-previous-page");
-  const nextPage = document.querySelector<HTMLButtonElement>("#transactions-next-page");
-  const pageStatus = document.querySelector<HTMLSpanElement>("#transactions-page-status");
-  if (!pagination || !previousPage || !nextPage || !pageStatus) return;
+  const viewMore = document.querySelector<HTMLButtonElement>("#transactions-view-more");
+  if (!viewMore) return;
   if (!list || !count || !accountOptions || !accountTrigger || !accountSelected || !accountTotal || !accountSearch || !accountPopover || !selectAllAccounts || !deselectAllAccounts || !closeAccountsFilter || !amountTrigger || !amountTriggerSummary || !amountPopover || !closeAmountFilter || !resetAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
 
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
   let transactionGroups: TransactionGroup[] = [];
   let filteredGroups: TransactionGroup[] = [];
-  let currentPage = 1;
-  const pageSize = 50;
+  const batchSize = 50;
+  let visibleGroupLimit = batchSize;
+  let renderedGroupCount = 0;
   let hasLoadedTransactions = false;
   let minimumAmount = -1;
   let maximumAmount = 1;
@@ -334,10 +328,11 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
   };
 
-  const renderResults = (resetPage = true): void => {
+  const renderResults = (resetVisible = true): void => {
     const selectedAccountIds = getSelectedAccountIds(accountOptions);
-    if (resetPage) {
-      currentPage = 1;
+    if (resetVisible) {
+      visibleGroupLimit = batchSize;
+      renderedGroupCount = 0;
       filteredGroups = filterAndSortTransactionGroups(transactionGroups, accounts, {
         includeAccountIds: selectedAccountIds,
         excludeAccountIds: [],
@@ -346,16 +341,11 @@ export async function initializeTransactionsPage(): Promise<void> {
         sort: sortSelect.value as TransactionSortOrder,
       });
     }
-    const pageCount = Math.max(1, Math.ceil(filteredGroups.length / pageSize));
-    currentPage = Math.max(1, Math.min(currentPage, pageCount));
-    const start = (currentPage - 1) * pageSize;
-    const pageGroups = filteredGroups.slice(start, start + pageSize);
+    const visibleGroupCount = Math.min(visibleGroupLimit, filteredGroups.length);
+    const nextGroups = filteredGroups.slice(renderedGroupCount, visibleGroupCount);
     const transactionCount = filteredGroups.reduce((total, group) => total + group.transactions.length, 0);
-    count.textContent = `Showing rows ${filteredGroups.length ? start + 1 : 0}–${start + pageGroups.length} of ${filteredGroups.length} · ${transactionCount} transaction${transactionCount === 1 ? "" : "s"}`;
-    pagination.hidden = pageCount <= 1;
-    previousPage.disabled = currentPage === 1;
-    nextPage.disabled = currentPage === pageCount;
-    pageStatus.textContent = `Page ${currentPage} of ${pageCount}`;
+    count.textContent = `Showing rows ${filteredGroups.length ? 1 : 0}–${visibleGroupCount} of ${filteredGroups.length} · ${transactionCount} transaction${transactionCount === 1 ? "" : "s"}`;
+    viewMore.hidden = visibleGroupCount >= filteredGroups.length;
     updateAccountSummary();
     updateAmountSummary();
     if (filteredGroups.length === 0) {
@@ -368,7 +358,10 @@ export async function initializeTransactionsPage(): Promise<void> {
       return;
     }
     list.className = "transaction-list all-transactions-list";
-    list.innerHTML = renderTransactionGroups(pageGroups, accounts, { showAccount: true });
+    const html = renderTransactionGroups(nextGroups, accounts, { showAccount: true });
+    if (resetVisible) list.innerHTML = html;
+    else list.insertAdjacentHTML("beforeend", html);
+    renderedGroupCount = visibleGroupCount;
   };
 
   const updateAccountSelection = (shouldSelect: boolean): void => {
@@ -508,17 +501,10 @@ export async function initializeTransactionsPage(): Promise<void> {
   accountOptions.addEventListener("change", () => renderResults());
   accountSearch.addEventListener("input", applyAccountSearch);
   sortSelect.addEventListener("change", () => renderResults());
-  previousPage.addEventListener("click", () => {
-    if (previousPage.disabled) return;
-    currentPage--;
+  viewMore.addEventListener("click", () => {
+    if (viewMore.hidden) return;
+    visibleGroupLimit += batchSize;
     renderResults(false);
-    count.scrollIntoView({ block: "start" });
-  });
-  nextPage.addEventListener("click", () => {
-    if (nextPage.disabled) return;
-    currentPage++;
-    renderResults(false);
-    count.scrollIntoView({ block: "start" });
   });
   document.addEventListener("click", (event: MouseEvent) => {
     const target = event.target;

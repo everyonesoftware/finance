@@ -1547,26 +1547,18 @@ a.text-button {
   min-height: 60px;
 }
 
-.transaction-pagination {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
+.transaction-view-more {
+  display: block;
+  width: 100%;
+  min-height: 44px;
   margin-top: 16px;
-  padding-top: 16px;
+  padding: 16px 0 0;
   border-top: 1px solid #e9ebe6;
-  color: #65806a;
   font-size: 11px;
 }
 
-.transaction-pagination[hidden] {
+.transaction-view-more[hidden] {
   display: none;
-}
-
-.transaction-pagination .secondary-button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .transaction-copy .transaction-account-label {

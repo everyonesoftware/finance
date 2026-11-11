@@ -80,6 +80,7 @@ export function renderDashboard(user: DashboardUser): string {
         <article class="panel transactions-panel" id="transactions">
           <div class="panel-heading">
             <div><h2>Recent transactions</h2><p>Your latest activity at a glance</p></div>
+            <a class="text-button" href="/transactions">See all</a>
           </div>
           <div id="transaction-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
         </article>
