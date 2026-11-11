@@ -24,7 +24,11 @@ export function readOfx(content:string,currency:string,target?:{mask?:string|nul
   };
   const currencies=[...content.matchAll(/<(?:CURDEF|CURSYM)\s*>([^<]*)/gi)].map(m=>m[1].trim());
   if(currencies.some(c=>c!==currency))throw Error('Statement currency does not match the account.');
-  const accountIds=[...content.matchAll(/<ACCTID\s*>([^<]*)/gi)].map(m=>decodeOfx(m[1].trim()));
+  // Only statement source accounts identify the imported account. Individual
+  // transactions can carry their own source/destination account references.
+  const statementContent=content.replace(/<STMTTRN\s*>[\s\S]*?<\/STMTTRN\s*>/gi,'');
+  const accountIds=[...statementContent.matchAll(/<(BANKACCTFROM|CCACCTFROM)\s*>([\s\S]*?)<\/\1\s*>/gi)]
+   .map(m=>field(m[2],'ACCTID')).filter((id):id is string=>id!==undefined);
   if(new Set(accountIds).size>1)throw Error('Import one account statement at a time.');
   if(target?.mask && accountIds.some(id=>!id.endsWith(target.mask!)))throw Error('Statement account does not match the account mask.');
   const blocks=[...content.matchAll(/<STMTTRN\s*>([\s\S]*?)<\/STMTTRN\s*>/gi)];

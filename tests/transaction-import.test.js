@@ -2,6 +2,27 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {parseTransactionImport as parse} from '../server/transaction-import.ts';
 const map={dateColumn:0,nameColumn:1,amountColumn:2,dateFormat:'mdy',amountConvention:'outflow-positive'};
+test('OFX account validation ignores transaction-level destination and source references',()=>{
+ for(const xml of [false,true]) {
+  for(const creditCard of [false,true]) {
+   const field=(tag,value)=>`<${tag}>${value}${xml?`</${tag}>`:''}`;
+   const statementTag=creditCard?'CCSTMTRS':'STMTRS';
+   const accountTag=creditCard?'CCACCTFROM':'BANKACCTFROM';
+   const referenceTag=creditCard?'CCACCTTO':'BANKACCTTO';
+   const transaction=(id,amount,reference)=>'<STMTTRN>'+field('DTPOSTED','20261101')+field('TRNAMT',amount)+field('NAME','Example purchase')+field('FITID',id)+`<${referenceTag}>`+field('ACCTID',reference)+`</${referenceTag}>`+'</STMTTRN>';
+   const statement=`<${statementTag}>`+field('CURDEF','USD')+`<${accountTag}>`+field('ACCTID','99991234')+`</${accountTag}><BANKTRANLIST>`+transaction('purchase','-8.42','5678')+transaction('refund','14.05','1234')+'</BANKTRANLIST>'+`</${statementTag}>`;
+   const wrap=body=>(xml?'<?xml version="1.0"?>':'OFXHEADER:100\nVERSION:102\n\n')+'<OFX>'+body+'</OFX>';
+   const parsed=parse('statement.qfx',wrap(statement),'USD',undefined,{mask:'1234'});
+   assert.deepEqual(parsed.errors,[]);
+   assert.equal(parsed.total,2);
+   assert.deepEqual(parsed.transactions.map(t=>[t.sourceId,t.amount]),[['purchase',8.42],['refund',-14.05]]);
+   assert.match(parse('statement.qfx',wrap(statement),'USD',undefined,{mask:'5678'}).errors.join(' '),/account mask/);
+   assert.match(parse('statement.qfx',wrap(statement+statement),'USD').errors.join(' '),/one account statement/);
+   const withSource=statement.replace(`</${referenceTag}>`,`</${referenceTag}><${accountTag}>`+field('ACCTID','8765')+`</${accountTag}>`);
+   assert.deepEqual(parse('statement.qfx',wrap(withSource),'USD',undefined,{mask:'1234'}).errors,[]);
+  }
+ }
+});
 test('QFX dotted metadata tags preserve transactions in SGML and XML statements',()=>{
  for(const xml of [false,true]) {
   const field=(tag,value)=>`<${tag}>${value}${xml?`</${tag}>`:''}`;
