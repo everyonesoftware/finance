@@ -11,6 +11,7 @@ export type TransactionRecord = Record<string, unknown>;
 export interface TransactionListRenderOptions {
   showAccount?: boolean;
   activityStyle?: boolean;
+  responsiveActivity?: boolean;
   groupByDate?: boolean;
   previousDate?: string | null;
 }
@@ -265,6 +266,7 @@ function renderTransactionRow(
   showAccount: boolean,
   activity = false,
   hideDate = false,
+  responsiveActivity = false,
 ): string {
   const name = stringField(transaction, "name") ?? "Transaction";
   const date = stringField(transaction, "date") ?? "Date unavailable";
@@ -284,7 +286,8 @@ function renderTransactionRow(
         <span class="transaction-avatar" aria-hidden="true">${escapeHtml(monogram)}</span>
         <div class="transaction-copy">
           <strong>${renderLinkedTransactionName(name, accounts)}</strong>
-          ${hideDate ? "" : `<span>${escapeHtml(date)}</span>`}
+          ${responsiveActivity ? `<span class="transaction-desktop-date">${escapeHtml(date + pending)}</span>` : ""}
+          ${hideDate ? "" : `<span${responsiveActivity ? ' class="transaction-mobile-date"' : ""}>${escapeHtml(date)}</span>`}
           ${accountLabel}
           ${transaction["pending"] === true ? '<span class="transaction-pending">Pending</span>' : ""}
         </div>
@@ -330,7 +333,7 @@ export function renderTransactionGroups(
       ? `<h3 class="transaction-date-heading">${escapeHtml(date ?? "Date unavailable")}</h3>`
       : "";
     previousDate = date;
-    if (group.type === "single") return heading + renderTransactionRow(group.transactions[0], accounts, options.showAccount === true, options.groupByDate === true || options.activityStyle === true, options.groupByDate === true);
+    if (group.type === "single") return heading + renderTransactionRow(group.transactions[0], accounts, options.showAccount === true, options.groupByDate === true || options.activityStyle === true, options.groupByDate === true, options.responsiveActivity === true);
     const dateLabel = dates[0] === dates.at(-1) ? dates[0] : `${dates[0]} – ${dates.at(-1)}`;
     const amountTransaction = group.transactions.find((transaction) => numberField(transaction, "amount") !== null);
     const transferAmount = amountTransaction ? Math.abs(numberField(amountTransaction, "amount") ?? 0) : Number.NaN;

@@ -48,13 +48,16 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
       ${renderAppNavigation(user, "transactions")}
       <main class="main-content transactions-content">
 
+        <div id="transaction-desktop-heading"></div>
         <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite" hidden></p>
         <div class="transactions-workspace">
         <div class="transactions-sticky-controls">
+        <div id="transaction-mobile-heading">
         <section class="page-heading transactions-page-heading">
           <div>
-            <p class="eyebrow">YOUR MONEY, IN MOTION</p>
+            <p class="eyebrow"><span class="transaction-desktop-only">ALL ACCOUNTS</span><span class="transaction-mobile-only">YOUR MONEY, IN MOTION</span></p>
             <h1>Transactions</h1>
+            <p class="subheading transaction-desktop-only">Search saved activity across your accounts.</p>
           </div>
           <div class="transaction-heading-actions">
             <button class="transaction-icon-button" id="transaction-filters-trigger" type="button" aria-label="Filter transactions" title="Filter transactions" aria-haspopup="dialog" aria-controls="transaction-filters-dialog" aria-expanded="false" disabled>
@@ -65,7 +68,34 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             </button>
             <button id="open-batch-import" class="primary-button transaction-icon-button transactions-import-button" type="button" aria-label="Import transactions" title="Import transactions">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V3m-4 4 4-4 4 4M4 15v5h16v-5" /></svg>
+              <span class="transaction-import-label">Import Transactions</span>
             </button>
+          </div>
+        </section>
+        </div>
+        <section id="transaction-desktop-toolbar" class="panel transaction-filters" aria-label="Transaction filters">
+          <div class="transaction-filter-toolbar">
+            <span class="transaction-filter-label">Filter</span>
+            <div class="transaction-filter-controls">
+              <div class="transaction-filter-anchor">
+                <button class="transaction-filter-trigger" id="accounts-filter-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="accounts-filter-popover" disabled>
+                  Accounts: <span id="desktop-accounts-filter-summary">0 / 0 selected</span><span class="transaction-trigger-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="transaction-filter-popover accounts-filter-popover" id="accounts-filter-popover" role="dialog" aria-label="Filter by account" hidden>
+                  <div class="transaction-popover-heading"><strong>Accounts</strong><button class="transaction-popover-close" id="close-accounts-filter" type="button" aria-label="Close account filters">×</button></div>
+                </div>
+              </div>
+              <div class="transaction-filter-anchor">
+                <button class="transaction-filter-trigger" id="amount-filter-trigger" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="amount-filter-popover" disabled>
+                  Amount: <span id="desktop-amount-filter-summary">Any</span><span class="transaction-trigger-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div class="transaction-filter-popover amount-filter-popover" id="amount-filter-popover" role="dialog" aria-label="Filter by amount" hidden>
+                  <div class="transaction-popover-heading"><strong>Amount range</strong><button class="transaction-popover-close" id="close-amount-filter" type="button" aria-label="Close amount filters">×</button></div>
+                </div>
+              </div>
+              <div id="transaction-desktop-sort"></div>
+            </div>
+            <div id="transaction-desktop-import"></div>
           </div>
         </section>
         <div class="transaction-activity-status">
@@ -84,7 +114,8 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
 
       <dialog id="transaction-filters-dialog" class="transaction-controls-dialog" aria-labelledby="transaction-filters-title">
         <div class="transaction-sheet-heading"><h2 id="transaction-filters-title">Filters</h2></div>
-        <div class="transaction-sheet-body">
+        <div class="transaction-sheet-body" id="transaction-filter-sheet-body">
+                <div id="transaction-account-fields" class="transaction-shared-fields">
                   <h3>Accounts <span class="transaction-selection-summary"><span id="accounts-filter-selected">0</span> / <span id="accounts-filter-total">0</span> selected</span></h3>
                   <label class="transaction-account-search">
                     <input id="account-filter-search" type="search" placeholder="Search accounts…" aria-label="Search accounts" aria-controls="account-options" autocomplete="off" />
@@ -93,7 +124,10 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                     <button id="select-all-accounts" type="button">Select all</button>
                     <button id="deselect-all-accounts" type="button">Deselect all</button>
                   </div>
+                  <p class="transaction-popover-help transaction-desktop-only">All accounts are selected by default. Deselect accounts to hide their transactions.</p>
                   <div id="account-options" class="transaction-filter-account-list"><span>Loading accounts…</span></div>
+                </div>
+                <div id="transaction-amount-fields" class="transaction-shared-fields">
                   <h3>Amount range <span id="amount-filter-summary" class="transaction-selection-summary">Any</span></h3>
                   <p class="transaction-popover-help">Amounts match the transaction list (spending is negative, income is positive); no currency conversion is applied.</p>
                   <div class="transaction-amount-sliders">
@@ -117,6 +151,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                       </label>
                     </div>
                   </div>
+                </div>
         </div>
         <div class="transaction-sheet-footer">
           <button id="cancel-transaction-filters" class="secondary-button" type="button">Cancel</button>
@@ -125,9 +160,9 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
       </dialog>
       <dialog id="transaction-sort-dialog" class="transaction-controls-dialog" aria-labelledby="transaction-sort-title">
         <div class="transaction-sheet-heading"><h2 id="transaction-sort-title">Sort transactions</h2></div>
-        <div class="transaction-sheet-body">
-              <label class="transaction-sort-control" for="transaction-sort-order">
-                <span>Sort by</span>
+        <div class="transaction-sheet-body" id="transaction-sort-sheet-body">
+              <label class="transaction-sort-control" id="transaction-sort-fields" for="transaction-sort-order">
+                <span>Sort</span>
                 <select id="transaction-sort-order">
                   <option value="date-desc">Date · newest</option>
                   <option value="date-asc">Date · oldest</option>
@@ -144,6 +179,44 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
       ${renderBatchImportDialog()}
     </div>
   `;
+}
+
+/** Reparent shared controls; resizing must not recreate inputs or transaction rows. */
+export function initializeResponsiveTransactions(root: HTMLElement, viewport: MediaQueryList): void {
+  const heading = root.querySelector<HTMLElement>(".transactions-page-heading");
+  const actions = root.querySelector<HTMLElement>(".transaction-heading-actions");
+  const accountFields = root.querySelector<HTMLElement>("#transaction-account-fields");
+  const amountFields = root.querySelector<HTMLElement>("#transaction-amount-fields");
+  const sortFields = root.querySelector<HTMLElement>("#transaction-sort-fields");
+  const importButton = root.querySelector<HTMLElement>("#open-batch-import");
+  const count = root.querySelector<HTMLElement>("#all-transactions-count");
+  if (!heading || !actions || !accountFields || !amountFields || !sortFields || !importButton || !count) return;
+
+  const sync = (): void => {
+    if (!root.isConnected) {
+      viewport.removeEventListener("change", sync);
+      return;
+    }
+    for (const id of ["transaction-filters-dialog", "transaction-sort-dialog"]) {
+      const dialog = root.querySelector<HTMLDialogElement>(`#${id}`);
+      if (dialog?.open) dialog.close();
+    }
+    for (const kind of ["accounts", "amount"]) {
+      const popover = root.querySelector<HTMLElement>(`#${kind}-filter-popover`);
+      if (popover) popover.hidden = true;
+      root.querySelector(`#${kind}-filter-trigger`)?.setAttribute("aria-expanded", "false");
+    }
+    const mobile = viewport.matches;
+    root.querySelector(mobile ? "#transaction-mobile-heading" : "#transaction-desktop-heading")?.append(heading);
+    root.querySelector(mobile ? "#transaction-filter-sheet-body" : "#accounts-filter-popover")?.append(accountFields);
+    root.querySelector(mobile ? "#transaction-filter-sheet-body" : "#amount-filter-popover")?.append(amountFields);
+    root.querySelector(mobile ? "#transaction-sort-sheet-body" : "#transaction-desktop-sort")?.append(sortFields);
+    (mobile ? actions : root.querySelector("#transaction-desktop-import"))?.append(importButton);
+    root.querySelector(mobile ? ".transactions-sticky-controls" : "#transaction-desktop-toolbar")?.append(count);
+    importButton.classList.toggle("transaction-icon-button", mobile);
+  };
+  sync();
+  viewport.addEventListener("change", sync);
 }
 
 function renderAccountOptions(accounts: BankAccount[]): string {
@@ -207,6 +280,12 @@ export async function initializeTransactionsPage(): Promise<void> {
   const applySort = document.querySelector<HTMLButtonElement>("#apply-transaction-sort");
   const activityCount = document.querySelector<HTMLSpanElement>("#transaction-activity-count");
   const sortSummary = document.querySelector<HTMLSpanElement>("#transaction-sort-summary");
+  const desktopAccountSummary = document.querySelector<HTMLSpanElement>("#desktop-accounts-filter-summary");
+  const desktopAmountSummary = document.querySelector<HTMLSpanElement>("#desktop-amount-filter-summary");
+  const accountTrigger = document.querySelector<HTMLButtonElement>("#accounts-filter-trigger");
+  const amountTrigger = document.querySelector<HTMLButtonElement>("#amount-filter-trigger");
+  const accountPopover = document.querySelector<HTMLDivElement>("#accounts-filter-popover");
+  const amountPopover = document.querySelector<HTMLDivElement>("#amount-filter-popover");
   const accountSelected = document.querySelector<HTMLSpanElement>("#accounts-filter-selected");
   const accountTotal = document.querySelector<HTMLSpanElement>("#accounts-filter-total");
   const accountSearch = document.querySelector<HTMLInputElement>("#account-filter-search");
@@ -245,6 +324,7 @@ export async function initializeTransactionsPage(): Promise<void> {
 
   const updateAccountSummary = (): void => {
     accountSelected.textContent = String(getSelectedAccountIds(accountOptions).length);
+    if (desktopAccountSummary) desktopAccountSummary.textContent = `${accountSelected.textContent} / ${accounts.length} selected`;
   };
 
   const updateAccountActionLabels = (): void => {
@@ -274,6 +354,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     amountTriggerSummary.textContent = isFullRange
       ? "Any"
       : `${formatFilterAmount(selectedMinimumAmount)}–${formatFilterAmount(selectedMaximumAmount)}`;
+    if (desktopAmountSummary) desktopAmountSummary.textContent = amountTriggerSummary.textContent;
   };
 
   const renderResults = (resetVisible = true): void => {
@@ -322,6 +403,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     const html = renderTransactionGroups(nextGroups, accounts, {
       showAccount: true,
       activityStyle: true,
+      responsiveActivity: true,
       groupByDate: appliedSort.startsWith("date"),
       previousDate: previousGroup ? getTransactionGroupDate(previousGroup) : undefined,
     });
@@ -453,6 +535,8 @@ export async function initializeTransactionsPage(): Promise<void> {
     renderResults();
     filterTrigger.disabled = false;
     sortTrigger.disabled = false;
+    if (accountTrigger) accountTrigger.disabled = false;
+    if (amountTrigger) amountTrigger.disabled = false;
     if (status) {
       status.hidden = true;
       status.textContent = "";
@@ -460,6 +544,42 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   initializeBatchImport(() => accounts, loadTransactions);
+  const closeDesktopPopovers = (): void => {
+    if (accountPopover) accountPopover.hidden = true;
+    if (amountPopover) amountPopover.hidden = true;
+    accountTrigger?.setAttribute("aria-expanded", "false");
+    amountTrigger?.setAttribute("aria-expanded", "false");
+  };
+  const toggleDesktopPopover = (trigger: HTMLButtonElement | null, popover: HTMLDivElement | null): void => {
+    if (!trigger || !popover) return;
+    const shouldOpen = popover.hidden;
+    closeDesktopPopovers();
+    if (!shouldOpen) return;
+    popover.hidden = false;
+    popover.style.transform = "";
+    trigger.setAttribute("aria-expanded", "true");
+    const bounds = popover.getBoundingClientRect();
+    const shift = Math.min(0, window.innerWidth - 8 - bounds.right);
+    popover.style.transform = `translateX(${Math.max(8 - bounds.left, shift)}px)`;
+    popover.style.maxHeight = `${Math.max(120, window.innerHeight - bounds.top - 8)}px`;
+  };
+  accountTrigger?.addEventListener("click", () => toggleDesktopPopover(accountTrigger, accountPopover));
+  amountTrigger?.addEventListener("click", () => toggleDesktopPopover(amountTrigger, amountPopover));
+  for (const [kind, trigger] of [["accounts", accountTrigger], ["amount", amountTrigger]] as const) {
+    document.querySelector(`#close-${kind}-filter`)?.addEventListener("click", () => {
+      closeDesktopPopovers();
+      trigger?.focus();
+    });
+  }
+  document.addEventListener("click", (event: MouseEvent) => {
+    if (!(event.target instanceof Node)) return;
+    if (!accountPopover?.contains(event.target) && !accountTrigger?.contains(event.target) && !amountPopover?.contains(event.target) && !amountTrigger?.contains(event.target)) closeDesktopPopovers();
+  });
+  document.addEventListener("keydown", (event: KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    const trigger = accountPopover && !accountPopover.hidden ? accountTrigger : amountPopover && !amountPopover.hidden ? amountTrigger : null;
+    if (trigger) { closeDesktopPopovers(); trigger.focus(); }
+  });
   filterTrigger.addEventListener("click", () => {
     filterSnapshot = {
       accountIds: getSelectedAccountIds(accountOptions),
@@ -649,6 +769,11 @@ export async function initializeTransactionsPage(): Promise<void> {
   maximumInput.addEventListener("input", () => handleAmountInput("maximum", maximumInput));
   minimumInput.addEventListener("change", () => handleAmountInputCommit("minimum", minimumInput));
   maximumInput.addEventListener("change", () => handleAmountInputCommit("maximum", maximumInput));
+
+  if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
+    const root = document.querySelector<HTMLElement>(".app-shell");
+    if (root) initializeResponsiveTransactions(root, window.matchMedia("(max-width: 800px)"));
+  }
 
   try {
     await loadTransactions();
