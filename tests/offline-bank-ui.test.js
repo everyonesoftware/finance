@@ -16,7 +16,8 @@ test('overview omits introductory copy and the bank-data notice', () => {
   assert.doesNotMatch(html, /Here’s what’s happening with your money\./);
   assert.ok(!html.includes(notice));
   assert.doesNotMatch(html, /class="(?:subheading|bank-data-notice)"/);
-  assert.match(html, /Welcome, Offline User/);
+  assert.doesNotMatch(html, /Welcome,|✳|class="page-heading"/);
+  assert.doesNotMatch(html, /class="eyebrow"/);
   assert.match(html, /aria-label="Financial summary"/);
 });
 

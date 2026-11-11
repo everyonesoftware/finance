@@ -5,28 +5,7 @@ export interface DashboardUser {
   username: string;
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (character: string): string => {
-    const entities: Record<string, string> = {
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;",
-      '"': "&quot;",
-      "'": "&#39;",
-    };
-
-    return entities[character] ?? character;
-  });
-}
-
 export function renderDashboard(user: DashboardUser): string {
-  const displayName: string = escapeHtml(user.displayName);
-
-  const currentDate: string = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-  }).format(new Date());
-
   return `
   <div class="app-shell">
     ${renderAppNavigation(user, "overview")}
@@ -34,15 +13,6 @@ export function renderDashboard(user: DashboardUser): string {
     <main class="main-content" id="overview">
 
       <p id="settings-message" class="auth-message" role="status" hidden></p>
-
-      <section class="page-heading">
-        <div>
-          <p class="eyebrow">${currentDate.toUpperCase()}</p>
-          <h1>Welcome, ${displayName} <span aria-hidden="true">✳</span></h1>
-
-        </div>
-
-      </section>
 
 
       <section class="summary-grid" aria-label="Financial summary">
