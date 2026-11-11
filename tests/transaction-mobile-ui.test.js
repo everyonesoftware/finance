@@ -14,14 +14,14 @@ test('mobile transfers inherit one shared outer rail with flush included transac
   };
   const container = rule('.transaction-transfer-pair');
   assert.match(container, /border-left:\s*3px solid #356747/);
-  assert.match(container, /background:\s*#f7faf4/);
+  assert.match(container, /background:\s*#fff/);
   const children = rule('.transfer-pair-rows');
   assert.match(children, /border:\s*0/);
   assert.match(children, /margin:\s*0/);
-  assert.match(children, /background:\s*transparent/);
+  assert.match(children, /background:\s*#f5f5f4/);
   const summary = rule('.transaction-transfer-pair summary');
-  assert.match(summary, /background:\s*#edf4e8/);
-  assert.match(summary, /border-bottom:\s*1px solid #dce8d6/);
+  assert.match(summary, /background:\s*#fff/);
+  assert.match(summary, /border-bottom:\s*1px solid #e1e3e0/);
   assert.match(rule('.transfer-pair-details-label'), /border-bottom:\s*0/);
 });
 
