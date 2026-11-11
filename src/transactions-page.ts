@@ -150,13 +150,10 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             </div>
             <button id="open-batch-import" class="primary-button transactions-import-button" type="button">Import Transactions</button>
           </div>
+          <p id="all-transactions-count" class="transaction-results-status" aria-live="polite">Loading transactions…</p>
         </section>
-
-          <div class="panel panel-heading transactions-results-heading">
-            <div><h2 id="all-transactions-title">All transactions</h2><p id="all-transactions-count" aria-live="polite">Loading transactions…</p></div>
-          </div>
         </div>
-        <section class="panel transactions-results" aria-labelledby="all-transactions-title">
+        <section class="panel transactions-results" aria-label="Transactions">
           <div id="all-transactions-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
           <div id="transactions-scroll-sentinel" class="transaction-scroll-sentinel" aria-hidden="true" hidden></div>
         </section>

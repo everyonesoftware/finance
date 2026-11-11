@@ -30,8 +30,9 @@ test('Transactions page includes styled import button and multi-file review dial
   assert.ok(stickyStart > html.indexOf('Search saved activity across your accounts.'));
   const stickyControls = html.slice(stickyStart, resultsStart);
   assert.match(stickyControls, /class="panel transaction-filters"[\s\S]*id="open-batch-import"[\s\S]*<\/section>/);
-  assert.match(stickyControls, /id="all-transactions-title"/);
-  assert.match(stickyControls, /id="all-transactions-count"/);
+  assert.doesNotMatch(html, /id="all-transactions-title"|transactions-results-heading/);
+  assert.match(stickyControls, /id="all-transactions-count" class="transaction-results-status" aria-live="polite"/);
+  assert.match(html, /<section class="panel transactions-results" aria-label="Transactions">/);
   assert.equal((html.match(/id="open-batch-import"/g) ?? []).length, 1);
   assert.match(html, /id="batch-import-dialog"/);
   assert.match(html, /id="batch-import-files"[^>]*multiple/);
