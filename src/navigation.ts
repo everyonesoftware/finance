@@ -1,4 +1,25 @@
+import { appVersion } from "./app-version.ts";
+import { escapeHtml } from "./html-utils.ts";
+
 export type MainNavigationPage = "overview" | "transactions" | "real-estate" | "accounts" | "settings";
+
+export function renderAppNavigation(user: { displayName: string; username: string }, activePage: MainNavigationPage): string {
+  const displayName = escapeHtml(user.displayName);
+  const username = escapeHtml(user.username);
+  const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
+  return `
+    <aside class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a>
+      <div class="workspace-label">WORKSPACE</div>
+      ${renderMainNavigation(activePage)}
+      <div class="sidebar-bottom">
+        <div class="profile-avatar" aria-hidden="true">${initial}</div>
+        <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
+      </div>
+    </aside>
+    ${renderMobileNavigation(activePage)}
+  `;
+}
 
 const navigationItems: Array<{ page: MainNavigationPage; href: string; icon: string; label: string }> = [
   { page: "overview", href: "/dashboard", icon: "◫", label: "Overview" },
@@ -20,9 +41,9 @@ const mobileNavigationIcons: Record<MainNavigationPage, string> = {
 export function renderMobileNavigation(activePage: MainNavigationPage): string {
   const links = navigationItems.map(({ page, href, label }) => {
     const active = page === activePage;
-    return `<a class="transaction-mobile-navigation-link${active ? " active" : ""}" href="${href}"${active ? ' aria-current="page"' : ""}><span class="transaction-mobile-navigation-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${mobileNavigationIcons[page]}</svg></span><span>${label}</span></a>`;
+    return `<a class="mobile-navigation-link${active ? " active" : ""}" href="${href}"${active ? ' aria-current="page"' : ""}><span class="mobile-navigation-icon"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${mobileNavigationIcons[page]}</svg></span><span>${label}</span></a>`;
   }).join("");
-  return `<nav class="transaction-mobile-navigation" aria-label="Mobile navigation">${links}</nav>`;
+  return `<nav class="mobile-navigation" aria-label="Mobile navigation">${links}</nav>`;
 }
 
 export function renderMainNavigation(activePage: MainNavigationPage): string {

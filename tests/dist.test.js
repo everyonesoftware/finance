@@ -298,7 +298,7 @@ test("dashboard shows only implemented account and transaction features", () => 
   assert.match(html, /class="app-version">Version dev<\/span>/);
 });
 
-test("main navigation has an accessible mobile menu toggle on every finance page", () => {
+test("every finance page uses persistent mobile navigation instead of a menu toggle", () => {
   const pages = [
     renderDashboard({ displayName: "Test", username: "test" }),
     renderTransactionsPage({ displayName: "Test", username: "test" }),
@@ -307,11 +307,23 @@ test("main navigation has an accessible mobile menu toggle on every finance page
     renderConnectionsPage({ displayName: "Test", username: "test" }),
   ];
   for (const html of pages) {
-    assert.match(html, /class="mobile-menu-toggle"[^>]*aria-expanded="false"[^>]*aria-controls="main-navigation"/);
-    assert.match(html, /class="mobile-menu-panel"/);
+    assert.doesNotMatch(html, /mobile-menu-toggle/);
+    assert.equal((html.match(/aria-label="Mobile navigation"/g) ?? []).length, 1);
     assert.match(html, /<nav class="navigation" id="main-navigation">/);
     assert.match(html, /href="\/real-estate"[^>]*>[^<]*<span class="nav-icon"[^>]*>⌂<\/span> Real Estate/);
+    const mobile = html.match(/<nav class="mobile-navigation"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? "";
+    assert.deepEqual([...mobile.matchAll(/href="([^"]+)"/g)].map((match) => match[1]), ["/dashboard", "/transactions", "/real-estate", "/accounts", "/settings"]);
+    assert.equal((mobile.match(/aria-current="page"/g) ?? []).length, 1);
+    assert.equal(mobile.match(/href="([^"]+)" aria-current="page"/)?.[1], html.match(/class="nav-link active" href="([^"]+)"/)?.[1]);
   }
+});
+
+test("Settings uses the shared app navigation without a separate sidebar or mobile menu", async () => {
+  const source = await readFile(new URL("../src/main.ts", import.meta.url), "utf8");
+  const settings = source.slice(source.indexOf("function renderSettings("), source.indexOf("function showSettingsMessage("));
+  assert.match(settings, /renderAppNavigation\([\s\S]*?"settings"\)/);
+  assert.doesNotMatch(source, /mobile-menu-toggle|mobile-menu-open/);
+  assert.doesNotMatch(settings, /<aside|<nav/);
 });
 
 test("every finance page renders the same navigation destinations in the same order", () => {
@@ -335,10 +347,12 @@ test("every finance page renders the same navigation destinations in the same or
   }
 });
 
-test("mobile menu toggle is hidden on desktop and shown at mobile widths", async () => {
+test("mobile bottom navigation is shared across pages and reserves safe-area content space", async () => {
   const stylesheet = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
-  assert.match(stylesheet, /\.mobile-menu-toggle\s*\{\s*display:\s*none;/);
-  assert.match(stylesheet, /@media\s*\(max-width:\s*800px\)[\s\S]*?\.mobile-menu-toggle\s*\{\s*display:\s*grid;/);
+  assert.match(stylesheet, /\.mobile-navigation\s*\{\s*display:\s*none;/);
+  assert.match(stylesheet, /@media\s*\(max-width:\s*800px\)[\s\S]*?\n  \.mobile-navigation\s*\{[^}]*position:\s*fixed;[^}]*display:\s*grid;/);
+  assert.match(stylesheet, /\.app-shell > \.main-content\s*\{[^}]*padding-bottom:\s*calc\(90px \+ env\(safe-area-inset-bottom\)\)/);
+  assert.doesNotMatch(stylesheet, /mobile-menu-toggle|mobile-menu-open/);
 });
 
 test("amount range input accepts complete decimals and ignores incomplete edits", () => {

@@ -1,5 +1,4 @@
-import { appVersion } from "./app-version.ts";
-import { renderMainNavigation, renderMobileNavigation } from "./navigation.ts";
+import { renderAppNavigation } from "./navigation.ts";
 import { escapeHtml } from "./html-utils.ts";
 import {
   filterAndSortTransactionGroups,
@@ -44,31 +43,9 @@ export function formatFilterAmount(value: number): string {
 }
 
 export function renderTransactionsPage(user: TransactionsPageUser): string {
-  const displayName = escapeHtml(user.displayName);
-  const username = escapeHtml(user.username);
-  const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
-
   return `
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Main navigation">
-        <a class="brand" href="/dashboard" aria-label="Finance home">
-          <span class="brand-mark" aria-hidden="true">F</span><span>Finance</span>
-        </a>
-        <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
-        <div class="mobile-menu-panel">
-        <div class="workspace-label">WORKSPACE</div>
-        ${renderMainNavigation("transactions")}
-        <div class="sidebar-bottom">
-          <div class="profile-avatar" aria-hidden="true">${initial}</div>
-          <div class="profile-copy">
-            <strong>${displayName}</strong>
-            <span>@${username}</span>
-            <span class="app-version">Version ${escapeHtml(appVersion)}</span>
-
-          </div>
-        </div>
-        </div>
-      </aside>
+      ${renderAppNavigation(user, "transactions")}
       <main class="main-content transactions-content">
 
         <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite" hidden></p>
@@ -104,7 +81,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
         </div>
         <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
       </main>
-      ${renderMobileNavigation("transactions")}
+
       <dialog id="transaction-filters-dialog" class="transaction-controls-dialog" aria-labelledby="transaction-filters-title">
         <div class="transaction-sheet-heading"><h2 id="transaction-filters-title">Filters</h2></div>
         <div class="transaction-sheet-body">

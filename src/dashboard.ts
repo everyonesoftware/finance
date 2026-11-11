@@ -1,5 +1,4 @@
-import { appVersion } from "./app-version.ts";
-import { renderMainNavigation } from "./navigation.ts";
+import { renderAppNavigation } from "./navigation.ts";
 
 export interface DashboardUser {
   displayName: string;
@@ -22,8 +21,7 @@ function escapeHtml(value: string): string {
 
 export function renderDashboard(user: DashboardUser): string {
   const displayName: string = escapeHtml(user.displayName);
-  const username: string = escapeHtml(user.username);
-  const initial: string = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
+
   const currentDate: string = new Intl.DateTimeFormat("en-US", {
     month: "long",
     year: "numeric",
@@ -31,26 +29,7 @@ export function renderDashboard(user: DashboardUser): string {
 
   return `
   <div class="app-shell">
-    <aside class="sidebar" aria-label="Main navigation">
-      <a class="brand" href="/dashboard" aria-label="Finance home">
-        <span class="brand-mark" aria-hidden="true">F</span>
-        <span>Finance</span>
-      </a>
-      <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
-      <div class="mobile-menu-panel">
-      <div class="workspace-label">WORKSPACE</div>
-      ${renderMainNavigation("overview")}
-      <div class="sidebar-bottom">
-        <div class="profile-avatar" aria-hidden="true">${initial}</div>
-        <div class="profile-copy">
-          <strong>${displayName}</strong>
-          <span>@${username}</span>
-          <span class="app-version">Version ${escapeHtml(appVersion)}</span>
-
-        </div>
-      </div>
-      </div>
-    </aside>
+    ${renderAppNavigation(user, "overview")}
 
     <main class="main-content" id="overview">
 

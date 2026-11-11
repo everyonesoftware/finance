@@ -1,6 +1,5 @@
-import { appVersion } from "./app-version.ts";
 import { escapeHtml } from "./html-utils.ts";
-import { renderMainNavigation } from "./navigation.ts";
+import { renderAppNavigation } from "./navigation.ts";
 import { renderTransactionList } from "./transaction-list.ts";
 import { renderRealEstateCards } from "./real-estate.ts";
 import { renderManualAccountDialog, renderImportDialog, initializeManualAccountCreation, initializeAccountImport } from "./account-import.ts";
@@ -328,8 +327,7 @@ export function renderConnections(connections: BankConnection[]): string {
 }
 
 export function renderConnectionsPage(user: BankAccountsPageUser): string {
-  const displayName = escapeHtml(user.displayName), username = escapeHtml(user.username), initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
-  return `<div class="app-shell"><aside class="sidebar" aria-label="Main navigation"><a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a><button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button><div class="mobile-menu-panel"><div class="workspace-label">WORKSPACE</div>${renderMainNavigation("real-estate")}<div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${initial}</div><div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div></div></aside><main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Real Estate</h1><p class="subheading">Track property values and estimate history.</p></div><button class="primary-button" id="add-property" type="button">＋ Add Real Estate</button></section><section class="panel inline-property-form" id="new-property-panel" hidden><h2>New property</h2><form id="add-property-form"><label>Address<input id="property-address" name="address" required maxlength="500" autocomplete="off" placeholder="Enter an address"></label><div id="address-suggestions" role="listbox"></div><div id="zillow-url-field" hidden><label>Zillow URL<input id="zillow-property-url" name="zillowUrl" type="url" required placeholder="https://www.zillow.com/homedetails/…"></label></div><div class="property-form-actions"><button class="primary-button" id="done-property" type="submit" disabled>Done</button></div><p id="property-form-message" role="status"></p></form></section><div id="real-estate-properties" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading properties…</div></div><footer class="page-footer">Your finances, in focus.</footer></main></div>`;
+  return `<div class="app-shell">${renderAppNavigation(user, "real-estate")}<main class="main-content accounts-content"><section class="page-heading accounts-page-heading"><div><p class="eyebrow">YOUR FINANCES</p><h1>Real Estate</h1><p class="subheading">Track property values and estimate history.</p></div><button class="primary-button" id="add-property" type="button">＋ Add Real Estate</button></section><section class="panel inline-property-form" id="new-property-panel" hidden><h2>New property</h2><form id="add-property-form"><label>Address<input id="property-address" name="address" required maxlength="500" autocomplete="off" placeholder="Enter an address"></label><div id="address-suggestions" role="listbox"></div><div id="zillow-url-field" hidden><label>Zillow URL<input id="zillow-property-url" name="zillowUrl" type="url" required placeholder="https://www.zillow.com/homedetails/…"></label></div><div class="property-form-actions"><button class="primary-button" id="done-property" type="submit" disabled>Done</button></div><p id="property-form-message" role="status"></p></form></section><div id="real-estate-properties" class="connected-accounts" aria-live="polite"><div class="panel accounts-loading">Loading properties…</div></div><footer class="page-footer">Your finances, in focus.</footer></main></div>`;
 }
 
 export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
@@ -489,32 +487,9 @@ async function refreshAccounts(): Promise<void> {
 }
 
 export function renderBankAccountsPage(user: BankAccountsPageUser): string {
-  const displayName: string = escapeHtml(user.displayName);
-  const username: string = escapeHtml(user.username);
-  const initial: string = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
-
   return `
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Main navigation">
-        <a class="brand" href="/dashboard" aria-label="Finance home">
-          <span class="brand-mark" aria-hidden="true">F</span>
-          <span>Finance</span>
-        </a>
-        <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
-        <div class="mobile-menu-panel">
-        <div class="workspace-label">WORKSPACE</div>
-        ${renderMainNavigation("accounts")}
-        <div class="sidebar-bottom">
-          <div class="profile-avatar" aria-hidden="true">${initial}</div>
-          <div class="profile-copy">
-            <strong>${displayName}</strong>
-            <span>@${username}</span>
-            <span class="app-version">Version ${escapeHtml(appVersion)}</span>
-
-          </div>
-        </div>
-        </div>
-      </aside>
+      ${renderAppNavigation(user, "accounts")}
 
       <main class="main-content accounts-content">
 
@@ -546,26 +521,9 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
 }
 
 export function renderBankAccountDetailPage(user: BankAccountsPageUser): string {
-  const displayName = escapeHtml(user.displayName);
-  const username = escapeHtml(user.username);
-  const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
-
   return `
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Main navigation">
-        <a class="brand" href="/dashboard" aria-label="Finance home">
-          <span class="brand-mark" aria-hidden="true">F</span><span>Finance</span>
-        </a>
-        <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
-        <div class="mobile-menu-panel">
-        <div class="workspace-label">WORKSPACE</div>
-        ${renderMainNavigation("accounts")}
-        <div class="sidebar-bottom">
-          <div class="profile-avatar" aria-hidden="true">${initial}</div>
-          <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
-        </div>
-        </div>
-      </aside>
+      ${renderAppNavigation(user, "accounts")}
       <main class="main-content accounts-content">
 
         <section class="page-heading accounts-page-heading">

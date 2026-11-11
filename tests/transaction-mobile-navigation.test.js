@@ -40,9 +40,24 @@ function links(html) {
 test("mobile navigation exposes every shared destination in the same order", () => {
   assert.equal(typeof navigation.renderMobileNavigation, "function");
   const html = navigation.renderMobileNavigation("transactions");
-  assert.match(html, /<nav\b[^>]*class="transaction-mobile-navigation"[^>]*aria-label="Mobile navigation"/);
+  assert.match(html, /<nav\b[^>]*class="mobile-navigation"[^>]*aria-label="Mobile navigation"/);
   const mobile = links(html);
   assert.deepEqual(mobile.map(({ href }) => href), destinations);
   assert.deepEqual(mobile.map(({ label }) => label), labels);
   assert.deepEqual(mobile.map(({ href, label }) => ({ href, label })), links(navigation.renderMainNavigation("transactions")).map(({ href, label }) => ({ href, label })));
+});
+
+test("shared app navigation renders desktop and mobile links outside the sidebar with escaped profile data", () => {
+  assert.equal(typeof navigation.renderAppNavigation, "function");
+  for (const activePage of pages) {
+    const html = navigation.renderAppNavigation({ displayName: '<Test & User>', username: 'test"user' }, activePage);
+    assert.match(html, /&lt;Test &amp; User&gt;/);
+    assert.match(html, /@test&quot;user/);
+    assert.match(html, /<\/aside>\s*<nav class="mobile-navigation"/);
+    const mobile = html.match(/<nav class="mobile-navigation"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+    assert.ok(mobile);
+    assert.deepEqual(links(mobile), links(navigation.renderMobileNavigation(activePage)));
+    assert.equal((html.match(/aria-label="Mobile navigation"/g) ?? []).length, 1);
+    assert.doesNotMatch(html, /mobile-menu-toggle/);
+  }
 });

@@ -1,8 +1,7 @@
 import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
-import { renderMainNavigation } from "./navigation.ts";
-import { appVersion } from "./app-version.ts";
+import { renderAppNavigation } from "./navigation.ts";
 import { renderDashboard } from "./dashboard";
 import { initializeTransactionsPage, renderTransactionsPage } from "./transactions-page";
 import {
@@ -28,25 +27,6 @@ function getAppRoot(): HTMLDivElement {
 
 const app: HTMLDivElement = getAppRoot();
 
-document.addEventListener("click", (event: MouseEvent): void => {
-  const target = event.target;
-  if (!(target instanceof Element)) return;
-  const toggle = target.closest<HTMLButtonElement>(".mobile-menu-toggle");
-  if (!toggle) return;
-  const sidebar = toggle.closest<HTMLElement>(".sidebar");
-  const isOpen = sidebar?.classList.toggle("mobile-menu-open") ?? false;
-  toggle.setAttribute("aria-expanded", String(isOpen));
-  toggle.setAttribute("aria-label", isOpen ? "Close navigation menu" : "Open navigation menu");
-});
-
-document.addEventListener("keydown", (event: KeyboardEvent): void => {
-  if (event.key !== "Escape") return;
-  const sidebar = document.querySelector<HTMLElement>(".sidebar.mobile-menu-open");
-  const toggle = sidebar?.querySelector<HTMLButtonElement>(".mobile-menu-toggle");
-  sidebar?.classList.remove("mobile-menu-open");
-  toggle?.setAttribute("aria-expanded", "false");
-  toggle?.setAttribute("aria-label", "Open navigation menu");
-});
 
 const authClient = createAuthClient({
   baseURL: window.location.origin,
@@ -201,20 +181,9 @@ function renderLanding(): void {
 }
 
 function renderSettings(user: AuthUser): void {
-  const displayName = user.name.trim() || user.username || user.email;
-  const username = user.username ?? "";
-  const initial = displayName.charAt(0).toUpperCase() || "U";
   app.innerHTML = `
     <div class="app-shell">
-      <aside class="sidebar" aria-label="Main navigation">
-        <a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a>
-        <button class="mobile-menu-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="main-navigation"><span aria-hidden="true">☰</span></button>
-        <div class="mobile-menu-panel">
-          <div class="workspace-label">WORKSPACE</div>
-          ${renderMainNavigation("settings")}
-          <div class="sidebar-bottom"><div class="profile-avatar" aria-hidden="true">${escapeHtml(initial)}</div><div class="profile-copy"><strong>${escapeHtml(displayName)}</strong><span>@${escapeHtml(username)}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div></div>
-        </div>
-      </aside>
+      ${renderAppNavigation({ displayName: displayNameFor(user), username: user.username ?? "" }, "settings")}
       <main class="main-content settings-main">
       <section class="settings-content">
         <p class="eyebrow">YOUR ACCOUNT</p>

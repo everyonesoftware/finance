@@ -119,13 +119,6 @@ button {
   border-top: 1px solid var(--line);
 }
 
-.mobile-menu-toggle {
-  display: none;
-}
-
-.mobile-menu-panel {
-  display: contents;
-}
 
 .profile-avatar {
   display: grid;
@@ -1704,53 +1697,10 @@ a.text-button {
     border-bottom: 1px solid #eff0ec;
   }
 
-  .sidebar.mobile-menu-open {
-    background: #fff;
-  }
-
-  .mobile-menu-toggle {
-    display: grid;
-    width: 40px;
-    height: 40px;
-    place-items: center;
-    border: 1px solid #e5e9e3;
-    border-radius: 9px;
-    background: #fff;
-    color: #2e6749;
-    font-size: 20px;
-  }
-
   .workspace-label,
   .navigation,
-  .sidebar-bottom,
-  .mobile-menu-panel {
+  .sidebar-bottom {
     display: none;
-  }
-
-  .sidebar.mobile-menu-open .mobile-menu-panel {
-    position: absolute;
-    z-index: 21;
-    top: 100%;
-    left: 0;
-    display: flex;
-    width: 100%;
-    flex-direction: column;
-    padding: 0 22px 14px;
-    background: #fff;
-    box-shadow: 0 12px 24px rgb(25 35 25 / 12%);
-  }
-
-  .sidebar.mobile-menu-open .workspace-label {
-    display: block;
-    margin: 12px 11px 12px;
-  }
-
-  .sidebar.mobile-menu-open .navigation {
-    display: grid;
-  }
-
-  .sidebar.mobile-menu-open .sidebar-bottom {
-    display: flex;
   }
 
   .main-content {
@@ -2440,7 +2390,7 @@ a.text-button {
 }
 
 /* Transactions: everyday activity. All list changes stay on this surface. */
-.transaction-mobile-navigation { display: none; }
+.mobile-navigation { display: none; }
 .transactions-content { position: relative; min-width: 0; }
 .transactions-content .transactions-workspace { min-width: 0; }
 .transactions-content .transactions-sticky-controls {
@@ -2494,7 +2444,7 @@ a.text-button {
 .transaction-icon-button:hover { background: #edf4e8; border-color: #b9cdbd; }
 .transaction-heading-actions .transactions-import-button:hover { background: #25573c; }
 .transaction-icon-button:focus-visible,
-.transaction-mobile-navigation-link:focus-visible {
+.mobile-navigation-link:focus-visible {
   outline: 3px solid #648b66;
   outline-offset: 2px;
 }
@@ -2640,7 +2590,7 @@ a.text-button {
 .transaction-controls-dialog [hidden],
 .transaction-controls-dialog[hidden],
 .transactions-content [hidden],
-.transaction-mobile-navigation[hidden] { display: none !important; }
+.mobile-navigation[hidden] { display: none !important; }
 body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
 
 @media (max-width: 800px) {
@@ -2651,10 +2601,12 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
   }
   .app-shell:has(.transactions-content) .brand { gap: 7px; padding: 0; font-size: 15px; letter-spacing: -.4px; }
   .app-shell:has(.transactions-content) .brand-mark { width: 25px; height: 25px; border-radius: 7px; font-size: 15px; }
-  .app-shell:has(.transactions-content) .mobile-menu-toggle,
-  .app-shell:has(.transactions-content) .sidebar .mobile-menu-panel { display: none; }
+  .app-shell > .main-content {
+    padding-bottom: calc(90px + env(safe-area-inset-bottom));
+  }
   .transactions-content {
-    padding: 0 16px calc(90px + env(safe-area-inset-bottom));
+    padding-right: 16px;
+    padding-left: 16px;
     background: #fafbf8;
   }
   .transactions-content .transactions-sticky-controls {
@@ -2668,7 +2620,7 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
   .transactions-content .transaction-row,
   .transactions-content .transaction-transfer-pair summary { gap: 8px; }
   .transactions-content .page-footer { gap: 12px; flex-wrap: wrap; }
-  .app-shell:has(.transactions-content) .transaction-mobile-navigation {
+  .mobile-navigation {
     position: fixed;
     z-index: 30;
     inset: auto 0 0;
@@ -2678,7 +2630,7 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
     border-top: 1px solid #e0e6d9;
     background: #fff;
   }
-  .transaction-mobile-navigation-link {
+  .mobile-navigation-link {
     display: flex;
     min-width: 0;
     min-height: 48px;
@@ -2692,10 +2644,10 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
     text-decoration: none;
     white-space: nowrap;
   }
-  .transaction-mobile-navigation-icon { display: grid; width: 46px; height: 27px; place-items: center; border-radius: 10px; }
-  .transaction-mobile-navigation-icon svg { width: 19px; height: 19px; }
-  .transaction-mobile-navigation-link[aria-current="page"] { color: #2e6749; font-weight: 700; }
-  .transaction-mobile-navigation-link[aria-current="page"] .transaction-mobile-navigation-icon { background: #e7f0e1; }
+  .mobile-navigation-icon { display: grid; width: 46px; height: 27px; place-items: center; border-radius: 10px; }
+  .mobile-navigation-icon svg { width: 19px; height: 19px; }
+  .mobile-navigation-link[aria-current="page"] { color: #2e6749; font-weight: 700; }
+  .mobile-navigation-link[aria-current="page"] .mobile-navigation-icon { background: #e7f0e1; }
   .transaction-controls-dialog {
     inset: auto 0 0;
     width: 100%;
