@@ -39,12 +39,11 @@ export function renderDashboard(user: DashboardUser): string {
         <div>
           <p class="eyebrow">${currentDate.toUpperCase()}</p>
           <h1>Welcome, ${displayName} <span aria-hidden="true">✳</span></h1>
-          <p class="subheading">Here’s what’s happening with your money.</p>
+
         </div>
 
       </section>
 
-      <p class="bank-data-notice">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
 
       <section class="summary-grid" aria-label="Financial summary">
         <article class="summary-card balance-card">

@@ -11,9 +11,18 @@ const user = { displayName: 'Offline User', username: 'offline' };
 const account = { id: 'saved-1', providerAccountId: 'saved-1', itemId: 'saved-item', institutionName: 'Saved Bank', name: 'Saved Checking', officialName: null, type: 'depository', subtype: 'checking', mask: '1234', currentBalance: 125, availableBalance: 100, currencyCode: 'USD', updatedAt: '2026-01-01T00:00:00Z' };
 const transaction = { id: 'tx-1', account_id: account.id, name: 'Saved purchase', amount: 12, date: '2026-01-01' };
 
+test('overview omits introductory copy and the bank-data notice', () => {
+  const html = renderDashboard(user);
+  assert.doesNotMatch(html, /Here’s what’s happening with your money\./);
+  assert.ok(!html.includes(notice));
+  assert.doesNotMatch(html, /class="(?:subheading|bank-data-notice)"/);
+  assert.match(html, /Welcome, Offline User/);
+  assert.match(html, /aria-label="Financial summary"/);
+});
+
 test('bank surfaces display saved data without bank mutation controls or setup prompts', () => {
   for (const [html, showsNotice] of [
-    [renderDashboard(user), true],
+    [renderDashboard(user), false],
     [bank.renderBankAccountsPage(user), true],
     [bank.renderBankAccountDetailPage(user), true],
     [renderTransactionsPage(user), false],
