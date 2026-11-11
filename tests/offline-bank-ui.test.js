@@ -12,8 +12,13 @@ const account = { id: 'saved-1', providerAccountId: 'saved-1', itemId: 'saved-it
 const transaction = { id: 'tx-1', account_id: account.id, name: 'Saved purchase', amount: 12, date: '2026-01-01' };
 
 test('bank surfaces display saved data without bank mutation controls or setup prompts', () => {
-  for (const html of [renderDashboard(user), bank.renderBankAccountsPage(user), bank.renderBankAccountDetailPage(user), renderTransactionsPage(user)]) {
-    assert.ok(html.includes(notice));
+  for (const [html, showsNotice] of [
+    [renderDashboard(user), true],
+    [bank.renderBankAccountsPage(user), true],
+    [bank.renderBankAccountDetailPage(user), true],
+    [renderTransactionsPage(user), false],
+  ]) {
+    assert.equal(html.includes(notice), showsNotice);
     assert.doesNotMatch(html, /(?:id="(?:sync-|connect-bank)|>\s*(?:Connect (?:a bank|an account)|Sync transactions)|Configure .*Settings)/i);
   }
   for (const html of [bank.renderAccounts([account]), bank.renderConnections([{ itemId: account.itemId, institutionName: account.institutionName, lastRetrievedAt: account.updatedAt, accountCount: 1, accounts: [account] }]), bank.renderAccountDetail(account, [transaction])]) {
@@ -73,7 +78,8 @@ test('transactions load while unconfigured and filter locally without syncing', 
   globalThis.fetch = async (url, options = {}) => { calls.push([url, options.method ?? 'GET']); return { ok: true, json: async () => ({ configured: false, accounts: [account], transactions: [transaction] }) }; };
   await initializeTransactionsPage();
   assert.match(nodes['#all-transactions-list'].innerHTML, /Saved purchase/, nodes['#all-transactions-list'].textContent);
-  assert.equal(nodes['#all-transactions-status'].textContent, notice);
+  assert.equal(nodes['#all-transactions-status'].textContent, '');
+  assert.equal(nodes['#all-transactions-status'].hidden, true);
   await nodes['#sync-all-transactions'].emit('click');
   await nodes['#deselect-all-accounts'].emit('click');
   assert.match(nodes['#all-transactions-list'].textContent, /No accounts are selected/);

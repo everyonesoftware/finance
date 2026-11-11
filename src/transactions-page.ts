@@ -76,10 +76,11 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <h1>Transactions</h1>
             <p class="subheading">Search saved activity across your accounts.</p>
           </div>
-          <button id="open-batch-import" class="primary-button" type="button">Import Transactions</button>
         </section>
-        <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
+        <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite" hidden></p>
 
+        <div class="transactions-workspace">
+        <div class="transactions-sticky-controls">
         <section class="panel transaction-filters" aria-labelledby="transaction-filters-title">
           <div class="transaction-filter-toolbar">
             <span id="transaction-filters-title" class="transaction-filter-label">Filter</span>
@@ -147,16 +148,19 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
                 </select>
               </label>
             </div>
+            <button id="open-batch-import" class="primary-button transactions-import-button" type="button">Import Transactions</button>
           </div>
         </section>
 
-        <section class="panel transactions-results" aria-labelledby="all-transactions-title">
-          <div class="panel-heading">
+          <div class="panel panel-heading transactions-results-heading">
             <div><h2 id="all-transactions-title">All transactions</h2><p id="all-transactions-count" aria-live="polite">Loading transactions…</p></div>
           </div>
+        </div>
+        <section class="panel transactions-results" aria-labelledby="all-transactions-title">
           <div id="all-transactions-list" class="transaction-empty" aria-live="polite">Loading transactions…</div>
           <div id="transactions-scroll-sentinel" class="transaction-scroll-sentinel" aria-hidden="true" hidden></div>
         </section>
+        </div>
         <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
       </main>
       ${renderBatchImportDialog()}
@@ -489,8 +493,8 @@ export async function initializeTransactionsPage(): Promise<void> {
     syncRangeBounds(preserveAmountSelection);
     renderResults();
     if (status) {
-      status.hidden = false;
-      status.textContent = "Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.";
+      status.hidden = true;
+      status.textContent = "";
     }
   };
 
