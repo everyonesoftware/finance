@@ -1065,38 +1065,39 @@ a.text-button {
 }
 
 .transaction-transfer-pair {
-  margin-top: 8px;
-  border: 1px solid #dedfdd;
-  border-left: 3px solid #356747;
-  border-radius: 0 10px 10px 0;
+  position: relative;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
   background: #fff;
-  overflow: hidden;
+}
+
+.transaction-transfer-pair::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--transaction-group-copy-offset, 0px) - 10px);
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  background: #356747;
+  pointer-events: none;
+}
+
+.transaction-transfer-pair[open]::before {
+  bottom: 0;
 }
 
 .transaction-transfer-pair summary {
   display: grid;
-  min-height: 69px;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  min-height: 59px;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
+  gap: 16px;
+  padding: 10px 0;
   background: #fff;
-  border-bottom: 1px solid #e1e3e0;
+  border: 0;
   cursor: pointer;
   list-style: none;
-}
-
-.transaction-transfer-pair:not([open]) summary {
-  border-bottom: 0;
-}
-
-.transaction-transfer-pair summary::before {
-  content: "↔";
-  grid-column: 1;
-  grid-row: 1;
-  color: #356747;
-  font-size: 20px;
-  text-align: center;
 }
 
 .transaction-transfer-pair summary::-webkit-details-marker {
@@ -1104,23 +1105,21 @@ a.text-button {
 }
 
 .transfer-pair-copy {
-  grid-column: 2;
+  grid-column: 1;
   grid-row: 1;
 }
 
 .transfer-pair-copy strong {
-  color: #2e6749;
-  font-size: 12px;
   line-height: 1.4;
 }
 
 .transfer-pair-amount {
-  grid-column: 3;
+  grid-column: 2;
   grid-row: 1;
   justify-self: end;
   color: #343b33;
-  font-size: 12px;
-  font-weight: 650;
+  font-size: 11px;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1148,8 +1147,8 @@ a.text-button {
 }
 
 .transfer-pair-rows .transaction-copy strong {
-  color: #4d594e;
-  font-size: 12px;
+  color: #303730;
+  font-size: 11px;
   font-weight: 400;
   line-height: 1.4;
 }
@@ -1193,7 +1192,7 @@ a.text-button {
 }
 
 .transaction-transfer-pair summary:focus-visible {
-  border-radius: 0 9px 9px 0;
+  border-radius: 0;
   outline: 2px solid #548166;
   outline-offset: -3px;
 }
@@ -1793,21 +1792,6 @@ a.text-button {
 }
 
 @media (max-width: 620px) {
-  .transaction-transfer-pair summary {
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 6px 8px;
-    padding: 9px 0;
-  }
-
-  .transfer-pair-copy {
-    grid-column: 1 / -1;
-  }
-
-  .transfer-pair-amount {
-    grid-column: 2;
-    grid-row: 2;
-  }
-
   .transaction-row {
     gap: 10px;
   }
@@ -2590,10 +2574,11 @@ a.text-button {
   color: #8d6b32;
   font-size: 9px;
 }
-.transactions-content .transfer-pair-amount { font-size: 12px; }
+.transactions-content .transaction-transfer-pair { --transaction-group-copy-offset: 44px; }
+.transactions-content .transfer-pair-copy { grid-column: 2; }
+.transactions-content .transfer-pair-rows { padding-left: 44px; }
 .transactions-content .transfer-pair-rows .transaction-row { min-height: 65px; }
-.transactions-content .transfer-pair-copy strong { font-size: 12px; }
-.transactions-content .transfer-pair-rows .transaction-copy strong { font-size: 12px; }
+.transactions-content .transfer-pair-rows .transaction-copy strong { font-weight: 400; }
 }
 
 /* Native dialogs remain display:none until showModal() opens them. */

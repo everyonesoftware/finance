@@ -13,7 +13,8 @@ test('mobile transfers inherit one shared outer rail with flush included transac
       .map(match => match[1]).join('\n');
   };
   const container = rule('.transaction-transfer-pair');
-  assert.match(container, /border-left:\s*3px solid #356747/);
+  assert.match(container, /border:\s*0/);
+  assert.match(rule('.transaction-transfer-pair::before'), /background:\s*#356747/);
   assert.match(container, /background:\s*#fff/);
   const children = rule('.transfer-pair-rows');
   assert.match(children, /border:\s*0/);
@@ -21,7 +22,7 @@ test('mobile transfers inherit one shared outer rail with flush included transac
   assert.match(children, /background:\s*#f5f5f4/);
   const summary = rule('.transaction-transfer-pair summary');
   assert.match(summary, /background:\s*#fff/);
-  assert.match(summary, /border-bottom:\s*1px solid #e1e3e0/);
+  assert.match(summary, /border:\s*0/);
   assert.match(rule('.transfer-pair-details-label'), /border-bottom:\s*0/);
 });
 

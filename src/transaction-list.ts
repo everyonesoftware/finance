@@ -422,8 +422,9 @@ export function renderTransactionGroups(
       <details class="transaction-transfer-pair">
         <summary aria-label="Expand or collapse original ${detailLabel} transactions">
           <div class="transaction-copy transfer-pair-copy">
-            <strong>${groupLabel}: ${escapeHtml(group.fromAccount.name)} → ${escapeHtml(group.toAccount.name)}</strong>
+            <strong>${escapeHtml(group.fromAccount.name)} → ${escapeHtml(group.toAccount.name)}</strong>
             <span>${escapeHtml(dateLabel ?? "Date unavailable")}</span>
+            <span class="transaction-group-type">${groupLabel}</span>
           </div>
           <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-transferAmount, amountCurrency))}</b>
         </summary>

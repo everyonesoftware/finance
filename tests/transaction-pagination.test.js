@@ -149,7 +149,8 @@ test('infinite scroll keeps both sides of a transfer together across batch bound
     ...transactions(2).map(tx => ({ ...tx, name: 'Later ' + tx.name })),
   );
   const nodes = await setup(t, records, [account, savings]);
-  assert.match(nodes['#all-transactions-list'].innerHTML, /Transfer: Checking → Savings/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /<strong>Checking → Savings<\/strong>/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /<span class="transaction-group-type">Transfer<\/span>/);
   assert.equal((nodes['#all-transactions-list'].innerHTML.match(/class="transaction-transfer-pair"/g) ?? []).length, 1);
   assert.equal(renderedRows(nodes), 51); // 49 ordinary rows and two expanded originals, one grouped row.
   reachEnd(nodes);
@@ -168,7 +169,8 @@ test('payment groups span history batches and remain visible when filtering by t
   );
   const nodes = await setup(t, records, [account, card]);
   assert.equal((nodes['#all-transactions-list'].innerHTML.match(/class="transaction-transfer-pair"/g) ?? []).length, 1);
-  assert.match(nodes['#all-transactions-list'].innerHTML, /Credit Card Payment: Checking → Costco Card/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /<strong>Checking → Costco Card<\/strong>/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /<span class="transaction-group-type">Credit Card Payment<\/span>/);
   assert.match(nodes['#all-transactions-count'].textContent, /1–50 of 60/);
   reachEnd(nodes);
   assert.equal((nodes['#all-transactions-list'].innerHTML.match(/class="transaction-transfer-pair"/g) ?? []).length, 1);
@@ -176,7 +178,8 @@ test('payment groups span history batches and remain visible when filtering by t
   options.checkboxes.find(input => input.value === account.id).checked = false;
   await options.emit('change');
   assert.match(nodes['#all-transactions-count'].textContent, /1–1 of 1/);
-  assert.match(nodes['#all-transactions-list'].innerHTML, /Credit Card Payment: Checking → Costco Card/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /<strong>Checking → Costco Card<\/strong>/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /<span class="transaction-group-type">Credit Card Payment<\/span>/);
 });
 
 test('detached transaction lists disconnect their observer without appending rows', async t => {

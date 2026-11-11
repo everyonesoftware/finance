@@ -33,7 +33,8 @@ test('the supplied Capital One payment becomes one expandable group in either in
     assert.deepEqual(groups[0].transactions, originals);
     assert.equal(getTransactionGroupAmount(groups[0]), 679.86);
     const html = renderTransactionList(originals, capitalOneAccounts, { showAccount: true });
-    assert.match(html, /Credit Card Payment: Camilla Spending → CapitalOne Card/);
+    assert.match(html, /<strong>Camilla Spending → CapitalOne Card<\/strong>/);
+    assert.match(html, /<span class="transaction-group-type">Credit Card Payment<\/span>/);
     assert.match(html, /class="transfer-pair-amount">\$679\.86/);
     assert.match(html, /CAPITAL ONE ONLINE PMT/);
     assert.match(html, /CAPITAL ONE ONLINE PYMT CAPITAL ONE ONLINE PYMT/);
@@ -101,7 +102,9 @@ test('Capital One leaves equal-sized ambiguous payments separate from either dir
   const groups = groupInternalTransfers(capitalOneRecords, capitalOneAccounts);
   const filters = { includeAccountIds: ['capital-one'], excludeAccountIds: [], minimumAmount: 600, maximumAmount: 700, sort: 'date-desc' };
   assert.equal(filterAndSortTransactionGroups(groups, capitalOneAccounts, filters).length, 1);
-  assert.match(renderAccountDetail(capitalOneAccounts[1], capitalOneRecords, capitalOneAccounts), /Credit Card Payment: Camilla Spending → CapitalOne Card/);
+  const html = renderAccountDetail(capitalOneAccounts[1], capitalOneRecords, capitalOneAccounts);
+  assert.match(html, /<strong>Camilla Spending → CapitalOne Card<\/strong>/);
+  assert.match(html, /<span class="transaction-group-type">Credit Card Payment<\/span>/);
 });
 
 // Stored amounts are positive for money leaving an account; display signs are inverted.
@@ -116,7 +119,8 @@ test('the supplied Ally and Citi payment becomes one expandable credit card paym
     assert.deepEqual(groups[0].transactions, originals);
     const html = renderTransactionList(originals, accounts, { showAccount: true });
     assert.match(html, /<details class="transaction-transfer-pair">/);
-    assert.match(html, /Credit Card Payment: Camilla Spending → Costco Card/);
+    assert.match(html, /<strong>Camilla Spending → Costco Card<\/strong>/);
+    assert.match(html, /<span class="transaction-group-type">Credit Card Payment<\/span>/);
     assert.match(html, /Expand or collapse original credit card payment transactions/);
     assert.match(html, /Transactions included in this credit card payment/);
     assert.match(html, /2026-11-09 – 2026-11-10/);
@@ -205,6 +209,7 @@ test('independent payments are consumed once and account details use the shared 
   assert.ok(groups.every(group => group.type === 'credit-card-payment'));
   assert.equal(new Set(groups.flatMap(group => group.transactions.map(record => record.transaction_id))).size, 4);
   const html = renderAccountDetail(accounts[0], records, accounts);
-  assert.match(html, /Credit Card Payment: Camilla Spending → Costco Card/);
+  assert.match(html, /<strong>Camilla Spending → Costco Card<\/strong>/);
+  assert.match(html, /<span class="transaction-group-type">Credit Card Payment<\/span>/);
   assert.equal((html.match(/<details class="transaction-transfer-pair">/g) ?? []).length, 1);
 });

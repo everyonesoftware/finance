@@ -71,26 +71,41 @@ test('responsive activity rows retain the legacy desktop date and pending text w
   assert.match(amountSorted, /class="transaction-mobile-date">2026-11-10<\/span>/);
 });
 
-test('transaction groups share a green rail, white header and flush gray details', async () => {
+test('transaction group summaries put the type on a separate third line', () => {
+  for (const [type, label] of [['transfer', 'Transfer'], ['credit-card-payment', 'Credit Card Payment']]) {
+    const html = renderTransactionGroups([{
+      type,
+      fromAccount: { name: 'Checking <joint>' },
+      toAccount: { name: 'Savings & card' },
+      transactions: [{ name: 'Original', amount: 50, date: '2026-11-09' }],
+    }], []);
+    assert.match(html, new RegExp('<strong>Checking &lt;joint&gt; → Savings &amp; card</strong>\\s*<span>2026-11-09</span>\\s*<span class="transaction-group-type">' + label + '</span>'));
+    assert.match(html, /<summary aria-label="Expand or collapse original/);
+    assert.doesNotMatch(html, /<strong>(Transfer|Credit Card Payment):/);
+  }
+});
+
+test('transaction groups share a gutter rail, borderless white header and flush gray details', async () => {
   const css = await readFile(new URL('../src/style.css', import.meta.url), 'utf8');
   const shared = css.slice(0, css.indexOf('@media'));
   const rule = selector => {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return [...shared.matchAll(new RegExp('(?:^|\\n)' + escaped + '\\s*\\{([^}]+)\\}', 'g'))].map(match => match[1]).join('\n');
   };
-  assert.match(rule('.transaction-transfer-pair'), /border-left:\s*3px solid #356747/);
+  assert.match(rule('.transaction-transfer-pair'), /border:\s*0/);
+  assert.match(rule('.transaction-transfer-pair::before'), /background:\s*#356747/);
   assert.match(rule('.transaction-transfer-pair'), /background:\s*#fff/);
   assert.match(rule('.transaction-transfer-pair summary'), /background:\s*#fff/);
-  assert.match(rule('.transaction-transfer-pair summary'), /grid-template-columns:\s*34px minmax\(0, 1fr\) auto/);
-  assert.match(rule('.transaction-transfer-pair summary::before'), /content:\s*"↔"/);
+  assert.match(rule('.transaction-transfer-pair summary'), /grid-template-columns:\s*minmax\(0, 1fr\) auto/);
+  assert.doesNotMatch(shared, /content:\s*"↔"/);
   assert.match(rule('.transfer-pair-rows'), /margin:\s*0;/);
   assert.match(rule('.transfer-pair-rows'), /border:\s*0;/);
   assert.match(rule('.transfer-pair-rows'), /background:\s*#f5f5f4/);
   assert.match(rule('.transfer-pair-details-label'), /border-bottom:\s*0/);
   const description = rule('.transfer-pair-rows .transaction-copy strong');
-  assert.match(description, /font-size:\s*12px/);
+  assert.match(description, /font-size:\s*11px/);
   assert.match(description, /font-weight:\s*400/);
-  assert.match(description, /color:\s*#4d594e/);
+  assert.match(description, /color:\s*#303730/);
   assert.match(rule('.transfer-pair-rows .transaction-account-link'), /color:\s*#4c7057/);
   assert.match(rule('.transfer-pair-details-label'), /color:\s*#737871/);
 });

@@ -83,7 +83,7 @@ test("internal transfers with reciprocal connected-account references collapse i
 
   const html = renderTransactionList(transactions, accounts);
   assert.match(html, /<details class="transaction-transfer-pair">/);
-  assert.match(html, /class="transaction-copy transfer-pair-copy">\s*<strong>Transfer: Checking → Everyday Savings<\/strong>\s*<span>2026-10-29<\/span>/);
+  assert.match(html, /class="transaction-copy transfer-pair-copy">\s*<strong>Checking → Everyday Savings<\/strong>\s*<span>2026-10-29<\/span>\s*<span class="transaction-group-type">Transfer<\/span>/);
   assert.match(html, /class="transfer-pair-amount">\$50\.00/);
   assert.doesNotMatch(html, /transfer-pair-toggle|transfer-pair-collapsed|transfer-pair-expanded/);
   assert.match(html, /aria-label="Expand or collapse original transfer transactions"/);
@@ -239,7 +239,8 @@ test("Fidelity ACH deposits referencing a connected brokerage account are groupe
   assert.equal(groups[0].toAccount.id, "spending-id");
 
   const html = renderTransactionList([transaction], accounts);
-  assert.match(html, /Transfer: Brokerage → Spending/);
+  assert.match(html, /<strong>Brokerage → Spending<\/strong>/);
+  assert.match(html, /<span class="transaction-group-type">Transfer<\/span>/);
   assert.match(html, /class="transfer-pair-amount">\$400\.00/);
   assert.match(html, /<a class="transaction-account-link" href="\/accounts\/fidelity-id">X77621283<\/a> 708XN FID BKG SVC LLC ACH/);
 });
@@ -939,7 +940,8 @@ test("account details render a matching Fidelity ACH deposit as a collapsed tran
 
   const html = renderAccountDetail(allyAccount, [transaction], [allyAccount, fidelityAccount]);
   assert.match(html, /<details class="transaction-transfer-pair">/);
-  assert.match(html, /Transfer: Individual - TOD → Checking/);
+  assert.match(html, /<strong>Individual - TOD → Checking<\/strong>/);
+  assert.match(html, /<span class="transaction-group-type">Transfer<\/span>/);
   assert.match(html, /class="transfer-pair-amount">\$25,004\.82/);
   assert.match(html, /class="transfer-pair-rows">[\s\S]*?<a class="transaction-account-link" href="\/accounts\/fidelity-tod">X77621283<\/a> 708XN FID BKG SVC LLC ACH/);
   assert.doesNotMatch(html, /class="account-transaction-row"/);
