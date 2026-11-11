@@ -81,6 +81,27 @@ test('transactions load while unconfigured and filter locally without syncing', 
   assert.match(nodes['#all-transactions-list'].innerHTML, /Saved purchase/, nodes['#all-transactions-list'].textContent);
   assert.deepEqual(calls, [['/api/accounts/transactions/all', 'GET']]);
 });
+test('batch import refresh expands an unfiltered amount range to include newly imported transactions', async () => {
+  const { initializeTransactionsPage } = await import('../src/transactions-page.ts');
+  const ids = [...renderTransactionsPage(user).matchAll(/id="([^" ]+)"/g)].map(match => '#' + match[1]);
+  const nodes = dom(ids);
+  nodes['#transaction-sort-order'].value = 'date-desc';
+  nodes['#batch-import-dialog'].close = () => {};
+  const importedTransaction = { ...transaction, id: 'tx-2', name: 'New purchase', amount: 30 };
+  let saved = false;
+  globalThis.fetch = async (url) => ({ ok: true, json: async () => {
+    if (url.endsWith('/preview')) return { files: [{ fileName: 'new.csv', accountId: account.id, status: 'ready', reason: 'Selected', total: 1, duplicates: 0, importable: 1, errors: [], columns: [], mapping: null }] };
+    if (url.endsWith('/import-batch')) { saved = true; return { imported: 1, skipped: 0 }; }
+    return { accounts: [{ ...account, canImport: true }], transactions: saved ? [transaction, importedTransaction] : [transaction] };
+  } });
+  await initializeTransactionsPage();
+  nodes['#batch-import-files'].files = [new File(['x'], 'new.csv')];
+  await nodes['#batch-import-files'].emit('change');
+  await nodes['#batch-import-form'].emit('submit');
+  assert.equal(saved, true);
+  assert.match(nodes['#all-transactions-count'].textContent, /Showing 2 transactions/);
+  assert.match(nodes['#all-transactions-list'].innerHTML, /New purchase/);
+});
 test('frontend source has no retired integration assets or bank writes and preserves settings', async () => {
   const retired = new RegExp('tel' + 'ler', 'i');
   for (const file of await readdir(new URL('../src/', import.meta.url))) {

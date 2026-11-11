@@ -2327,6 +2327,31 @@ a.text-button {
 }
 .account-workflow-dialog::backdrop { background: rgb(18 30 22 / 48%); backdrop-filter: blur(3px); }
 .import-workflow-dialog { width: min(740px, calc(100vw - 32px)); }
+.batch-import-dialog { width: min(1040px, calc(100vw - 32px)); }
+.batch-import-table-wrap { width: 100%; overflow-x: auto; }
+.batch-import-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; text-align: left; }
+.batch-import-table th, .batch-import-table td { padding: 12px 10px; border-bottom: 1px solid #e4eae1; vertical-align: top; overflow-wrap: anywhere; }
+.batch-import-table th { background: #f0f7ee; color: #315c3e; }
+.batch-import-table th:nth-child(1) { width: 19%; }
+.batch-import-table th:nth-child(2) { width: 32%; }
+.batch-import-table th:nth-child(3) { width: 25%; }
+.batch-import-table th:nth-child(4) { width: 24%; }
+.batch-import-table small { display: block; margin-top: 6px; color: var(--muted); line-height: 1.5; }
+.batch-status { display: inline-block; color: #805b17; }
+.batch-status[data-status="ready"] { color: #286140; }
+.batch-remove { display: block; margin-top: 8px; padding: 0; border: 0; background: none; color: #526951; text-decoration: underline; font: inherit; cursor: pointer; }
+.batch-csv-options { margin-top: 10px; }
+.batch-csv-options summary { color: #315c3e; cursor: pointer; }
+.batch-csv-options .account-form-grid { grid-template-columns: 1fr; margin-top: 10px; }
+#batch-import-summary { color: var(--muted); font-size: 12px; line-height: 1.5; }
+@media (max-width: 620px) {
+  .transactions-page-heading { flex-wrap: wrap; gap: 16px; }
+  .batch-import-table thead { display: none; }
+  .batch-import-table, .batch-import-table tbody, .batch-import-table tr, .batch-import-table td { display: block; width: 100%; }
+  .batch-import-table tr { margin-bottom: 14px; padding: 8px; border-left: 3px solid #2e6749; background: #f4f9f1; }
+  .batch-import-table td { padding: 8px 4px; border: 0; }
+  .batch-import-table td::before { content: attr(data-label); display: block; margin-bottom: 5px; font-size: 10px; color: #526951; text-transform: uppercase; letter-spacing: .04em; }
+}
 .account-workflow {
   display: flex;
   height: min(720px, calc(100dvh - 36px));

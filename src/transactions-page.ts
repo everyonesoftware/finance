@@ -20,6 +20,7 @@ import {
   type TransactionRecord,
 } from "./transaction-list.ts";
 import type { BankAccount } from "./bank_accounts.ts";
+import { initializeBatchImport, renderBatchImportDialog } from "./batch-import.ts";
 
 export interface TransactionsPageUser {
   displayName: string;
@@ -74,7 +75,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
             <h1>Transactions</h1>
             <p class="subheading">Search saved activity across your accounts.</p>
           </div>
-
+          <button id="open-batch-import" class="primary-button" type="button">Import Transactions</button>
         </section>
         <p id="all-transactions-status" class="bank-data-notice" role="status" aria-live="polite">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
 
@@ -156,6 +157,7 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
         </section>
         <footer class="page-footer">Your finances, in focus.<span>Imported and saved transactions</span></footer>
       </main>
+      ${renderBatchImportDialog()}
     </div>
   `;
 }
@@ -419,7 +421,8 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const loadTransactions = async (): Promise<void> => {
-    const preserveAmountSelection = hasLoadedTransactions;
+    const preserveAmountSelection = hasLoadedTransactions &&
+      (selectedMinimumAmount > minimumAmount || selectedMaximumAmount < maximumAmount);
     const previousAvailableAccountIds = hasLoadedTransactions ? accounts.map((account) => account.id) : null;
     const previousSelectedAccountIds = getSelectedAccountIds(accountOptions);
     const response = await fetch("/api/accounts/transactions/all", {
@@ -457,6 +460,7 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
   };
 
+  initializeBatchImport(() => accounts, loadTransactions);
   accountTrigger.addEventListener("click", () => toggleFilterPopover(accountTrigger, accountPopover));
   amountTrigger.addEventListener("click", () => toggleFilterPopover(amountTrigger, amountPopover));
   closeAccountsFilter.addEventListener("click", () => {

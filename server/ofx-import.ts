@@ -1,4 +1,23 @@
 import type { ParsedImport } from './transaction-import.js';
+
+// Statement-level source metadata only; never inspect transaction references.
+// Keep full financial identifiers out of this result and out of persisted keys.
+export function ofxSource(content: string): { mask?: string; currency?: string; type?: string } {
+ const clean = content.replace(/<!--[\s\S]*?-->/g, '').replace(/<STMTTRN\s*>[\s\S]*?<\/STMTTRN\s*>/gi, '');
+ const statements = [...clean.matchAll(/<(STMTRS|CCSTMTRS)\s*>([\s\S]*?)<\/\1\s*>/gi)];
+ if (statements.length !== 1) return {};
+ const statement = statements[0][2];
+ const sources = [...statement.matchAll(/<(BANKACCTFROM|CCACCTFROM)\s*>([\s\S]*?)<\/\1\s*>/gi)];
+ const ids = sources.flatMap(m => [...m[2].matchAll(/<ACCTID\s*>([^<]*)/gi)].map(v => v[1].trim()));
+ const currencies = [...statement.matchAll(/<CURDEF\s*>([^<]*)/gi)].map(m => m[1].trim());
+ const types = sources.map(m => m[1].toUpperCase() === 'CCACCTFROM' ? 'credit' : 'depository');
+ return {
+  ...(ids.length === 1 && /^\d{4,}$/.test(ids[0]) ? { mask: ids[0].slice(-4) } : {}),
+  ...(currencies.length === 1 && /^[A-Z]{3}$/.test(currencies[0]) ? { currency: currencies[0] } : {}),
+  ...(types.length === 1 ? { type: types[0] } : {}),
+ };
+}
+
 export function readOfx(content:string,currency:string,target?:{mask?:string|null}):ParsedImport {
  const result:ParsedImport={columns:[],mapping:null,transactions:[],errors:[],total:0};
  try {

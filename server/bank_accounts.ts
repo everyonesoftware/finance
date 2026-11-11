@@ -1,8 +1,10 @@
 import { Hono, type Context } from "hono";
 import type Database from "better-sqlite3";
 import { decryptBankValue, encryptBankValue, getBankEncryptionKey } from "./bank-crypto.js";
-import { randomUUID, createHash } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { importCandidates, classifyImport, writeImport, ImportConflictError } from "./import-candidates.js";
 import { parseTransactionImport } from "./transaction-import.js";
+import { ofxSource } from "./ofx-import.js";
 import { listAccountTransactions, listAllUserTransactions } from "./account-storage.js";
 import { getRecentTransactions } from "./transaction-sync.js";
 
@@ -24,7 +26,6 @@ interface CachedAccount extends CachedItem {
   encrypted_data: string;
   retrieved_at: number;
 }
-class ImportConflictError extends Error {}
 
 // Provider snapshots remain read-only; manual accounts use local encrypted imports.
 export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
@@ -32,7 +33,7 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
   const db = deps.database;
   const userIds = new WeakMap<Request, string>();
   const uid = (context: Context): string => userIds.get(context.req.raw)!;
-  async function readWrite(context: Context): Promise<Record<string, unknown> | Response> {
+  async function readWrite(context: Context, maxMiB = 5): Promise<Record<string, unknown> | Response> {
     const origin = context.req.header("origin");
     const allowedOrigins = [new URL(context.req.url).origin, ...(deps.trustedOrigins ?? []).map(value => new URL(value).origin)];
     if ((origin && !allowedOrigins.includes(origin)) || context.req.header("sec-fetch-site") === "cross-site") {
@@ -50,9 +51,9 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
           const part = await reader.read();
           if (part.done) break;
           size += part.value.byteLength;
-          if (size > 5 * 1024 * 1024) {
+          if (size > maxMiB * 1024 * 1024) {
             await reader.cancel();
-            return context.json({ error: "Request exceeds 5 MB." }, 413);
+            return context.json({ error: `Request exceeds ${maxMiB} MB.` }, 413);
           }
           chunks.push(part.value);
         }
@@ -168,6 +169,85 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
     });
   });
   for (const preview of [true, false]) {
+    router.post(preview ? "/import-batch/preview" : "/import-batch", async context => {
+      const body = await readWrite(context, 32);
+      if (body instanceof Response) return body;
+      if (!Array.isArray(body.files) || !body.files.length || body.files.length > 30 || body.files.some(file =>
+        !file || typeof file !== "object" || Array.isArray(file) ||
+        typeof file.fileName !== "string" || !file.fileName.trim() || file.fileName.length > 255 ||
+        typeof file.content !== "string" || (file.accountId !== undefined && (typeof file.accountId !== "string" || !file.accountId)))) {
+        return context.json({ error: "Submit 1 to 30 files with fileName, content and optional accountId." }, 400);
+      }
+      if (body.files.some(file => Buffer.byteLength(file.content, "utf8") > 4 * 1024 * 1024)) {
+        return context.json({ error: "Each file must not exceed 4 MiB." }, 413);
+      }
+      const userId = uid(context), key = deps.getEncryptionKey();
+      const accounts = accountsFor(userId);
+      const prepared = body.files.map((file: { fileName: string; content: string; accountId?: string; csv?: unknown }) => {
+        const source = /\.(?:ofx|qfx)$/i.test(file.fileName) ? ofxSource(file.content) : {};
+        const matches = source.mask && source.currency && source.type ? accounts.filter(a =>
+          a.canImport && a.mask === source.mask && a.currencyCode === source.currency && a.type === source.type) : [];
+        const account = file.accountId !== undefined
+          ? accounts.find(a => a.id === file.accountId && a.canImport)
+          : matches.length === 1 ? matches[0] : undefined;
+        const parsed = parseTransactionImport(file.fileName, file.content, String(account?.currencyCode ?? source.currency ?? "USD"), file.csv, { mask: account?.mask as string | null });
+        if (account && source.type && account.type !== source.type) parsed.errors.push("Statement type does not match the account.");
+        if (file.accountId !== undefined && !account) parsed.errors.push("Destination account is unavailable or cannot import transactions.");
+        const result = {
+          fileName: file.fileName, accountId: account?.id ?? null,
+          status: parsed.errors.length ? "error" : account ? "ready" : "needs-account",
+          reason: parsed.errors[0] ?? (account ? "Destination selected." : matches.length > 1 ? "Multiple destination accounts match; select one." : "Select a destination account."),
+          total: parsed.total, duplicates: 0, importable: account && !parsed.errors.length ? parsed.total : 0,
+          errors: parsed.errors, columns: parsed.columns, mapping: parsed.mapping, ...(parsed.notes ? { notes: parsed.notes } : {}),
+        };
+        return { file, account, result, candidates: account ? importCandidates(parsed.transactions, userId, account) : [] };
+      });
+      const markConflicts = () => {
+        const seen = new Map<string, string>();
+        const conflicts = new Set<string>();
+        for (const p of prepared) {
+          if (!p.account || p.result.errors.length) continue;
+          classifyImport(db, key, userId, p.account, p.candidates, seen, conflicts);
+        }
+        for (const p of prepared) {
+          if (p.candidates.some(c => conflicts.has(c.id))) {
+            p.result.status = "error";
+            p.result.reason = "A source transaction ID conflicts with previously imported contents.";
+            p.result.errors.push(p.result.reason);
+            p.result.importable = 0;
+          }
+        }
+        return conflicts.size > 0;
+      };
+      const classify = () => {
+        const seen = new Map<string, string>();
+        return prepared.map(p => p.account && !p.result.errors.length
+          ? classifyImport(db, key, userId, p.account, p.candidates, seen)
+          : { duplicates: 0, fresh: [] });
+      };
+      if (preview) {
+        markConflicts();
+        const counts = classify();
+        prepared.forEach((p, i) => { p.result.duplicates = counts[i].duplicates; p.result.importable = p.result.status === "ready" ? counts[i].fresh.length : 0; });
+        return context.json({ files: prepared.map(p => p.result) });
+      }
+      if (prepared.some(p => !p.file.accountId || p.result.status !== "ready")) return context.json({ error: "Every file requires a valid explicit destination and valid transactions." }, 400);
+      try {
+        const files = db.transaction(() => {
+          const counts = classify();
+          return prepared.map((p, i) => {
+            writeImport(db, key, userId, p.account!, p.file.fileName, counts[i].fresh);
+            return { fileName: p.file.fileName, accountId: p.account!.id, imported: counts[i].fresh.length, skipped: counts[i].duplicates };
+          });
+        })();
+        return context.json({ files, imported: files.reduce((n, f) => n + f.imported, 0), skipped: files.reduce((n, f) => n + f.skipped, 0) });
+      } catch (error) {
+        if (error instanceof ImportConflictError) return context.json({ error: error.message }, 409);
+        throw error;
+      }
+    });
+  }
+  for (const preview of [true, false]) {
     router.post(preview ? "/:accountId/import/preview" : "/:accountId/import", async context => {
       const body = await readWrite(context);
       if (body instanceof Response) return body;
@@ -182,37 +262,8 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
         mask: account.mask as string | null,
       });
       const key = deps.getEncryptionKey();
-      const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-      const occurrences = new Map<string, number>();
-      const candidates = parsed.transactions.map(tx => {
-        const fingerprint = hash([tx.date, tx.name, tx.amount, tx.iso_currency_code]);
-        const occurrence = (occurrences.get(fingerprint) ?? 0) + 1;
-        occurrences.set(fingerprint, occurrence);
-        // No financial descriptions or source identifiers appear in DB keys.
-        // Occurrence ranks preserve identical legitimate rows within a statement.
-        const identity = tx.sourceId !== undefined ? ["source", tx.sourceId] : ["row", fingerprint, occurrence];
-        const id = hash([userId, account.id, identity]);
-        return { id, fingerprint, tx };
-      });
-      const lookup = db.prepare(`SELECT encrypted_data FROM bank_transaction
-        WHERE transaction_id=? AND user_id=? AND account_id=?`);
-      const classify = () => {
-        let duplicates = 0;
-        const fresh: typeof candidates = [];
-        const seen = new Map<string, string>();
-        for (const candidate of candidates) {
-          const existing = lookup.get(candidate.id, userId, account.providerAccountId) as { encrypted_data: string } | undefined;
-          const old = existing ? JSON.parse(decryptBankValue(existing.encrypted_data, key)) : undefined;
-          const previous = old?.importFingerprint ?? seen.get(candidate.id);
-          if (previous && previous !== candidate.fingerprint) {
-            throw new ImportConflictError("A source transaction ID conflicts with previously imported contents.");
-          }
-          if (previous) duplicates++;
-          else fresh.push(candidate);
-          seen.set(candidate.id, candidate.fingerprint);
-        }
-        return { duplicates, fresh };
-      };
+      const candidates = importCandidates(parsed.transactions, userId, account);
+      const classify = () => classifyImport(db, key, userId, account, candidates);
       if (preview) {
         let duplicates = 0;
         try { duplicates = classify().duplicates; }
@@ -231,16 +282,7 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
         // Recheck IDs under the same SQLite transaction as the writes.
         const counts = db.transaction(() => {
           const { duplicates, fresh } = classify();
-          const insert = db.prepare(`INSERT INTO bank_transaction(transaction_id,item_id,user_id,account_id,encrypted_data)
-            VALUES(?,?,?,?,?)`);
-          for (const { id, fingerprint, tx } of fresh) {
-            const payload = {
-              ...tx, transaction_id: id, account_id: account.providerAccountId, pending: false,
-              importFingerprint: fingerprint, importFileName: body.fileName,
-            };
-            insert.run(id, account.itemId, userId, account.providerAccountId, encryptBankValue(JSON.stringify(payload), key));
-          }
-          // Balance snapshots deliberately do not change during transaction imports.
+          writeImport(db, key, userId, account, body.fileName as string, fresh);
           return { imported: fresh.length, skipped: duplicates };
         })();
         return context.json({ ...counts, account });
