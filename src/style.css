@@ -2745,9 +2745,9 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
     background: #fafbf8;
   }
   .transactions-content .transactions-sticky-controls {
-    top: 62px; z-index: 10; padding: 8px 0 10px; background: #fafbf8;
+    top: 62px; z-index: 10; margin-inline: -16px; padding: 8px 16px 10px; background: #fafbf8;
   }
-  .transactions-content .transactions-results { --transaction-list-right-gutter: 0px; padding: 0 0 8px; background: #fafbf8; box-shadow: none; }
+  .transactions-content .transactions-results { --transaction-list-right-gutter: 0px; padding: 0 0 8px; background: #fff; box-shadow: none; }
   .transactions-content .transaction-copy .transaction-account-label { font-size: 11px; }
   .transactions-content .transaction-row,
   .transactions-content .transaction-transfer-pair summary { gap: 8px; }
