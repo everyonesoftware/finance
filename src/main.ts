@@ -2,7 +2,7 @@ import { createAuthClient } from "better-auth/client";
 import { usernameClient } from "better-auth/client/plugins";
 import "./style.css";
 import { renderAppNavigation } from "./navigation.ts";
-import { renderDashboard } from "./dashboard";
+import { renderDashboard, initializeOverviewNetWorth } from "./dashboard";
 import { initializeTransactionsPage, renderTransactionsPage } from "./transactions-page";
 import {
   initializeOverviewBankAccounts,
@@ -540,7 +540,8 @@ function render(): void {
       username: currentUser.username ?? "",
     }));
     attachLogoutHandler();
-    void initializeOverviewBankAccounts(signal);
+    void initializeOverviewBankAccounts(signal, false);
+    void initializeOverviewNetWorth(signal);
     const transactionList = document.querySelector<HTMLDivElement>("#transaction-list");
     const renderTransactions = async (): Promise<void> => {
       try {

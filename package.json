@@ -10,7 +10,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "start:api": "node server-dist/index.js",
     "test": "node --import tsx --test tests/*.test.js",
-    "test:browser": "node --test tests/transaction-layout.browser.mjs && node tests/pwa.browser.mjs"
+    "test:browser": "node --test tests/transaction-layout.browser.mjs && node --test tests/overview-layout.browser.mjs && node tests/pwa.browser.mjs"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",

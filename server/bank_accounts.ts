@@ -8,12 +8,14 @@ import { ofxSource } from "./ofx-import.js";
 import { filenameAccountMasks } from "./filename-account.js";
 import { listAccountTransactions, listAllUserTransactions } from "./account-storage.js";
 import { getRecentTransactions } from "./transaction-sync.js";
+import { observeNetWorth } from "./net-worth.js";
 
 export interface BankRouterDependencies {
   database: Database.Database;
   getUserId: (context: Context) => Promise<string | null>;
   getEncryptionKey: () => Buffer;
   trustedOrigins?: string[];
+  now?: () => Date;
 }
 interface CachedItem {
   item_id: string;
@@ -99,6 +101,9 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
   });
   router.onError((_error, context) => context.json({ error: "Unable to read saved bank data." }, 500));
   router.get("/", context => context.json({ configured: false, accounts: accountsFor(uid(context)) }));
+  router.get("/net-worth", context => context.json(observeNetWorth(
+    db, uid(context), accountsFor(uid(context)), deps.getEncryptionKey(), deps.now?.() ?? new Date(),
+  )));
   router.post("/", async context => {
     const body = await readWrite(context);
     if (body instanceof Response) return body;

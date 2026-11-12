@@ -48,6 +48,7 @@ const server = createServer(async (req, res) => {
         json({ files: request.files.map(file => ({ fileName: file.fileName, accountId: file.accountId ?? account.id, status: 'ready', reason: 'Browser fixture', errors: [], columns: [], mapping: null, total: 1, importable: 1, duplicates: 0 })) }); return;
       }
       if (path === "/api/accounts/transactions/all") { json({ accounts, transactions, configured: false }); return; }
+      if (path === "/api/accounts/net-worth") { json({ currencyCode: "USD", total: 200, accountCount: 2, includedAccountCount: 2, excludedAccountCount: 0, unknownBalanceCount: 0, points: [{ date: new Date().toISOString().slice(0, 10), total: 200 }] }); return; }
       if (path === "/api/accounts/demo-checking/transactions") { json({ account, accounts, transactions, configured: false }); return; }
       if (path === "/api/accounts/demo-savings/transactions") { json({ account: otherAccount, accounts, transactions: [], configured: false }); return; }
       if (path === "/api/accounts") { json({ accounts, configured: false }); return; }

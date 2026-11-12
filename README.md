@@ -30,6 +30,12 @@ npm run dev
 
 The Vite server prints its URL when ready. The API creates the SQLite database and applies migrations at startup using `DATABASE_PATH` from `.env`; `.env.example` stores it under `./data`. The root page provides account creation and username/password login. Registration also asks for an email address, which is stored with the profile. Email verification and email-based password recovery are not configured because no email delivery provider is set up. Authenticated users can update their display name, username, or password in settings.
 
+### Overview and net-worth history
+
+Overview uses the Quiet Ledger layout: a static 365-day trend beside the current total on desktop, stacked above recent transactions and then accounts on phones. The total includes tracked USD account balances minus credit/loan balances; property values and non-USD/unknown-currency accounts are excluded. Coverage notices identify excluded accounts or missing balances instead of treating unavailable balances as zero.
+
+Opening Overview records the latest complete account total for that UTC day, encrypted and scoped to the signed-in user. Repeated visits update that day's observation; earlier days are preserved. This is observation-based history, **not** a background daily sync: no observation is recorded while you do not open Overview, and account balances still come from saved snapshots. The chart shows actual observations within the last 365 days, connecting gaps without manufacturing daily values. Imported transactions are not used to reconstruct past balances. Until two different days have been observed, an insufficient-history message replaces the chart. The chart has no hover/tap interaction, date slider, or visibility toggle.
+
 ### Manual accounts and transaction imports
 
 From **Accounts → Add account**, enter the account and institution names, type, currency, and optional last four digits and current balance. After saving, the account detail page offers **Import transactions**. Add the last four digits of your other accounts too: existing account-reference linking, reciprocal transfer matching, and Fidelity ACH transfer recognition use the same rules for imported and previously saved transactions.

@@ -354,7 +354,7 @@ export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
                   <strong>${escapeHtml(account.name)}</strong>
                   <span>${escapeHtml(account.institutionName)}${accountType ? ` · ${escapeHtml(accountType)}` : ""}</span>
                 </div>
-                <strong class="account-balance">${escapeHtml(formatBalance(account.currentBalance, account.currencyCode))}</strong>
+                <strong class="account-balance">${escapeHtml(formatAccountBalance(account))}</strong>
               </div>
             </a>
           `;
@@ -380,7 +380,7 @@ export function getTotalBalance(accounts: BankAccount[]): number {
   );
 }
 
-export async function initializeOverviewBankAccounts(signal?: AbortSignal): Promise<void> {
+export async function initializeOverviewBankAccounts(signal?: AbortSignal, updateTotal = true): Promise<void> {
   if (signal?.aborted) return;
   const container: HTMLDivElement | null =
     document.querySelector<HTMLDivElement>("#overview-bank-accounts");
@@ -389,7 +389,7 @@ export async function initializeOverviewBankAccounts(signal?: AbortSignal): Prom
   }
 
   const totalBalanceElement: HTMLDivElement | null =
-    document.querySelector<HTMLDivElement>("#overview-total-balance");
+    updateTotal ? document.querySelector<HTMLDivElement>("#overview-total-balance") : null;
   const isActive = (): boolean => !signal?.aborted && container.isConnected !== false;
 
   try {
@@ -425,7 +425,7 @@ export async function initializeOverviewBankAccounts(signal?: AbortSignal): Prom
     container
       .querySelector<HTMLButtonElement>("#retry-overview-bank-accounts")
       ?.addEventListener("click", (): void => {
-        if (isActive()) void initializeOverviewBankAccounts(signal);
+        if (isActive()) void initializeOverviewBankAccounts(signal, updateTotal);
       });
   }
 }
