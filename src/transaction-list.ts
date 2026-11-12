@@ -35,6 +35,15 @@ export type TransactionGroup =
       toAccount: BankAccount;
     };
 
+export function getTransactionGroupDate(group: TransactionGroup): string | null {
+  let latest: string | null = null;
+  for (const transaction of group.transactions) {
+    const date = stringField(transaction, "date");
+    if (date !== null && (latest === null || date > latest)) latest = date;
+  }
+  return latest;
+}
+
 function stringField(transaction: TransactionRecord, field: string): string | null {
   const value = transaction[field];
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -454,8 +463,11 @@ export function renderRecentTransactionList(
   const sorted = [...transactions].sort((left, right) =>
     (stringField(right, "date") ?? "").localeCompare(stringField(left, "date") ?? ""),
   );
-  // Limit summaries, not raw records, so a day's payments are never truncated.
-  return renderTransactionGroups(groupInternalTransfers(sorted, accounts).slice(0, limit), accounts);
+  const groups = groupInternalTransfers(sorted, accounts).sort((left, right) =>
+    (getTransactionGroupDate(right) ?? "").localeCompare(getTransactionGroupDate(left) ?? ""),
+  );
+  // Sort complete groups before limiting summaries so original records stay together.
+  return renderTransactionGroups(groups.slice(0, limit), accounts);
 }
 
 export function renderTransactionList(
@@ -479,7 +491,7 @@ export function renderTransactionGroups(
       .map((transaction) => stringField(transaction, "date"))
       .filter((date): date is string => date !== null)
       .sort();
-    const date = dates[0] ?? null;
+    const date = getTransactionGroupDate(group);
     const heading = options.groupByDate === true && date !== previousDate
       ? `<h3 class="transaction-date-heading">${escapeHtml(date ?? "Date unavailable")}</h3>`
       : "";

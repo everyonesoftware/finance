@@ -1,7 +1,9 @@
 import { escapeHtml } from "./html-utils.ts";
 import { formatTransactionAmount } from "./account-transaction-utils.ts";
 import type { BankAccount } from "./bank_accounts.ts";
-import { getCreditBatchAmount, type TransactionGroup } from "./transaction-list.ts";
+import { getCreditBatchAmount, getTransactionGroupDate, type TransactionGroup } from "./transaction-list.ts";
+
+export { getTransactionGroupDate } from "./transaction-list.ts";
 
 export type TransactionSortOrder = "date-desc" | "date-asc" | "amount-desc" | "amount-asc";
 
@@ -146,14 +148,6 @@ export function getTransactionGroupAmount(group: TransactionGroup): number | nul
   );
   if (!transaction || typeof transaction.amount !== "number") return null;
   return group.type !== "single" ? Math.abs(transaction.amount) : -transaction.amount;
-}
-
-export function getTransactionGroupDate(group: TransactionGroup): string | null {
-  const dates = group.transactions
-    .map((transaction) => transaction.date)
-    .filter((date): date is string => typeof date === "string" && date.length > 0)
-    .sort();
-  return dates[0] ?? null;
 }
 
 function getTransactionGroupAccountIds(

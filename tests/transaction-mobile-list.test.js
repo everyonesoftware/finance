@@ -55,7 +55,7 @@ test('date sections render one heading per consecutive day without sorting or mu
   assert.equal(renderTransactionGroups([], accounts, { groupByDate: true }), 'No saved transactions are available.');
 });
 
-test('date headings use a transfer’s earliest date and preserve original linked rows and positive amount', () => {
+test('date headings use a transfer’s newest date and preserve original linked rows and positive amount', () => {
   const originals = [
     transaction('Internet transfer to Savings account XXXXXX4753 <original>', '2026-11-10', { amount: 50 }),
     transaction('Internet transfer from Checking account XXXXXX1257 & original', '2026-11-09', { account_id: 'savings-provider', amount: -50 }),
@@ -65,7 +65,7 @@ test('date headings use a transfer’s earliest date and preserve original linke
   assert.equal(groups[0].type, 'transfer');
   const legacy = renderTransactionGroups(groups, accounts, { showAccount: true });
   const html = renderTransactionGroups(groups, accounts, { groupByDate: true, showAccount: true, activityStyle: true });
-  assert.deepEqual(headings(html), ['2026-11-09']);
+  assert.deepEqual(headings(html), ['2026-11-10']);
   assert.equal(html.replace(/<h3 class="transaction-date-heading">[\s\S]*?<\/h3>/, ''), legacy);
   assert.match(html, /<details class="transaction-transfer-pair">/);
   assert.match(html, /class="transfer-pair-amount">\$50\.00/);
@@ -73,7 +73,7 @@ test('date headings use a transfer’s earliest date and preserve original linke
   assert.match(html, /href="\/accounts\/savings">Savings account XXXXXX4753<\/a> &lt;original&gt;/);
   assert.match(html, /href="\/accounts\/checking">Checking account XXXXXX1257<\/a> &amp; original/);
   assert.match(html, /2026-11-09 – 2026-11-10/);
-  assert.deepEqual(headings(renderTransactionGroups(groups, accounts, { groupByDate: true, previousDate: '2026-11-09' })), []);
+  assert.deepEqual(headings(renderTransactionGroups(groups, accounts, { groupByDate: true, previousDate: '2026-11-10' })), []);
   assert.equal(renderTransactionList(originals, accounts, { groupByDate: true, showAccount: true }), html);
 });
 
