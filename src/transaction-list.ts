@@ -336,7 +336,7 @@ export function groupInternalTransfers(
 
     const creditCandidate = creditCandidates[index];
     const creditIndexes = creditCandidate ? creditBatches.get(creditCandidate.key) : undefined;
-    if (creditCandidate && creditIndexes && creditIndexes.length > 1) {
+    if (creditCandidate && creditIndexes && (creditIndexes.length > 1 || creditCandidate.type === "travel-reward")) {
       creditIndexes.forEach((candidateIndex) => consumed.add(candidateIndex));
       groups.push({
         type: creditCandidate.type,
@@ -493,7 +493,7 @@ export function renderTransactionGroups(
             <div class="transaction-copy transfer-pair-copy">
               <strong>${travelReward ? "Travel rewards" : "TreasuryDirect"} → ${escapeHtml(group.receivingAccount.name)}</strong>
               <span>${escapeHtml(date ?? "Date unavailable")}</span>
-              <span class="transaction-group-type">${travelReward ? "Travel rewards" : "Bond payments"} · ${group.transactions.length} transactions</span>
+              <span class="transaction-group-type">${travelReward ? "Travel rewards" : "Bond payments"} · ${group.transactions.length} ${group.transactions.length === 1 ? "transaction" : "transactions"}</span>
             </div>
             <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-getCreditBatchAmount(group.transactions), currencyCode(group.transactions[0]!)))}</b>
           </summary>

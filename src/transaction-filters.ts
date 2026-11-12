@@ -195,7 +195,7 @@ export function filterAndSortTransactionGroups(
         : group.type === "travel-reward" ? `Travel rewards → ${group.receivingAccount.name}`
         : group.type === "credit-card-payment" ? "Credit Card Payment" : "Transfer",
       group.type === "treasury-payment" ? `Bond payments · ${group.transactions.length} transactions` : null,
-      group.type === "travel-reward" ? `Travel rewards · ${group.transactions.length} transactions` : null,
+      group.type === "travel-reward" ? `Travel rewards · ${group.transactions.length} ${group.transactions.length === 1 ? "transaction" : "transactions"}` : null,
       group.type === "travel-reward" ? "Original credits" : null,
       group.type === "treasury-payment" ? "Original payments" : null,
       creditBatch && amount !== null ? formatTransactionAmount(-amount, summaryCurrency) : null,
