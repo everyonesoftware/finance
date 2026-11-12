@@ -201,6 +201,20 @@ test('production static router revalidates PWA files and never returns the SPA f
     app.get('/api/private', c => c.json({ error: 'Unauthorized' }, 401));
     app.all('/api/*', c => c.json({ error: 'API endpoint not found.' }, 404));
     registerStaticRoutes(app, dir);
+    for (const path of ['/settings', '/dashboard', '/transactions', '/accounts/demo-checking']) {
+      const response = await app.request(path, { headers: { Accept: 'text/html', 'Sec-Fetch-Dest': 'empty' } });
+      assert.equal(response.status, 200, `service-worker navigation ${path}`);
+      assert.match(await response.text(), /<html>Finance/);
+    }
+    for (const destination of ['script', 'style', 'image']) {
+      assert.equal((await app.request('/settings', { headers: { Accept: 'text/html', 'Sec-Fetch-Dest': destination } })).status, 404);
+    }
+    for (const path of ['/api/missing', '/assets/missing', '/missing.js']) {
+      const response = await app.request(path, { headers: { Accept: 'text/html', 'Sec-Fetch-Dest': 'empty' } });
+      assert.equal(response.status, 404, `service-worker missing resource ${path}`);
+      assert.doesNotMatch(await response.text(), /<html>Finance/);
+    }
+    assert.equal((await app.request('/settings', { headers: { Accept: 'application/json', 'Sec-Fetch-Dest': 'empty' } })).status, 404);
     for (const method of ['GET', 'HEAD']) {
       for (const path of ['/', '/settings', '/index.html', '/sw.js', '/version.json', '/manifest.webmanifest', '/offline.html']) {
         const response = await app.request(path, { method });
