@@ -4,6 +4,7 @@ import { navigateTo } from "./router.ts";
 import { renderRecentTransactionList } from "./transaction-list.ts";
 import { renderRealEstateCards } from "./real-estate.ts";
 import { renderManualAccountDialog, renderImportDialog, initializeManualAccountCreation, initializeAccountImport } from "./account-import.ts";
+import { renderAccountBalanceDialog, initializeAccountBalance } from "./account-balance.ts";
 export {
   findReferencedAccount,
   formatTransactionAmount,
@@ -32,6 +33,7 @@ export interface BankAccount {
   lastRetrievedAt?: string;
   source?: string;
   canImport?: boolean;
+  balanceReference?: { amount: number; date: string; verified: boolean } | null;
 }
 
 export interface BankConnection {
@@ -167,14 +169,17 @@ function isLiabilityAccount(account: BankAccount): boolean {
   return accountType === "credit" || accountType === "loan";
 }
 
-function formatAccountBalance(account: BankAccount): string {
-  const balance: number | null = account.currentBalance;
-  const signedBalance: number | null =
-    balance !== null && isLiabilityAccount(account) && balance !== 0
-      ? -Math.abs(balance)
-      : balance;
+function accountBalanceValue(account: BankAccount): number | null {
+  const balance = account.currentBalance;
+  if (balance === null || balance === 0 || !isLiabilityAccount(account)) return balance;
+  // Only dated manual references define signed amounts owed. Preserve the
+  // existing debt convention for archived and undated legacy snapshots.
+  return account.source === "manual" && account.balanceReference ? -balance : -Math.abs(balance);
+}
 
-  return formatBalance(signedBalance, account.currencyCode);
+function formatAccountBalance(account: BankAccount): string {
+  if (account.canImport && account.currentBalance === null) return "Balance not set";
+  return formatBalance(accountBalanceValue(account), account.currencyCode);
 }
 
 export function renderAccountDetail(
@@ -205,7 +210,7 @@ export function renderAccountDetail(
       </div>
       <div class="account-detail-balances">
         <div><span>Current balance</span><strong>${escapeHtml(formatAccountBalance(account))}</strong></div>
-        <div><span>Available balance</span><strong>${escapeHtml(formatBalance(account.availableBalance, account.currencyCode))}</strong></div>
+        ${account.canImport ? `<div class="account-balance-controls"><span>${account.balanceReference ? `${account.balanceReference.verified ? "Reference" : "Default balance · not verified"} · end of ${escapeHtml(account.balanceReference.date)}` : "Set a known balance and date"}</span><button id="set-account-balance" class="secondary-button" type="button">Set balance</button></div>` : `<div><span>Available balance</span><strong>${escapeHtml(formatBalance(account.availableBalance, account.currencyCode))}</strong></div>`}
       </div>
       <p class="account-detail-updated">${account.source === "manual" ? "Manually maintained account · Updated" : "Account details retrieved"} ${escapeHtml(updatedLabel)}</p>
     </section>
@@ -215,6 +220,7 @@ export function renderAccountDetail(
       <div class="account-transaction-list">${transactionRows}</div>
     </section>
     ${account.canImport ? renderImportDialog(account) : ""}
+    ${account.canImport ? renderAccountBalanceDialog(account) : ""}
   `;
 }
 
@@ -272,7 +278,7 @@ export function renderAccounts(accounts: BankAccount[]): string {
             ? `•••• ${escapeHtml(account.mask)}`
             : "Account number hidden";
           const liabilityClass: string =
-            isLiabilityAccount(account) && account.currentBalance !== null
+            isLiabilityAccount(account) && (accountBalanceValue(account) ?? 0) < 0
               ? " liability-balance"
               : "";
 
@@ -283,6 +289,7 @@ export function renderAccounts(accounts: BankAccount[]): string {
                 <div class="connected-account-info">
                   <strong>${escapeHtml(account.name)}</strong>
                   <span>${escapeHtml(accountType)} · ${mask}</span>
+                  ${account.canImport && account.balanceReference?.verified === false ? `<span class="account-balance-default">Default balance · not verified</span>` : ""}
                 </div>
                 <strong class="connected-account-balance${liabilityClass}">
                   ${escapeHtml(formatAccountBalance(account))}
@@ -372,9 +379,7 @@ export function renderOverviewBankAccounts(accounts: BankAccount[]): string {
 export function getTotalBalance(accounts: BankAccount[]): number {
   return accounts.reduce(
     (total: number, account: BankAccount): number => {
-      const balance: number = account.currentBalance ?? 0;
-
-      return total + (isLiabilityAccount(account) ? -Math.abs(balance) : balance);
+      return total + (accountBalanceValue(account) ?? 0);
     },
     0,
   );
@@ -562,6 +567,14 @@ export async function initializeAccountDetailPage(accountId: string, signal?: Ab
         throw new Error(getErrorMessage(payload, "Unable to load this account."));
       }
       container.innerHTML = renderAccountDetail(payload.account, payload.transactions, payload.accounts);
+      if (payload.account.canImport) initializeAccountBalance(payload.account, async () => {
+        if (!isActive()) return;
+        await load();
+        if (!isActive()) return;
+        container.querySelector<HTMLButtonElement>("#set-account-balance")?.focus();
+        const message = container.querySelector<HTMLElement>("#account-import-message");
+        if (message) { message.textContent = "Balance reference saved."; message.hidden = false; }
+      }, signal);
       if (payload.account.canImport) initializeAccountImport(payload.account, async result => {
         if (!isActive()) return;
         await load();
@@ -594,7 +607,7 @@ export function initializeBankAccountsPage(signal?: AbortSignal): void {
   initializeManualAccountCreation(async account => {
     if (signal?.aborted || !container || container.isConnected === false) return;
     navigateTo(`/accounts/${encodeURIComponent(account.id)}`);
-  });
+  }, signal);
   void refreshAccounts(container, message, signal);
 }
 

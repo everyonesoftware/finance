@@ -28,7 +28,7 @@ function setup(t, ids) {
   const leave = () => { Object.values(a).forEach(element => { element.isConnected = false; }); document.querySelector = id => b[id] ?? null; };
   return { a, b, document, leave };
 }
-const importIds = ["#account-import-dialog", "#account-import-form", "#import-file", "#import-next", "#import-back", "#import-file-step", "#import-preview-step", "#account-import-error", "#import-preview-summary", "#import-preview-rows", "#import-preview-limit"];
+const importIds = ["#account-import-dialog", "#account-import-form", "#import-file", "#import-next", "#import-back", "#import-file-step", "#import-preview-step", "#account-import-error", "#import-preview-summary", "#import-preview-rows", "#import-preview-limit", "#import-balance-impact"];
 
 test("an in-flight account A preview cannot populate or focus account B after navigation", async t => {
   const { a, b, leave } = setup(t, importIds);
@@ -69,6 +69,31 @@ test("a delayed batch preview does not restore focus into a new page's mapping c
 const batchIds = ["#batch-import-dialog", "#batch-import-form", "#open-batch-import", "#batch-import-files", "#batch-import-rows", "#batch-import-summary", "#batch-import-error", "#batch-import-confirm", "#batch-import-cancel", '[data-batch-account="0"]'];
 const batchPreview = { files: [{ fileName: "statement.ofx", accountId: "A", status: "ready", errors: [], columns: [], mapping: null, total: 1, importable: 1, duplicates: 0 }] };
 const tick = () => new Promise(resolve => setImmediate(resolve));
+
+test("single import displays server balance impact, forwards approval token and refreshes a stale preview", async t => {
+  const { a } = setup(t, importIds);
+  const calls = [];
+  const impact = { referenceBalance: 2400, referenceDate: "2026-11-10", startingBalance: 2400, historicalCount: 3, appliedCount: 2, appliedAmount: 350, duplicates: 1, balanceAfterImport: 2750, canApply: true };
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push([url, JSON.parse(options.body)]);
+    return url.endsWith("/preview")
+      ? { ok: true, json: async () => ({ ...preview, balanceImpact: impact, previewToken: "reviewed-state" }) }
+      : { ok: false, status: 409, json: async () => ({ error: "Balance changed. Preview again." }) };
+  });
+  a["#import-file"].files = [new File(["file"], "statement.ofx")];
+  initializeAccountImport({ ...account, currencyCode: "USD" }, async () => assert.fail("stale approval cannot save"));
+  await a["#account-import-form"].emit("submit");
+  assert.match(a["#import-balance-impact"].innerHTML, /Balance after import/);
+  assert.match(a["#import-balance-impact"].innerHTML, /2,750.00/);
+  await a["#account-import-form"].emit("submit");
+  assert.equal(calls[1][1].previewToken, "reviewed-state");
+  assert.equal(a["#import-balance-impact"].innerHTML, "");
+  assert.equal(a["#import-preview-step"].hidden, true);
+  assert.equal(a["#import-next"].textContent, "Preview transactions");
+  assert.match(a["#account-import-error"].textContent, /Balance changed/);
+  await a["#account-import-form"].emit("submit");
+  assert.ok(calls[2][0].endsWith("/preview"));
+});
 const response = payload => ({ ok: true, json: async () => payload });
 const snapshot = nodes => Object.fromEntries(Object.entries(nodes).map(([id, el]) => [id, [el.textContent, el.innerHTML, el.disabled, el.open, el.hidden, el.value, el.required, el.focused]]));
 

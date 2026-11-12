@@ -1,5 +1,6 @@
 import type { BankAccount } from "./bank_accounts.ts";
 import { escapeHtml } from "./html-utils.ts";
+import { localBalanceDate, renderBalanceImpact, type BalanceImpact } from "./account-balance.ts";
 
 export async function readTransactionFile(file: File): Promise<string> {
   const bytes = new Uint8Array(await file.arrayBuffer());
@@ -35,26 +36,41 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
     headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload) throw new Error(payload?.error ?? "The request failed. Please try again.");
+  if (!response.ok || !payload) throw Object.assign(new Error(payload?.error ?? "The request failed. Please try again."), { status: response.status });
   return payload as T;
 }
 
-export function initializeManualAccountCreation(onCreated: (account: BankAccount) => Promise<void>): void {
+export function initializeManualAccountCreation(onCreated: (account: BankAccount) => Promise<void>, signal?: AbortSignal): void {
   const dialog = document.querySelector<HTMLDialogElement>("#manual-account-dialog");
   const form = document.querySelector<HTMLFormElement>("#manual-account-form");
   const error = document.querySelector<HTMLElement>("#manual-account-error");
   const cancel = document.querySelector<HTMLButtonElement>("#cancel-manual-account");
   if (!dialog || !form) return;
+  const isActive = () => !signal?.aborted && dialog.isConnected !== false && form.isConnected !== false;
   let busy = false;
+  let balanceEntered = false;
+  const balanceInput = form.querySelector<HTMLInputElement>('[name="currentBalance"]');
+  const dateInput = form.querySelector<HTMLInputElement>('[name="balanceDate"]');
+  balanceInput?.addEventListener("input", () => { balanceEntered = true; });
+  const updateBalanceLabel = () => {
+    const type = form.querySelector<HTMLSelectElement>('[name="accountKind"]')?.value.split(":")[0];
+    const code = form.querySelector<HTMLInputElement>('[name="currencyCode"]')?.value.trim().toUpperCase() || "USD";
+    const label = balanceInput?.parentElement?.querySelector("span");
+    if (label) label.textContent = `${type === "credit" || type === "loan" ? "Amount owed" : "Balance"} (${code})`;
+  };
+  form.querySelector('[name="accountKind"]')?.addEventListener("change", updateBalanceLabel);
+  form.querySelector('[name="currencyCode"]')?.addEventListener("input", updateBalanceLabel);
   document.querySelector("#add-account")?.addEventListener("click", () => {
+    if (!isActive() || busy) return;
     showError(error);
+    if (dateInput) { dateInput.max = localBalanceDate(); if (!dateInput.value) dateInput.value = localBalanceDate(); }
     dialog.showModal();
   });
-  cancel?.addEventListener("click", () => { if (!busy) dialog.close(); });
+  cancel?.addEventListener("click", () => { if (isActive() && !busy) dialog.close(); });
   dialog.addEventListener("cancel", event => { if (busy) event.preventDefault(); });
   form.addEventListener("submit", async event => {
     event.preventDefault();
-    if (busy) return;
+    if (!isActive() || busy) return;
     const data = new FormData(form);
     const [type, subtype] = String(data.get("accountKind")).split(":");
     const balance = String(data.get("currentBalance") ?? "").trim();
@@ -62,22 +78,31 @@ export function initializeManualAccountCreation(onCreated: (account: BankAccount
     busy = true;
     if (submit) submit.disabled = true;
     if (cancel) cancel.disabled = true;
+    for (const control of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select")) control.disabled = true;
     showError(error);
     try {
       const result = await postJson<{ account: BankAccount }>("/api/accounts", {
         name: String(data.get("name") ?? "").trim(), institutionName: String(data.get("institutionName") ?? "").trim(),
         type, subtype, currencyCode: String(data.get("currencyCode") ?? "USD").trim().toUpperCase(),
-        mask: String(data.get("mask") ?? "").trim() || undefined, currentBalance: balance === "" ? null : Number(balance),
+        mask: String(data.get("mask") ?? "").trim() || undefined,
+        currentBalance: balanceEntered || Number(balance) !== 0 ? Number(balance || 0) : undefined,
+        balanceDate: String(data.get("balanceDate") ?? ""),
       });
+      if (!isActive()) return;
       dialog.close();
       form.reset();
+      balanceEntered = false;
+      updateBalanceLabel();
       await onCreated(result.account);
     } catch (cause) {
-      showError(error, cause instanceof Error ? cause.message : "Unable to create account.");
+      if (isActive()) showError(error, cause instanceof Error ? cause.message : "Unable to create account.");
     } finally {
       busy = false;
-      if (submit) submit.disabled = false;
-      if (cancel) cancel.disabled = false;
+      if (isActive()) {
+        if (submit) submit.disabled = false;
+        if (cancel) cancel.disabled = false;
+        for (const control of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>("input, select")) control.disabled = false;
+      }
     }
   });
 }
@@ -92,7 +117,7 @@ interface CsvMapping {
   dateFormat: string;
   amountConvention: string;
 }
-interface ImportRequest { fileName: string; content: string; csv?: CsvMapping }
+interface ImportRequest { fileName: string; content: string; csv?: CsvMapping; previewToken?: string }
 interface ImportPreview {
   notes?: string[];
   columns: string[];
@@ -102,6 +127,8 @@ interface ImportPreview {
   total: number;
   duplicates: number;
   importable: number;
+  balanceImpact?: BalanceImpact;
+  previewToken?: string;
 }
 export interface ImportResult { imported: number; skipped: number; account: BankAccount }
 
@@ -130,6 +157,7 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
   const fields = document.querySelector<HTMLElement>("#import-mapping-fields");
   const dateFormat = document.querySelector<HTMLSelectElement>("#import-date-format");
   const convention = document.querySelector<HTMLSelectElement>("#import-amount-convention");
+  const impact = form?.querySelector<HTMLElement>("#import-balance-impact");
   if (!dialog || !form || !file || !next || !back || !fileStep || !previewStep) return;
   const isActive = () => !signal?.aborted && dialog.isConnected !== false && form.isConnected !== false;
   let busy = false;
@@ -138,6 +166,8 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
   let confirmedRequest: ImportRequest | null = null;
 
   function showFileStep(): void {
+    confirmedRequest = null;
+    if (impact) impact.innerHTML = "";
     stage = "file";
     fileStep!.hidden = false;
     previewStep!.hidden = true;
@@ -206,7 +236,8 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
         if (fields && result.columns.length) fields.innerHTML = renderMapping(result.columns, result.mapping);
         if (mappingPanel) mappingPanel.hidden = !result.columns.length;
         if (result.errors.length) throw new Error(result.errors.join("\n"));
-        confirmedRequest = request;
+        confirmedRequest = { ...request, previewToken: result.previewToken };
+        if (impact) impact.innerHTML = result.balanceImpact ? renderBalanceImpact(result.balanceImpact, account.currencyCode ?? "USD") : "";
         const summary = form.querySelector<HTMLElement>("#import-preview-summary");
         if (summary) summary.textContent = [`${result.total} transactions found · ${result.importable} new · ${result.duplicates} duplicates will be skipped`, ...(result.notes ?? [])].join("\n");
         const rows = form.querySelector<HTMLElement>("#import-preview-rows");
@@ -230,6 +261,9 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
         await onImported(result);
       }
     } catch (cause) {
+      if (isActive() && cause instanceof Error && "status" in cause && cause.status === 409) {
+        showFileStep();
+      }
       if (isActive()) showError(error, cause instanceof Error ? cause.message : "Unable to import transactions.");
     } finally {
       busy = false;

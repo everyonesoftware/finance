@@ -10,9 +10,9 @@ test('accounts page offers manual creation with fields needed for transfer match
   const html = renderBankAccountsPage(user);
   assert.match(html, /id="add-account"/);
   assert.match(html, /id="manual-account-dialog"/);
-  for (const name of ['name', 'institutionName', 'accountKind', 'currencyCode', 'mask', 'currentBalance']) assert.ok(html.includes(`name="${name}"`), name);
+  for (const name of ['name', 'institutionName', 'accountKind', 'currencyCode', 'mask', 'currentBalance', 'balanceDate']) assert.ok(html.includes(`name="${name}"`), name);
   assert.match(html, /Last four digits/);
-  assert.match(html, /balance.*not.*changed.*imports/i);
+  assert.match(html, /You can adjust the balance after importing transactions/);
 });
 
 test('manual account details offer an import wizard but saved accounts stay read-only', () => {
@@ -33,6 +33,7 @@ class Element {
   addEventListener(name, handler) { (this.handlers[name] ??= []).push(handler); }
   async emit(name) { for (const handler of this.handlers[name] ?? []) await handler({ preventDefault() {}, currentTarget: this, target: this }); }
   querySelector(selector) { return this.elements[selector] ?? null; }
+  querySelectorAll() { return []; }
   showModal() { this.open = true; }
   close() { this.open = false; }
   reset() {} focus() {}
@@ -52,7 +53,7 @@ test('creation posts manual account values and only advances after a successful 
   const submit = new Element();
   nodes['#manual-account-form'].elements['button[type="submit"]'] = submit;
   const OriginalFormData = globalThis.FormData;
-  globalThis.FormData = class { get(name) { return ({ name: 'Checking', institutionName: 'Example Bank', accountKind: 'depository:checking', currencyCode: 'usd', mask: '1234', currentBalance: '100.00' })[name]; } };
+  globalThis.FormData = class { get(name) { return ({ name: 'Checking', institutionName: 'Example Bank', accountKind: 'depository:checking', currencyCode: 'usd', mask: '1234', currentBalance: '100.00', balanceDate: '2026-11-01' })[name]; } };
   t.after(() => { globalThis.FormData = OriginalFormData; });
   const saved = [], calls = [];
   workflow.initializeManualAccountCreation(async value => saved.push(value));
@@ -69,11 +70,11 @@ test('creation posts manual account values and only advances after a successful 
   assert.equal(nodes['#manual-account-dialog'].open, false);
   assert.deepEqual(saved, [account]);
   assert.equal(calls[0][0], '/api/accounts');
-  assert.deepEqual(JSON.parse(calls[0][1].body), { name: 'Checking', institutionName: 'Example Bank', type: 'depository', subtype: 'checking', currencyCode: 'USD', mask: '1234', currentBalance: 100 });
+  assert.deepEqual(JSON.parse(calls[0][1].body), { name: 'Checking', institutionName: 'Example Bank', type: 'depository', subtype: 'checking', currencyCode: 'USD', mask: '1234', currentBalance: 100, balanceDate: '2026-11-01' });
 });
 
 const importIds = ['#account-import-dialog', '#account-import-form', '#import-transactions', '#import-file', '#import-file-step', '#import-preview-step', '#import-csv-options', '#import-column-mapping', '#import-mapping-fields', '#import-date-format', '#import-amount-convention', '#import-back', '#import-next', '#account-import-error', '#import-preview-summary', '#import-preview-rows', '#import-preview-limit', '#account-import-message'];
-test('optional account mask and balance can be left blank', async t => {
+test('optional account mask and untouched balance use a server-defaulted zero', async t => {
   const nodes = setup(t, ['#manual-account-dialog', '#manual-account-form', '#add-account', '#cancel-manual-account', '#manual-account-error']);
   const OriginalFormData = globalThis.FormData;
   globalThis.FormData = class { get(name) { return ({ name: 'Cash', institutionName: 'Personal', accountKind: 'depository:other', currencyCode: 'USD', mask: '', currentBalance: '' })[name]; } };
@@ -83,7 +84,7 @@ test('optional account mask and balance can be left blank', async t => {
   workflow.initializeManualAccountCreation(async () => {});
   await nodes['#manual-account-form'].emit('submit');
   assert.equal(body.mask, undefined);
-  assert.equal(body.currentBalance, null);
+  assert.equal(body.currentBalance, undefined);
 });
 function importNodes(t) {
   const nodes = setup(t, importIds);

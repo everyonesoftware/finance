@@ -1,6 +1,7 @@
 import type { BankAccount } from "./bank_accounts.ts";
 import { readTransactionFile } from "./account-import-workflow.ts";
 import { escapeHtml } from "./html-utils.ts";
+import { renderBalanceImpact, type BalanceImpact } from "./account-balance.ts";
 
 type CsvMapping = Partial<Record<"dateColumn" | "nameColumn" | "amountColumn" | "debitColumn" | "creditColumn" | "idColumn", number>> & { dateFormat: string; amountConvention: string };
 interface ImportFile { fileName: string; content: string; accountId?: string; csv?: CsvMapping }
@@ -8,6 +9,7 @@ interface FilePreview {
   fileName: string; accountId: string | null; status: "ready" | "needs-account" | "error";
   reason: string; total: number; duplicates: number; importable: number;
   errors: string[]; columns: string[]; mapping: CsvMapping | null; notes?: string[];
+  balanceImpact?: BalanceImpact;
 }
 interface ReviewRow { fileName: string; request?: ImportFile; preview?: FilePreview; error?: string; csvOpen?: boolean }
 
@@ -17,9 +19,10 @@ export function renderBatchImportDialog(): string {
       <header><p class="eyebrow">TRANSACTION IMPORT</p><h2 id="batch-import-title">Import Transactions</h2><p>Choose your exports, review the destinations, then approve the import.</p></header>
       <div class="account-workflow-body">
         <label class="form-field"><span>Transaction files</span><input id="batch-import-files" type="file" accept=".csv,.ofx,.qfx" multiple><small>CSV, OFX, or QFX · up to 30 files, 4 MB each, 32 MB per batch. Selecting again replaces this batch.</small></label>
-        <p class="account-workflow-note">Accounts are matched only when identifying information is unambiguous. Choose a destination when asked. Duplicates in saved activity and across these files are excluded; account balances will not change.</p>
+        <p class="account-workflow-note">Accounts are matched only when identifying information is unambiguous. Choose a destination when asked. Duplicates in saved activity and across these files are excluded. Review the balance impact before approval. You can adjust the known balance after importing on the account page.</p>
         <p id="batch-import-summary" role="status" aria-live="polite">Select files to prepare a review. Nothing is saved until you approve.</p>
         <div class="batch-import-table-wrap"><table class="batch-import-table"><thead><tr><th scope="col">File</th><th scope="col">Destination account</th><th scope="col">Status</th><th scope="col">Transactions</th></tr></thead><tbody id="batch-import-rows"></tbody></table></div>
+        <div id="batch-balance-impacts"></div>
       </div>
       <p id="batch-import-error" class="auth-message error" role="alert" hidden></p>
       <footer class="account-workflow-actions"><button id="batch-import-cancel" class="secondary-button" type="button">Cancel</button><button id="batch-import-confirm" class="primary-button" type="submit" disabled>Import transactions</button></footer>
@@ -42,6 +45,7 @@ export function initializeBatchImport(getAccounts: () => BankAccount[], onImport
   const trigger = document.querySelector<HTMLButtonElement>("#open-batch-import");
   const files = document.querySelector<HTMLInputElement>("#batch-import-files");
   const table = document.querySelector<HTMLTableSectionElement>("#batch-import-rows");
+  const balanceImpacts = document.querySelector<HTMLElement>("#batch-balance-impacts");
   const summary = document.querySelector<HTMLElement>("#batch-import-summary");
   const error = document.querySelector<HTMLElement>("#batch-import-error");
   const confirm = document.querySelector<HTMLButtonElement>("#batch-import-confirm");
@@ -51,11 +55,13 @@ export function initializeBatchImport(getAccounts: () => BankAccount[], onImport
   let rows: ReviewRow[] = [];
   let busy = false;
   let approvedPreview = false;
+  let previewToken: string | undefined;
   let focusSelector: string | null = null;
   const eligible = () => getAccounts().filter(account => account.canImport);
   const total = () => approvedPreview ? rows.reduce((sum, row) => sum + (row.preview?.importable ?? 0), 0) : 0;
   const canImport = () => approvedPreview && rows.length > 0 && rows.every(row => row.request && !row.error && row.preview?.status === "ready" && row.preview.accountId) && total() > 0;
   const showError = (message = "") => { if (!isActive()) return; error.textContent = message; error.hidden = !message; };
+  const invalidatePreview = () => { approvedPreview = false; previewToken = undefined; };
   function render(): void {
     if (!isActive()) return;
     const focused = document.activeElement as HTMLElement | null;
@@ -73,6 +79,14 @@ export function initializeBatchImport(getAccounts: () => BankAccount[], onImport
         <td data-label="Transactions">${count}${approvedPreview && preview?.status === "ready" ? `<small>${preview.duplicates} duplicate${preview.duplicates === 1 ? "" : "s"} excluded</small>` : ""}</td></tr>`;
     }).join("");
     files!.disabled = busy;
+    if (balanceImpacts) balanceImpacts.innerHTML = approvedPreview ? rows.map(row => {
+      const preview = row.preview;
+      if (row.error || preview?.status !== "ready" || !preview.balanceImpact) return "";
+      const account = eligible().find(account => account.id === preview.accountId);
+      if (!account) return "";
+      const label = `${row.fileName} · ${account.institutionName} · ${account.name}${account.mask ? ` •${account.mask}` : ""}`;
+      return renderBalanceImpact(preview.balanceImpact, account.currencyCode ?? "USD", label);
+    }).join("") : "";
     cancel!.disabled = busy;
     for (const control of table!.querySelectorAll<HTMLSelectElement | HTMLButtonElement>("select, button")) control.disabled = busy;
     const canRetry = !approvedPreview && rows.some(row => row.request);
@@ -88,25 +102,26 @@ export function initializeBatchImport(getAccounts: () => BankAccount[], onImport
   async function post<T>(url: string, body: unknown): Promise<T> {
     const response = await fetch(url, { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const payload = await response.json();
-    if (!response.ok) throw new Error([payload.error, ...(payload.errors ?? [])].filter(Boolean).join("\n") || "Import request failed.");
+    if (!response.ok) throw Object.assign(new Error([payload.error, ...(payload.errors ?? [])].filter(Boolean).join("\n") || "Import request failed."), { status: response.status });
     return payload as T;
   }
   async function preview(): Promise<void> {
     if (!isActive()) return;
-    approvedPreview = false;
+    invalidatePreview();
     busy = true;
     showError();
     render();
     try {
       const validRows = rows.filter(row => row.request);
       if (validRows.length) {
-        const payload = await post<{ files: FilePreview[] }>("/api/accounts/import-batch/preview", { files: validRows.map(row => row.request) });
+        const payload = await post<{ files: FilePreview[]; previewToken?: string }>("/api/accounts/import-batch/preview", { files: validRows.map(row => row.request) });
         if (!isActive()) return;
         if (!Array.isArray(payload.files) || payload.files.length !== validRows.length) throw new Error("The server returned an invalid batch preview.");
         validRows.forEach((row, index) => {
           row.preview = payload.files[index];
           if (row.preview.accountId) row.request!.accountId = row.preview.accountId;
         });
+        previewToken = payload.previewToken;
       }
       approvedPreview = true;
     } catch (cause) { showError(cause instanceof Error ? cause.message : "Unable to preview files."); }
@@ -114,7 +129,7 @@ export function initializeBatchImport(getAccounts: () => BankAccount[], onImport
   }
   trigger.addEventListener("click", () => {
     if (!isActive() || busy) return;
-    rows = []; files.value = ""; approvedPreview = false; focusSelector = null; showError(); render();
+    rows = []; files.value = ""; invalidatePreview(); focusSelector = null; showError(); render();
     if (!eligible().length) showError("No importable accounts are available. Add a manual account on the Accounts page first.");
     dialog.showModal();
   });
@@ -122,7 +137,7 @@ export function initializeBatchImport(getAccounts: () => BankAccount[], onImport
   dialog.addEventListener("cancel", event => { if (busy) event.preventDefault(); });
   files.addEventListener("change", async () => {
     if (!isActive() || busy) return;
-    approvedPreview = false; rows = []; showError();
+    invalidatePreview(); rows = []; showError();
     const selected = [...(files.files ?? [])];
     if (selected.length > 30 || selected.reduce((sum, file) => sum + file.size, 0) > 32 * 1024 * 1024) {
       showError("Choose no more than 30 files and 32 MB in total."); render(); return;
@@ -177,14 +192,17 @@ export function initializeBatchImport(getAccounts: () => BankAccount[], onImport
     if (!canImport()) return;
     busy = true; showError(); render();
     try {
-      const result = await post<{ imported: number; skipped: number }>("/api/accounts/import-batch", { files: rows.map(row => row.request) });
+      const result = await post<{ imported: number; skipped: number }>("/api/accounts/import-batch", { files: rows.map(row => row.request), previewToken });
       if (!isActive()) return;
-      approvedPreview = false;
+      invalidatePreview();
       rows = []; files.value = "";
       dialog.close();
       try { await onImported(); }
       catch { if (isActive()) { showError(`Imported ${result.imported} transactions, but the page could not refresh. Reload to see them.`); dialog.showModal(); } }
-    } catch (cause) { showError(cause instanceof Error ? cause.message : "Unable to import files."); }
+    } catch (cause) {
+      if (cause instanceof Error && "status" in cause && cause.status === 409) invalidatePreview();
+      showError(cause instanceof Error ? cause.message : "Unable to import files.");
+    }
     finally { busy = false; render(); }
   });
 }

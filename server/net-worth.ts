@@ -32,7 +32,10 @@ export function observeNetWorth(db: Database.Database, userId: string, accounts:
     if (typeof account.currentBalance !== "number" || !Number.isFinite(account.currentBalance)) { unknownBalanceCount++; continue; }
     const balance = Math.round(account.currentBalance * 100);
     if (!Number.isSafeInteger(balance)) throw new Error("Account balance exceeds safe cent precision.");
-    cents += account.type === "credit" || account.type === "loan" ? -Math.abs(balance) : balance;
+    // Signed amounts owed are defined only by the new dated manual model.
+    // Do not reinterpret negative archived/undated snapshots during upgrade.
+    const debt = account.source === "manual" && account.balanceReference ? -balance : -Math.abs(balance);
+    cents += account.type === "credit" || account.type === "loan" ? debt : balance;
     if (!Number.isSafeInteger(cents)) throw new Error("Net worth exceeds safe cent precision.");
     includedAccountCount++;
   }

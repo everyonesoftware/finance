@@ -2469,6 +2469,32 @@ a.text-button {
 .account-workflow-actions { display: flex; flex-shrink: 0; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 18px; border-top: 1px solid #e9ebe6; }
 .account-workflow .auth-message { flex-shrink: 0; max-height: 80px; overflow: auto; white-space: pre-line; }
 .account-workflow button:disabled { opacity: .55; cursor: not-allowed; }
+.balance-reference-title { margin: 20px 0 14px; padding-top: 18px; border-top: 1px solid #e4e8e0; font-size: 17px; }
+.balance-reference-fields .form-field { font-size: 14px; }
+.balance-reference-fields input { width: 100%; min-width: 0; min-height: 46px; font-size: 16px; }
+.balance-reference-hint { margin: 0 0 18px; color: #626b60; font-size: 13px; line-height: 1.6; }
+.account-balance-dialog .account-workflow { height: auto; max-height: calc(100dvh - 36px); }
+.account-balance-controls { gap: 10px; align-items: flex-start; }
+.account-balance-controls .secondary-button { min-height: 44px; }
+.connected-account-info .account-balance-default { color: #2e6749; }
+.account-workflow-actions button { min-height: 44px; }
+.balance-impact { margin: 18px 0; padding: 18px; border: 1px solid #dfe7db; border-left: 3px solid #2e6749; border-radius: 0 8px 8px 0; background: #f4f8f1; }
+.balance-impact h3 { margin: 0 0 12px; font-size: 18px; }
+.balance-impact-label { color: #52654d; font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.balance-impact dl { margin: 0; }
+.balance-impact-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; padding: 13px 0; border-bottom: 1px solid #dfe7db; font-size: 14px; line-height: 1.5; }
+.balance-impact-row dt { min-width: 0; overflow-wrap: anywhere; }
+.balance-impact-row dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.balance-impact-row small { display: block; margin-top: 4px; color: #626b60; font-size: 12px; }
+.balance-impact-total { border: 0; color: #2e6749; font-size: 17px; font-weight: 700; }
+.balance-impact .balance-reference-hint { margin: 14px 0 0; }
+@media (max-width: 800px) {
+  .balance-reference-fields { grid-template-columns: 1fr; }
+  .balance-reference-fields .form-field { font-size: 16px; }
+  .balance-impact { padding: 14px 12px; }
+  .balance-impact-row { gap: 10px; }
+  .balance-impact-row small, .balance-reference-hint { font-size: 14px; }
+}
 #import-column-mapping { min-width: 0; margin: 16px 0; padding: 14px; border: 1px solid #dfe5dd; border-radius: 8px; }
 #import-column-mapping legend { font-size: 13px; font-weight: 600; }
 #import-column-mapping > p { color: var(--muted); font-size: 12px; line-height: 1.6; }

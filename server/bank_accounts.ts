@@ -9,6 +9,7 @@ import { filenameAccountMasks } from "./filename-account.js";
 import { listAccountTransactions, listAllUserTransactions } from "./account-storage.js";
 import { getRecentTransactions } from "./transaction-sync.js";
 import { observeNetWorth } from "./net-worth.js";
+import { balanceImpact, balancePreviewToken, deriveBalance, validBalanceDate, validMoney } from "./account-balances.js";
 
 export interface BankRouterDependencies {
   database: Database.Database;
@@ -80,7 +81,8 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
     `).all(userId) as CachedAccount[];
     if (!rows.length) return [];
     const key = deps.getEncryptionKey();
-    return rows.map(row => ({
+    return rows.map(row => {
+      const account: Record<string, unknown> = {
       ...JSON.parse(decryptBankValue(row.encrypted_data, key)),
       id: row.id,
       itemId: row.item_id,
@@ -90,7 +92,11 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
       institutionName: decryptBankValue(row.encrypted_institution_name, key),
       updatedAt: new Date(row.updated_at * 1000).toISOString(),
       lastRetrievedAt: new Date(row.retrieved_at * 1000).toISOString(),
-    }));
+      };
+      account.currentBalance = deriveBalance(account, account.source === 'manual' && account.balanceReference && account.type !== 'investment'
+        ? listAccountTransactions(db, userId, row.item_id, row.provider_account_id, key) : []);
+      return account;
+    });
   }
   router.use("*", async (context, next) => {
     context.header("Cache-Control", "no-store");
@@ -109,11 +115,12 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
     if (body instanceof Response) return body;
     const text = (value: unknown, max: number) => typeof value === "string" && value.trim().length > 0 && value.length <= max;
     const validBalance = body.currentBalance === undefined || body.currentBalance === null ||
-      (typeof body.currentBalance === "number" && Number.isFinite(body.currentBalance));
+      validMoney(body.currentBalance);
+    const balanceDate = body.balanceDate === undefined ? (deps.now?.() ?? new Date()).toISOString().slice(0, 10) : body.balanceDate;
     const validMask = body.mask === undefined || (typeof body.mask === "string" && /^\d{4}$/.test(body.mask));
     if (!text(body.name, 200) || !text(body.institutionName, 200) || !text(body.subtype, 100) ||
       typeof body.type !== "string" || !["depository", "credit", "investment", "loan"].includes(body.type) ||
-      typeof body.currencyCode !== "string" || !/^[A-Z]{3}$/.test(body.currencyCode) || !validMask || !validBalance) {
+      typeof body.currencyCode !== "string" || !/^[A-Z]{3}$/.test(body.currencyCode) || !validMask || !validBalance || !validBalanceDate(balanceDate, deps.now?.() ?? new Date())) {
       return context.json({ error: "Invalid manual account fields." }, 400);
     }
     const userId = uid(context);
@@ -126,13 +133,44 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
         VALUES(?,?,'manual',?,?)`).run(itemId, userId, enc(body.institutionName as string), enc(""));
       const snapshot = {
         name: body.name, type: body.type, subtype: body.subtype, currencyCode: body.currencyCode,
-        mask: body.mask ?? null, currentBalance: body.currentBalance ?? null,
+        mask: body.mask ?? null, currentBalance: body.currentBalance ?? 0,
+        balanceReference: { amount: body.currentBalance ?? 0, date: balanceDate, verified: typeof body.currentBalance === 'number' },
         availableBalance: null, officialName: null,
       };
       db.prepare(`INSERT INTO bank_account(id,item_id,user_id,provider_account_id,encrypted_data)
         VALUES(?,?,?,?,?)`).run(id, itemId, userId, providerId, enc(JSON.stringify(snapshot)));
     })();
     return context.json({ account: accountsFor(userId).find(a => a.id === id) }, 201);
+  });
+  router.patch("/:accountId/balance", async context => {
+    const body = await readWrite(context);
+    if (body instanceof Response) return body;
+    const userId = uid(context), id = context.req.param('accountId');
+    const account = accountsFor(userId).find(a => a.id === id);
+    if (!account) return context.json({ error: 'Account not found.' }, 404);
+    if (account.source !== 'manual') return context.json({ error: 'Saved account balances are read-only.' }, 409);
+    if (!validMoney(body.currentBalance) || !validBalanceDate(body.balanceDate, deps.now?.() ?? new Date())) {
+      return context.json({ error: 'A finite balance in cents and a valid nonfuture balanceDate (YYYY-MM-DD) are required.' }, 400);
+    }
+    const key = deps.getEncryptionKey();
+    try {
+      const updated = db.transaction(() => {
+        const current = accountsFor(userId).find(a => a.id === id && a.canImport);
+        if (!current) throw new ImportConflictError('Destination account changed; reload the account.');
+        const row = db.prepare('SELECT encrypted_data FROM bank_account WHERE id=? AND user_id=? AND is_active=1').get(id, userId) as { encrypted_data: string };
+        const snapshot = JSON.parse(decryptBankValue(row.encrypted_data, key));
+        snapshot.currentBalance = body.currentBalance;
+        snapshot.balanceReference = { amount: body.currentBalance, date: body.balanceDate, verified: true };
+        db.prepare('UPDATE bank_account SET encrypted_data=?, updated_at=unixepoch() WHERE id=? AND user_id=?')
+          .run(encryptBankValue(JSON.stringify(snapshot), key), id, userId);
+        // Validate the derived readback before committing, including overflow.
+        return accountsFor(userId).find(a => a.id === id);
+      }).immediate();
+      return context.json({ account: updated });
+    } catch (error) {
+      if (error instanceof ImportConflictError) return context.json({ error: error.message }, 409);
+      throw error;
+    }
   });
   router.get("/items", context => {
     const userId = uid(context);
@@ -235,21 +273,48 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
           ? classifyImport(db, key, userId, p.account, p.candidates, seen)
           : { duplicates: 0, fresh: [] });
       };
+      const review = (counts: ReturnType<typeof classify>) => {
+        const running = new Map<unknown, number | null>();
+        const impacts = prepared.map((p, i) => {
+          const impact = balanceImpact(p.account, counts[i].fresh, counts[i].duplicates,
+            running.get(p.account?.id), p.result.errors[0]);
+          if (p.account) running.set(p.account.id, impact.balanceAfterImport);
+          return impact;
+        });
+        const previewToken = balancePreviewToken(key, userId, prepared.map((p, i) => [
+          p.account?.id ?? null, p.account?.balanceReference ?? null, p.account?.type ?? null,
+          p.account?.currencyCode ?? null, p.file.fileName, p.candidates.map(c => [c.id, c.fingerprint]),
+          counts[i].fresh.map(c => c.id), impacts[i], p.result.errors,
+        ]));
+        return { impacts, previewToken };
+      };
       if (preview) {
         markConflicts();
         const counts = classify();
+        const { impacts, previewToken } = review(counts);
         prepared.forEach((p, i) => { p.result.duplicates = counts[i].duplicates; p.result.importable = p.result.status === "ready" ? counts[i].fresh.length : 0; });
-        return context.json({ files: prepared.map(p => p.result) });
+        return context.json({ files: prepared.map((p, i) => ({ ...p.result, balanceImpact: impacts[i] })), previewToken });
       }
       if (prepared.some(p => !p.file.accountId || p.result.status !== "ready")) return context.json({ error: "Every file requires a valid explicit destination and valid transactions." }, 400);
       try {
         const files = db.transaction(() => {
+          // Re-read references and balances inside the write transaction. No
+          // asynchronous work may separate approval checking from these writes.
+          const currentAccounts = accountsFor(userId);
+          for (const p of prepared) {
+            p.account = currentAccounts.find(a => a.id === p.account?.id && a.canImport);
+            if (!p.account) throw new ImportConflictError('Destination account changed; preview the import again.');
+          }
           const counts = classify();
+          const { previewToken } = review(counts);
+          if (body.previewToken !== undefined && body.previewToken !== previewToken) {
+            throw new ImportConflictError('Balance or import contents changed; preview the import again.');
+          }
           return prepared.map((p, i) => {
             writeImport(db, key, userId, p.account!, p.file.fileName, counts[i].fresh);
             return { fileName: p.file.fileName, accountId: p.account!.id, imported: counts[i].fresh.length, skipped: counts[i].duplicates };
           });
-        })();
+        }).immediate();
         return context.json({ files, imported: files.reduce((n, f) => n + f.imported, 0), skipped: files.reduce((n, f) => n + f.skipped, 0) });
       } catch (error) {
         if (error instanceof ImportConflictError) return context.json({ error: error.message }, 409);
@@ -274,9 +339,18 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
       const key = deps.getEncryptionKey();
       const candidates = importCandidates(parsed.transactions, userId, account);
       const classify = () => classifyImport(db, key, userId, account, candidates);
+      const review = (current: Record<string, unknown>, counts: ReturnType<typeof classify>) => {
+        const impact = balanceImpact(current, counts.fresh, counts.duplicates, undefined, parsed.errors[0]);
+        return {
+          balanceImpact: impact,
+          previewToken: balancePreviewToken(key, userId, [current.id, current.balanceReference ?? null,
+            current.type, current.currencyCode, body.fileName, candidates.map(c => [c.id, c.fingerprint]),
+            counts.fresh.map(c => c.id), impact, parsed.errors]),
+        };
+      };
       if (preview) {
-        let duplicates = 0;
-        try { duplicates = classify().duplicates; }
+        let classification: ReturnType<typeof classify> = { duplicates: 0, fresh: [] };
+        try { classification = classify(); }
         catch (error) {
           if (!(error instanceof ImportConflictError)) throw error;
           parsed.errors.push(error.message);
@@ -284,18 +358,25 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
         return context.json({
           ...parsed, transactions: parsed.transactions.slice(0, 50),
           previewTruncated: parsed.transactions.length > 50,
-          duplicates, importable: parsed.errors.length ? 0 : parsed.total - duplicates,
+          duplicates: classification.duplicates, importable: parsed.errors.length ? 0 : classification.fresh.length,
+          ...review(account, classification),
         });
       }
       if (parsed.errors.length) return context.json({ error: "Import validation failed.", errors: parsed.errors }, 400);
       try {
         // Recheck IDs under the same SQLite transaction as the writes.
         const counts = db.transaction(() => {
+          const current = accountsFor(userId).find(a => a.id === account.id && a.canImport);
+          if (!current) throw new ImportConflictError('Destination account changed; preview the import again.');
           const { duplicates, fresh } = classify();
-          writeImport(db, key, userId, account, body.fileName as string, fresh);
-          return { imported: fresh.length, skipped: duplicates };
-        })();
-        return context.json({ ...counts, account });
+          const { previewToken } = review(current, { duplicates, fresh });
+          if (body.previewToken !== undefined && body.previewToken !== previewToken) {
+            throw new ImportConflictError('Balance or import contents changed; preview the import again.');
+          }
+          writeImport(db, key, userId, current, body.fileName as string, fresh);
+          return { imported: fresh.length, skipped: duplicates, account: accountsFor(userId).find(a => a.id === account.id) };
+        }).immediate();
+        return context.json(counts);
       } catch (error) {
         if (error instanceof ImportConflictError) {
           return context.json({ error: error.message }, 409);

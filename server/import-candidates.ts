@@ -47,5 +47,6 @@ export function writeImport(db: Database.Database, key: Buffer, userId: string, 
   const payload = {...tx, transaction_id: id, account_id: account.providerAccountId, pending: false, importFingerprint: fingerprint, importFileName: fileName};
   insert.run(id, account.itemId, userId, account.providerAccountId, encryptBankValue(JSON.stringify(payload), key));
  }
- // Balance snapshots deliberately do not change during transaction imports.
+ // Keep the encrypted reference immutable; account reads derive the current
+ // balance from all saved posted transactions after its end-of-day date.
 }

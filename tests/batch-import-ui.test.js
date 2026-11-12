@@ -3,7 +3,7 @@ import test from 'node:test';
 import * as batch from '../src/batch-import.ts';
 import { renderTransactionsPage } from '../src/transactions-page.ts';
 
-const account = { id: 'manual-1', institutionName: 'Example Bank', name: 'Checking', mask: '1234', canImport: true };
+const account = { id: 'manual-1', institutionName: 'Example Bank', name: 'Checking', mask: '1234', currencyCode: 'USD', canImport: true };
 class Element {
   value = ''; files = []; hidden = false; disabled = false; textContent = ''; innerHTML = ''; open = false; handlers = {};
   addEventListener(name, fn) { (this.handlers[name] ??= []).push(fn); }
@@ -145,4 +145,108 @@ test('failed recalculation hides stale counts and offers a preview retry without
   fail = false;
   await nodes['#batch-import-form'].emit('submit');
   assert.ok(calls.every(([url]) => url.endsWith('/preview')));
+});
+
+const balanceImpact = (extra = {}) => ({ referenceBalance: 1000, referenceDate: '2026-11-01', startingBalance: 1000, historicalCount: 2, appliedCount: 1, appliedAmount: -25, duplicates: 3, balanceAfterImport: 975, canApply: true, ...extra });
+function addImpacts(nodes) {
+  nodes['#batch-balance-impacts'] = new Element();
+  return nodes['#batch-balance-impacts'];
+}
+
+test('batch review renders separate labeled cumulative balance calculations in file order and forwards its token', async t => {
+  const html = batch.renderBatchImportDialog();
+  assert.match(html, /id="batch-balance-impacts"/);
+  assert.doesNotMatch(html, /balances will not change/);
+  assert.match(html, /review[^<]*balance impact/i);
+  assert.match(html, /known balance[^<]*account/i);
+  const nodes = setup(t), impacts = addImpacts(nodes), calls = [];
+  const euro = { ...account, id: 'manual-2', name: 'Euro <Savings>', currencyCode: 'EUR' };
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push([url, JSON.parse(options.body)]);
+    return { ok: true, json: async () => url.endsWith('/preview') ? { previewToken: 'approved-token', files: [
+      result({ fileName: 'first <export>.csv', balanceImpact: balanceImpact() }),
+      result({ fileName: 'second.csv', balanceImpact: balanceImpact({ startingBalance: 975, appliedAmount: 10, balanceAfterImport: 985 }) }),
+      result({ fileName: 'euro.csv', accountId: euro.id, balanceImpact: balanceImpact({ startingBalance: 2000, appliedAmount: -50, balanceAfterImport: 1950 }) }),
+      result({ fileName: 'unresolved.csv', accountId: null, status: 'needs-account', balanceImpact: balanceImpact() }),
+    ] } : { imported: 60, skipped: 0 } };
+  });
+  batch.initializeBatchImport(() => [account, euro], async () => {});
+  await nodes['#open-batch-import'].emit('click');
+  nodes['#batch-import-files'].files = ['first <export>.csv', 'second.csv', 'euro.csv', 'unresolved.csv'].map(name => new File(['x'], name));
+  await nodes['#batch-import-files'].emit('change');
+  const sections = impacts.innerHTML.split(/<section class="balance-impact"[^>]*>/).slice(1);
+  assert.equal(sections.length, 3);
+  assert.match(sections[0], /first &lt;export&gt;.csv/);
+  assert.match(sections[0], /Checking/);
+  assert.match(sections[0], /Balance after import/);
+  for (const amount of ['1,000.00', '25.00', '975.00']) assert.ok(sections[0].includes(amount), amount);
+  assert.match(sections[1], /second.csv/);
+  for (const amount of ['10.00', '985.00']) assert.ok(sections[1].includes(amount), amount);
+  assert.match(sections[2], /Euro &lt;Savings&gt;/);
+  assert.match(sections[2], /€/);
+  assert.doesNotMatch(impacts.innerHTML, /unresolved.csv/);
+  // Remove the unresolved row; the next approved preview must supply its own token.
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push([url, JSON.parse(options.body)]);
+    return { ok: true, json: async () => url.endsWith('/preview') ? { previewToken: 'replacement-token', files: [result(), result(), result({ accountId: euro.id })] } : { imported: 60, skipped: 0 } };
+  });
+  await nodes['#batch-import-rows'].emit('click', { dataset: { batchRemove: '3' } });
+  assert.equal(impacts.innerHTML, '');
+  await nodes['#batch-import-form'].emit('submit');
+  assert.equal(calls.at(-1)[1].previewToken, 'replacement-token');
+  assert.equal(calls.at(-1)[1].files.length, 3);
+});
+
+test('recalculation immediately clears balance impacts, failures keep them hidden, and retry restores them', async t => {
+  const nodes = setup(t), impacts = addImpacts(nodes);
+  let rejectPreview, pending = false;
+  t.mock.method(globalThis, 'fetch', async () => {
+    if (pending) return new Promise((_resolve, reject) => { rejectPreview = reject; });
+    return { ok: true, json: async () => ({ previewToken: 'token', files: [result({ balanceImpact: balanceImpact() })] }) };
+  });
+  batch.initializeBatchImport(() => [account], async () => {});
+  await nodes['#open-batch-import'].emit('click');
+  nodes['#batch-import-files'].files = [new File(['x'], 'one.csv')];
+  await nodes['#batch-import-files'].emit('change');
+  assert.match(impacts.innerHTML, /975.00/);
+  pending = true;
+  const recalculation = nodes['#batch-import-rows'].emit('change', { dataset: { batchCsv: '0', field: 'dateFormat' }, value: 'ymd' });
+  assert.equal(impacts.innerHTML, '');
+  rejectPreview(Error('Network unavailable.'));
+  await recalculation;
+  assert.equal(impacts.innerHTML, '');
+  assert.equal(nodes['#batch-import-confirm'].textContent, 'Retry preview');
+  pending = false;
+  await nodes['#batch-import-form'].emit('submit');
+  assert.match(impacts.innerHTML, /975.00/);
+  await nodes['#open-batch-import'].emit('click');
+  assert.equal(impacts.innerHTML, '');
+});
+
+test('stale approval clears balance impacts and requires a fresh preview and explicit second approval', async t => {
+  const nodes = setup(t), impacts = addImpacts(nodes), calls = [];
+  let previews = 0;
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push([url, JSON.parse(options.body)]);
+    if (url.endsWith('/preview')) return { ok: true, json: async () => ({ previewToken: `token-${++previews}`, files: [result({ balanceImpact: balanceImpact() })] }) };
+    if (previews === 1) return { ok: false, status: 409, json: async () => ({ error: 'Balance changed. Preview again.' }) };
+    return { ok: true, json: async () => ({ imported: 20, skipped: 120 }) };
+  });
+  batch.initializeBatchImport(() => [account], async () => {});
+  await nodes['#open-batch-import'].emit('click');
+  nodes['#batch-import-files'].files = [new File(['x'], 'one.csv')];
+  await nodes['#batch-import-files'].emit('change');
+  await nodes['#batch-import-form'].emit('submit');
+  assert.equal(calls.at(-1)[1].previewToken, 'token-1');
+  assert.equal(nodes['#batch-import-error'].textContent, 'Balance changed. Preview again.');
+  assert.equal(impacts.innerHTML, '');
+  assert.equal(nodes['#batch-import-confirm'].textContent, 'Retry preview');
+  assert.equal(nodes['#batch-import-confirm'].disabled, false);
+  await nodes['#batch-import-form'].emit('submit');
+  assert.equal(calls.at(-1)[0], '/api/accounts/import-batch/preview');
+  assert.match(impacts.innerHTML, /975.00/);
+  await nodes['#batch-import-form'].emit('submit');
+  assert.equal(calls.at(-1)[0], '/api/accounts/import-batch');
+  assert.equal(calls.at(-1)[1].previewToken, 'token-2');
+  assert.equal(impacts.innerHTML, '');
 });
