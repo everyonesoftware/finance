@@ -24,6 +24,11 @@ export type TransactionGroup =
       receivingAccount: BankAccount;
     }
   | {
+      type: "travel-reward";
+      transactions: TransactionRecord[];
+      receivingAccount: BankAccount;
+    }
+  | {
       type: "transfer" | "credit-card-payment";
       transactions: TransactionRecord[];
       fromAccount: BankAccount;
@@ -257,28 +262,32 @@ function creditCardPaymentPairs(
   return new Map([...uniqueMatches].filter(([index, counterpart]) => uniqueMatches.get(counterpart) === index));
 }
 
-function treasuryPaymentKey(
+function creditBatchCandidate(
   transaction: TransactionRecord,
   accountsByProviderId: Map<string, BankAccount>,
-): string | null {
+): { key: string; type: "treasury-payment" | "travel-reward" } | null {
   const name = stringField(transaction, "name")?.trim();
   const amount = numberField(transaction, "amount");
   const accountId = stringField(transaction, "account_id");
   const date = stringField(transaction, "date");
   const currency = currencyCode(transaction);
   const ordinal = date ? dateOrdinal(date) : null;
-  // Only the observed TreasuryDirect descriptor is supported; generic Treasury
-  // deposits can be tax refunds or benefits, not bond payments.
-  if (!name || !/^APA\s+TREAS\s+310\s+MISC\s+PAY\s*~\s*Future Amount:\s*\d+(?:\.\d{1,2})?\s*~\s*Tran:\s*DDIR$/i.test(name)
-    || transaction["pending"] === true || amount === null || amount >= 0
+  const account = accountId ? accountsByProviderId.get(accountId) : undefined;
+  // Match only observed descriptors and their expected account types.
+  const type = name && /^APA\s+TREAS\s+310\s+MISC\s+PAY\s*~\s*Future Amount:\s*\d+(?:\.\d{1,2})?\s*~\s*Tran:\s*DDIR$/i.test(name)
+    && account?.type === "depository" ? "treasury-payment"
+    : name && /^CREDIT-TRAVEL\s+REWARD\s+CREDIT-TRAVEL\s+REWARD$/i.test(name)
+      && account?.type === "credit" && account.subtype === "credit card"
+      && /^Capital\s*One$/i.test(account.institutionName.trim()) ? "travel-reward" : null;
+  if (!type || transaction["pending"] === true || amount === null || amount >= 0
     || !Number.isSafeInteger(Math.round(-amount * 100)) || Math.round(-amount * 100) === 0
-    || !accountId || accountsByProviderId.get(accountId)?.type !== "depository"
+    || !accountId
     || !currency || ordinal === null
     || new Date(ordinal * 86_400_000).toISOString().slice(0, 10) !== date) return null;
-  return JSON.stringify([accountId, currency, date]);
+  return { key: JSON.stringify([type, accountId, currency, date]), type };
 }
 
-export function getTreasuryPaymentAmount(transactions: TransactionRecord[]): number {
+export function getCreditBatchAmount(transactions: TransactionRecord[]): number {
   return transactions.reduce((cents, transaction) => cents - Math.round(numberField(transaction, "amount")! * 100), 0) / 100;
 }
 
@@ -291,15 +300,15 @@ export function groupInternalTransfers(
     if (account.providerAccountId) accountsByProviderId.set(account.providerAccountId, account);
   }
   const paymentPairs = creditCardPaymentPairs(transactions, accountsByProviderId);
-  const treasuryCandidates = new Map<string, number[]>();
-  const treasuryKeys = transactions.map((transaction, index) => {
-    const key = transaction ? treasuryPaymentKey(transaction, accountsByProviderId) : null;
-    if (key !== null) {
-      const indexes = treasuryCandidates.get(key);
+  const creditBatches = new Map<string, number[]>();
+  const creditCandidates = transactions.map((transaction, index) => {
+    const candidate = transaction ? creditBatchCandidate(transaction, accountsByProviderId) : null;
+    if (candidate !== null) {
+      const indexes = creditBatches.get(candidate.key);
       if (indexes) indexes.push(index);
-      else treasuryCandidates.set(key, [index]);
+      else creditBatches.set(candidate.key, [index]);
     }
-    return key;
+    return candidate;
   });
 
   const candidates: TransferCandidateIndex = new Map();
@@ -325,13 +334,13 @@ export function groupInternalTransfers(
     const transaction = transactions[index];
     if (!transaction) continue;
 
-    const treasuryKey = treasuryKeys[index];
-    const treasuryIndexes = treasuryKey ? treasuryCandidates.get(treasuryKey) : undefined;
-    if (treasuryIndexes && treasuryIndexes.length > 1) {
-      treasuryIndexes.forEach((candidateIndex) => consumed.add(candidateIndex));
+    const creditCandidate = creditCandidates[index];
+    const creditIndexes = creditCandidate ? creditBatches.get(creditCandidate.key) : undefined;
+    if (creditCandidate && creditIndexes && creditIndexes.length > 1) {
+      creditIndexes.forEach((candidateIndex) => consumed.add(candidateIndex));
       groups.push({
-        type: "treasury-payment",
-        transactions: treasuryIndexes.map((candidateIndex) => transactions[candidateIndex]!),
+        type: creditCandidate.type,
+        transactions: creditIndexes.map((candidateIndex) => transactions[candidateIndex]!),
         receivingAccount: accountsByProviderId.get(stringField(transaction, "account_id")!)!,
       });
       continue;
@@ -476,19 +485,20 @@ export function renderTransactionGroups(
       : "";
     previousDate = date;
     if (group.type === "single") return heading + renderTransactionRow(group.transactions[0], accounts, options.showAccount === true, options.groupByDate === true || options.activityStyle === true, options.groupByDate === true, options.responsiveActivity === true);
-    if (group.type === "treasury-payment") {
+    if (group.type === "treasury-payment" || group.type === "travel-reward") {
+      const travelReward = group.type === "travel-reward";
       return `${heading}
         <details class="transaction-transfer-pair">
-          <summary aria-label="Expand or collapse original TreasuryDirect payments">
+          <summary aria-label="Expand or collapse original ${travelReward ? "travel reward credits" : "TreasuryDirect payments"}">
             <div class="transaction-copy transfer-pair-copy">
-              <strong>TreasuryDirect → ${escapeHtml(group.receivingAccount.name)}</strong>
+              <strong>${travelReward ? "Travel rewards" : "TreasuryDirect"} → ${escapeHtml(group.receivingAccount.name)}</strong>
               <span>${escapeHtml(date ?? "Date unavailable")}</span>
-              <span class="transaction-group-type">Bond payments · ${group.transactions.length} transactions</span>
+              <span class="transaction-group-type">${travelReward ? "Travel rewards" : "Bond payments"} · ${group.transactions.length} transactions</span>
             </div>
-            <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-getTreasuryPaymentAmount(group.transactions), currencyCode(group.transactions[0]!)))}</b>
+            <b class="transfer-pair-amount">${escapeHtml(formatTransactionAmount(-getCreditBatchAmount(group.transactions), currencyCode(group.transactions[0]!)))}</b>
           </summary>
           <div class="transfer-pair-rows">
-            <div class="transfer-pair-details-label">Original payments</div>
+            <div class="transfer-pair-details-label">Original ${travelReward ? "credits" : "payments"}</div>
             ${group.transactions.map((transaction) => renderTransactionRow(transaction, accounts, options.showAccount === true)).join("")}
           </div>
         </details>
