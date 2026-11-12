@@ -87,6 +87,7 @@ test('optional account mask and balance can be left blank', async t => {
 });
 function importNodes(t) {
   const nodes = setup(t, importIds);
+  nodes['#account-import-form'].elements = nodes;
   nodes['#import-date-format'].value = 'mdy';
   nodes['#import-amount-convention'].value = 'inflow-positive';
   nodes['#import-file'].files = [new File(['Date,Description,Amount\n11/01/2026,Groceries,-10'], 'bank.csv')];

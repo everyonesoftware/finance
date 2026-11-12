@@ -14,7 +14,7 @@ import { renderRealEstateCards } from "../src/real-estate.ts";
 import { parseZillowZestimate, fetchZillowZestimate } from "../server-dist/zillow.js";
 import { renderTransactionsPage, getTransactionAmountBounds, formatFilterAmount } from "../src/transactions-page.ts";
 import { renderDashboard } from "../src/dashboard.ts";
-import { renderMainNavigation } from "../src/navigation.ts";
+import { renderAppNavigation } from "../src/navigation.ts";
 import {
   formatTransactionAmount,
   getTotalBalance,
@@ -313,7 +313,7 @@ test("every finance page uses persistent mobile navigation instead of a menu tog
     assert.match(html, /<nav class="navigation" id="main-navigation">/);
     assert.match(html, /href="\/real-estate"[^>]*>[^<]*<span class="nav-icon"[^>]*>⌂<\/span> Real Estate/);
     const mobile = html.match(/<nav class="mobile-navigation"[^>]*>([\s\S]*?)<\/nav>/)?.[1] ?? "";
-    assert.deepEqual([...mobile.matchAll(/href="([^"]+)"/g)].map((match) => match[1]), ["/dashboard", "/transactions", "/real-estate", "/accounts", "/settings"]);
+    assert.deepEqual([...mobile.matchAll(/href="([^"]+)"/g)].map((match) => match[1]), ["/dashboard", "/transactions", "/real-estate", "/accounts"]);
     assert.equal((mobile.match(/aria-current="page"/g) ?? []).length, 1);
     assert.equal(mobile.match(/href="([^"]+)" aria-current="page"/)?.[1], html.match(/class="nav-link active" href="([^"]+)"/)?.[1]);
   }
@@ -334,16 +334,16 @@ test("every finance page renders the same navigation destinations in the same or
     renderBankAccountsPage({ displayName: "Test", username: "test" }),
     renderBankAccountDetailPage({ displayName: "Test", username: "test" }),
     renderConnectionsPage({ displayName: "Test", username: "test" }),
-    renderMainNavigation("settings"),
+    renderAppNavigation({ displayName: "Test", username: "test" }, "settings"),
   ];
   const destinations = pages.map((html) => {
     const navigation = html.match(/<nav class="navigation" id="main-navigation">([\s\S]*?)<\/nav>/)?.[1] ?? "";
     return [...navigation.matchAll(/href="([^"]+)"/g)].map((match) => match[1]);
   });
   assert.ok(destinations.every((links) => JSON.stringify(links) === JSON.stringify(destinations[0])));
-  assert.deepEqual(destinations[0], ["/dashboard", "/transactions", "/real-estate", "/accounts", "/settings"]);
+  assert.deepEqual(destinations[0], ["/dashboard", "/transactions", "/real-estate", "/accounts"]);
   for (const [index, html] of pages.entries()) {
-    const activeHref = html.match(/<a class="nav-link active" href="([^"]+)"[^>]*aria-current="page"/)?.[1];
+    const activeHref = html.match(/<a class="(?:nav-link|settings-gear) active" href="([^"]+)"[^>]*aria-current="page"/)?.[1];
     assert.equal(activeHref, ["/dashboard", "/transactions", "/accounts", "/accounts", "/real-estate", "/settings"][index]);
   }
 });

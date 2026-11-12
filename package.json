@@ -9,11 +9,13 @@
     "build": "tsc -b && tsc -p tsconfig.server.json && vite build",
     "preview": "vite preview --host 0.0.0.0",
     "start:api": "node server-dist/index.js",
-    "test": "node --import tsx --test tests/*.test.js"
+    "test": "node --import tsx --test tests/*.test.js",
+    "test:browser": "node tests/pwa.browser.mjs"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^22.20.5",
+    "playwright": "^1.65.0",
     "tsx": "^4.23.15",
     "typescript": "~5.7.2",
     "vite": "^6.0.5"

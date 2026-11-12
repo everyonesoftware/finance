@@ -10,11 +10,13 @@ export function renderAppNavigation(user: { displayName: string; username: strin
   return `
     <aside class="sidebar" aria-label="Main navigation">
       <a class="brand" href="/dashboard" aria-label="Finance home"><span class="brand-mark" aria-hidden="true">F</span><span>Finance</span></a>
+      <div class="mobile-profile"><span class="mobile-profile-name" title="${displayName}">${displayName}</span>${renderSettingsGear(activePage, true)}</div>
       <div class="workspace-label">WORKSPACE</div>
       ${renderMainNavigation(activePage)}
       <div class="sidebar-bottom">
         <div class="profile-avatar" aria-hidden="true">${initial}</div>
         <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
+        ${renderSettingsGear(activePage)}
       </div>
     </aside>
     ${renderMobileNavigation(activePage)}
@@ -27,8 +29,12 @@ const navigationItems: Array<{ page: MainNavigationPage; href: string; icon: str
 
   { page: "real-estate", href: "/real-estate", icon: "⌂", label: "Real Estate" },
   { page: "accounts", href: "/accounts", icon: "▣", label: "Accounts" },
-  { page: "settings", href: "/settings", icon: "⚙", label: "Settings" },
 ];
+
+function renderSettingsGear(activePage: MainNavigationPage, mobile = false): string {
+  const active = activePage === "settings";
+  return `<a class="${mobile ? "mobile-gear" : "settings-gear"}${active ? " active" : ""}" href="/settings" aria-label="Settings" title="Settings"${active ? ' aria-current="page"' : ""}><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m9 3-.6 2.2-2 .9-2.1-.6-2 3.5 1.6 1.6v2.3L2.3 15l2 3.5 2.2-.6 2 .9.5 2.2h4l.6-2.2 2-.9 2.1.6 2-3.5-1.6-1.6v-2.3l1.6-1.6-2-3.5-2.2.6-2-.9L13 3Z"/><circle cx="11" cy="12" r="3"/></svg></a>`;
+}
 
 const mobileNavigationIcons: Record<MainNavigationPage, string> = {
   overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',

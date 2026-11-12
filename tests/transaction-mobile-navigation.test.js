@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFile } from "node:fs/promises";
 import * as navigation from "../src/navigation.ts";
 
 const pages = ["overview", "transactions", "real-estate", "accounts", "settings"];
@@ -7,15 +8,15 @@ const pages = ["overview", "transactions", "real-estate", "accounts", "settings"
 for (const activePage of pages) {
   test(`mobile navigation marks only ${activePage} as the current page`, () => {
     const rendered = links(navigation.renderMobileNavigation(activePage));
-    assert.deepEqual(rendered.filter(({ current }) => current).map(({ href }) => href), [destinations[pages.indexOf(activePage)]]);
+    assert.deepEqual(rendered.filter(({ current }) => current).map(({ href }) => href), activePage === "settings" ? [] : [destinations[pages.indexOf(activePage)]]);
   });
 }
 
-test("mobile navigation uses five distinct decorative inline SVG icons", () => {
+test("mobile navigation uses four distinct decorative inline SVG icons", () => {
   const html = navigation.renderMobileNavigation("transactions");
   const icons = [...html.matchAll(/<svg\b([^>]*)>([\s\S]*?)<\/svg>/g)];
-  assert.equal(icons.length, 5);
-  assert.equal(new Set(icons.map(([, , drawing]) => drawing)).size, 5);
+  assert.equal(icons.length, 4);
+  assert.equal(new Set(icons.map(([, , drawing]) => drawing)).size, 4);
   for (const [, attributes, drawing] of icons) {
     assert.match(attributes, /aria-hidden="true"/);
     assert.match(attributes, /focusable="false"/);
@@ -25,8 +26,8 @@ test("mobile navigation uses five distinct decorative inline SVG icons", () => {
   }
   assert.doesNotMatch(html, /[◫↕⌂▣⚙]/u);
 });
-const destinations = ["/dashboard", "/transactions", "/real-estate", "/accounts", "/settings"];
-const labels = ["Overview", "Transactions", "Real Estate", "Accounts", "Settings"];
+const destinations = ["/dashboard", "/transactions", "/real-estate", "/accounts"];
+const labels = ["Overview", "Transactions", "Real Estate", "Accounts"];
 
 function links(html) {
   return [...html.matchAll(/<a\b([^>]*)>([\s\S]*?)<\/a>/g)].map(([, attributes, body]) => ({
@@ -59,5 +60,37 @@ test("shared app navigation renders desktop and mobile links outside the sidebar
     assert.deepEqual(links(mobile), links(navigation.renderMobileNavigation(activePage)));
     assert.equal((html.match(/aria-label="Mobile navigation"/g) ?? []).length, 1);
     assert.doesNotMatch(html, /mobile-menu-toggle/);
+  }
+});
+
+
+test("Settings is an accessible profile gear, not a workspace or bottom-bar destination", () => {
+  for (const activePage of pages) {
+    const html = navigation.renderAppNavigation({ displayName: "Alex Morgan", username: "alex" }, activePage);
+    const gears = [...html.matchAll(/<a class="(settings-gear|mobile-gear)(?: active)?"([^>]*)>([\s\S]*?)<\/a>/g)];
+    assert.equal(gears.length, 2);
+    for (const [, , attributes, drawing] of gears) {
+      assert.match(attributes, /href="\/settings"/);
+      assert.match(attributes, /aria-label="Settings"/);
+      assert.equal(attributes.includes('aria-current="page"'), activePage === "settings");
+      assert.match(drawing, /<svg[^>]*aria-hidden="true"[^>]*focusable="false"/);
+    }
+    assert.match(html, /class="profile-copy">[\s\S]*?<\/div>\s*<a class="settings-gear/);
+    assert.match(html, /class="mobile-profile">[\s\S]*?Alex Morgan[\s\S]*?class="mobile-gear/);
+    assert.equal((html.match(/aria-label="Finance home"/g) ?? []).length, 1);
+    assert.doesNotMatch(navigation.renderMainNavigation(activePage), /\/settings/);
+    assert.doesNotMatch(navigation.renderMobileNavigation(activePage), /\/settings/);
+  }
+});
+
+test("profile gears and update card have responsive accessible styling", async () => {
+  const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
+  assert.match(css, /\.mobile-profile\s*\{\s*display:\s*none/);
+  assert.match(css, /\.settings-gear[\s\S]*?width:\s*44px;[\s\S]*?height:\s*44px;/);
+  assert.match(css, /\.settings-gear:focus-visible/);
+  assert.match(css, /@media\s*\(max-width:\s*800px\)[\s\S]*?\.mobile-profile\s*\{[^}]*display:\s*flex/);
+  assert.match(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
+  for (const selector of [".update-heading h2", '.update-badge[data-state="available"]', '.update-badge[data-state="offline"]', ".version-row", ".update-actions", "#update-message"]) {
+    assert.ok(css.includes(selector), `missing ${selector}`);
   }
 });

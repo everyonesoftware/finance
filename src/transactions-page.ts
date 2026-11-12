@@ -181,7 +181,8 @@ export function renderTransactionsPage(user: TransactionsPageUser): string {
 }
 
 /** Reparent shared controls; resizing must not recreate inputs or transaction rows. */
-export function initializeResponsiveTransactions(root: HTMLElement, viewport: MediaQueryList): void {
+export function initializeResponsiveTransactions(root: HTMLElement, viewport: MediaQueryList, signal?: AbortSignal): void {
+  if (signal?.aborted) return;
   const heading = root.querySelector<HTMLElement>(".transactions-page-heading");
   const actions = root.querySelector<HTMLElement>(".transaction-heading-actions");
   const searchFields = root.querySelector<HTMLElement>("#transaction-search-fields");
@@ -193,7 +194,7 @@ export function initializeResponsiveTransactions(root: HTMLElement, viewport: Me
   if (!heading || !actions || !accountFields || !amountFields || !sortFields || !importButton || !count) return;
 
   const sync = (): void => {
-    if (!root.isConnected) {
+    if (signal?.aborted || root.isConnected === false || heading.isConnected === false) {
       viewport.removeEventListener("change", sync);
       return;
     }
@@ -219,6 +220,7 @@ export function initializeResponsiveTransactions(root: HTMLElement, viewport: Me
   };
   sync();
   viewport.addEventListener("change", sync);
+  signal?.addEventListener("abort", () => viewport.removeEventListener("change", sync), { once: true });
 }
 
 function renderAccountOptions(accounts: BankAccount[]): string {
@@ -267,7 +269,8 @@ function allTransactionAmountBounds(groups: TransactionGroup[]): { minimum: numb
   return getTransactionAmountBounds(values);
 }
 
-export async function initializeTransactionsPage(): Promise<void> {
+export async function initializeTransactionsPage(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return;
   const list = document.querySelector<HTMLDivElement>("#all-transactions-list");
   const count = document.querySelector<HTMLParagraphElement>("#all-transactions-count");
   const status = document.querySelector<HTMLParagraphElement>("#all-transactions-status");
@@ -306,6 +309,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   if (!scrollSentinel) return;
   if (!list || !count || !accountOptions || !filterTrigger || !filterDialog || !cancelFilters || !applyFilters || !sortTrigger || !sortDialog || !cancelSort || !applySort || !accountSelected || !accountTotal || !accountSearch || !selectAllAccounts || !deselectAllAccounts || !amountTriggerSummary || !resetAmountFilter || !amountRange || !minimumSlider || !maximumSlider || !minimumInput || !maximumInput || !sortSelect) return;
 
+  const isActive = (): boolean => !signal?.aborted && list.isConnected !== false;
   let accounts: BankAccount[] = [];
   let transactions: TransactionRecord[] = [];
   let transactionGroups: TransactionGroup[] = [];
@@ -360,6 +364,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const renderResults = (resetVisible = true): void => {
+    if (!isActive()) return;
     updateAccountSummary();
     updateAmountSummary();
     // Sheet controls edit a draft until Apply. Pagination continues using applied groups.
@@ -411,7 +416,7 @@ export async function initializeTransactionsPage(): Promise<void> {
 
   if (typeof IntersectionObserver !== "undefined") {
     scrollObserver = new IntersectionObserver((entries) => {
-      if (!scrollSentinel.isConnected) {
+      if (!isActive() || scrollSentinel.isConnected === false) {
         scrollObserver?.disconnect();
         return;
       }
@@ -494,6 +499,7 @@ export async function initializeTransactionsPage(): Promise<void> {
   };
 
   const loadTransactions = async (): Promise<void> => {
+    if (!isActive()) return;
     const preserveAmountSelection = hasLoadedTransactions &&
       (selectedMinimumAmount > minimumAmount || selectedMaximumAmount < maximumAmount);
     const previousAvailableAccountIds = hasLoadedTransactions ? accounts.map((account) => account.id) : null;
@@ -503,6 +509,7 @@ export async function initializeTransactionsPage(): Promise<void> {
       credentials: "same-origin",
     });
     const payload = await response.json() as Partial<TransactionsResponse> & { error?: string };
+    if (!isActive()) return;
     if (!response.ok) throw new Error(payload.error ?? "Unable to load transactions.");
     if (!Array.isArray(payload.transactions) || !Array.isArray(payload.accounts)) {
       throw new Error("The server returned an invalid transactions response.");
@@ -538,7 +545,14 @@ export async function initializeTransactionsPage(): Promise<void> {
     }
   };
 
-  initializeBatchImport(() => accounts, loadTransactions);
+  initializeBatchImport(() => accounts, async () => {
+    try {
+      await loadTransactions();
+    } catch (error) {
+      // A completed import stays committed; a departed page must not reopen its dialog.
+      if (isActive()) throw error;
+    }
+  }, signal);
   const closeDesktopPopovers = (): void => {
     if (accountPopover) accountPopover.hidden = true;
     if (amountPopover) amountPopover.hidden = true;
@@ -566,15 +580,24 @@ export async function initializeTransactionsPage(): Promise<void> {
       trigger?.focus();
     });
   }
-  document.addEventListener("click", (event: MouseEvent) => {
+  const onDocumentClick = (event: MouseEvent): void => {
+    if (!isActive()) return;
     if (!(event.target instanceof Node)) return;
     if (!accountPopover?.contains(event.target) && !accountTrigger?.contains(event.target) && !amountPopover?.contains(event.target) && !amountTrigger?.contains(event.target)) closeDesktopPopovers();
-  });
-  document.addEventListener("keydown", (event: KeyboardEvent) => {
+  };
+  const onDocumentKeydown = (event: KeyboardEvent): void => {
+    if (!isActive()) return;
     if (event.key !== "Escape") return;
     const trigger = accountPopover && !accountPopover.hidden ? accountTrigger : amountPopover && !amountPopover.hidden ? amountTrigger : null;
     if (trigger) { closeDesktopPopovers(); trigger.focus(); }
-  });
+  };
+  document.addEventListener("click", onDocumentClick);
+  document.addEventListener("keydown", onDocumentKeydown);
+  signal?.addEventListener("abort", () => {
+    document.removeEventListener("click", onDocumentClick);
+    document.removeEventListener("keydown", onDocumentKeydown);
+    scrollObserver?.disconnect();
+  }, { once: true });
   filterTrigger.addEventListener("click", () => {
     filterSnapshot = {
       accountIds: getSelectedAccountIds(accountOptions),
@@ -785,12 +808,13 @@ export async function initializeTransactionsPage(): Promise<void> {
 
   if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
     const root = document.querySelector<HTMLElement>(".app-shell");
-    if (root) initializeResponsiveTransactions(root, window.matchMedia("(max-width: 800px)"));
+    if (root) initializeResponsiveTransactions(root, window.matchMedia("(max-width: 800px)"), signal);
   }
 
   try {
     await loadTransactions();
   } catch (error) {
+    if (!isActive()) return;
     list.className = "transaction-empty";
     list.textContent = error instanceof Error ? error.message : "Unable to load transactions.";
     count.textContent = "Transactions could not be loaded";

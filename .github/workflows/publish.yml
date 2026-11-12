@@ -42,6 +42,12 @@ jobs:
       - name: Test application
         run: npm test
 
+      - name: Install browser for PWA verification
+        run: npx playwright install --with-deps chromium
+
+      - name: Test production single-page PWA
+        run: npm run test:browser
+
   publish:
     outputs:
       services_artifact: ${{ steps.services_capture.outputs.artifact }}

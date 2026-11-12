@@ -56,6 +56,16 @@ npm run preview
 
 The optimized static site is written to `dist`.
 
+### Single-page app, installation, and updates
+
+Finance navigates between pages without reloading the document, including account details, sign-in, and sign-out. Normal URLs, direct links, browser Back/Forward, and opening links in a new tab remain available.
+
+Production builds include a web app manifest and service worker. Serve Finance over HTTPS (or localhost) to enable PWA support; use the browser's **Install app** or **Add to Home Screen** action where supported. The Vite development server does not register the production worker.
+
+Open **Settings** using the gear beside your profile at the bottom left (beside your name in the mobile header). **App updates → Check for updates** checks the deployed build and worker. When a new version is ready, choose **Reload to update** or **Later**. Discovery never automatically reloads an open session, and applying from another tab does not reload this tab. Finish unsaved changes before applying an update. Publishing a container image alone does not update a running server: deploy the new image before checking for it in Finance.
+
+Offline support is deliberately limited to a public disconnected page with **Retry connection**. Financial records, API responses, authenticated screens, and pending writes are not cached or queued for offline use. Reconnect to read or change your finances. The worker's Cache Storage contains only `/offline.html`, and cleanup is restricted to Finance's own offline caches. HTML, worker, and update metadata revalidate; frontend bundles use `no-store`.
+
 ## Tests
 
 Build and test the frontend and API:
@@ -64,6 +74,15 @@ Build and test the frontend and API:
 npm run build
 npm test
 ```
+
+Exercise the production app in a real browser with isolated sample API responses and no access to your database:
+
+```powershell
+npx playwright install chromium
+npm run test:browser
+```
+
+On Windows the browser suite uses installed Microsoft Edge by default; set `PLAYWRIGHT_CHANNEL` to override the channel. It verifies same-document navigation, existing authentication/profile interactions, manifest/installability, actual worker updates and explicit reload, offline privacy/no replay, and desktop/mobile layout. Set `UI_SCREENSHOTS` to an output directory to retain Settings screenshots. CI runs both the regular test suite and this production browser suite before publishing.
 
 ## Continuous integration and container publishing
 

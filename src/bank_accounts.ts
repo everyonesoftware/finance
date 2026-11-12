@@ -1,5 +1,6 @@
 import { escapeHtml } from "./html-utils.ts";
 import { renderAppNavigation } from "./navigation.ts";
+import { navigateTo } from "./router.ts";
 import { renderRecentTransactionList } from "./transaction-list.ts";
 import { renderRealEstateCards } from "./real-estate.ts";
 import { renderManualAccountDialog, renderImportDialog, initializeManualAccountCreation, initializeAccountImport } from "./account-import.ts";
@@ -379,7 +380,8 @@ export function getTotalBalance(accounts: BankAccount[]): number {
   );
 }
 
-export async function initializeOverviewBankAccounts(): Promise<void> {
+export async function initializeOverviewBankAccounts(signal?: AbortSignal): Promise<void> {
+  if (signal?.aborted) return;
   const container: HTMLDivElement | null =
     document.querySelector<HTMLDivElement>("#overview-bank-accounts");
   if (!container) {
@@ -388,12 +390,14 @@ export async function initializeOverviewBankAccounts(): Promise<void> {
 
   const totalBalanceElement: HTMLDivElement | null =
     document.querySelector<HTMLDivElement>("#overview-total-balance");
+  const isActive = (): boolean => !signal?.aborted && container.isConnected !== false;
 
   try {
     const response: Response = await fetch("/api/accounts", {
       cache: "no-store",
     });
     const payload: unknown = await readJson(response);
+    if (!isActive()) return;
     if (!response.ok) {
       throw new Error(getErrorMessage(payload, "Unable to load bank accounts."));
     }
@@ -408,6 +412,7 @@ export async function initializeOverviewBankAccounts(): Promise<void> {
       );
     }
   } catch {
+    if (!isActive()) return;
     if (totalBalanceElement) {
       totalBalanceElement.textContent = "Balance unavailable";
     }
@@ -420,14 +425,12 @@ export async function initializeOverviewBankAccounts(): Promise<void> {
     container
       .querySelector<HTMLButtonElement>("#retry-overview-bank-accounts")
       ?.addEventListener("click", (): void => {
-        void initializeOverviewBankAccounts();
+        if (isActive()) void initializeOverviewBankAccounts(signal);
       });
   }
 }
 
-function setAccountsMessage(message: string, isError: boolean): void {
-  const element: HTMLParagraphElement | null =
-    document.querySelector<HTMLParagraphElement>("#accounts-message");
+function setAccountsMessage(element: HTMLParagraphElement | null, message: string, isError: boolean): void {
   if (element) {
     element.textContent = message;
     element.hidden = message.length === 0;
@@ -444,10 +447,9 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
-async function refreshAccounts(): Promise<void> {
-  const container: HTMLDivElement | null =
-    document.querySelector<HTMLDivElement>("#connected-accounts");
-  if (!container) {
+async function refreshAccounts(container: HTMLDivElement | null, message: HTMLParagraphElement | null, signal?: AbortSignal): Promise<void> {
+  const isActive = (): boolean => !signal?.aborted && container?.isConnected !== false;
+  if (!container || !isActive()) {
     return;
   }
 
@@ -457,6 +459,7 @@ async function refreshAccounts(): Promise<void> {
     });
     const payload: unknown = await readJson(response);
 
+    if (!isActive()) return;
     if (!response.ok) {
       throw new Error(
         getErrorMessage(payload, "Unable to load bank accounts."),
@@ -468,6 +471,7 @@ async function refreshAccounts(): Promise<void> {
 
     container.innerHTML = renderAccounts(payload.accounts);
   } catch (error: unknown) {
+    if (!isActive()) return;
     container.innerHTML = `
       <div class="accounts-error">
         <strong>We couldn't load your bank accounts.</strong>
@@ -477,9 +481,10 @@ async function refreshAccounts(): Promise<void> {
     container
       .querySelector<HTMLButtonElement>("#retry-accounts")
       ?.addEventListener("click", (): void => {
-        void refreshAccounts();
+        if (isActive()) void refreshAccounts(container, message, signal);
       });
     setAccountsMessage(
+      message,
       error instanceof Error ? error.message : "Unable to load bank accounts.",
       true,
     );
@@ -539,54 +544,71 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
   `;
 }
 
-export async function initializeAccountDetailPage(accountId: string): Promise<void> {
+export async function initializeAccountDetailPage(accountId: string, signal?: AbortSignal): Promise<void> {
   const container = document.querySelector<HTMLDivElement>("#account-detail-content");
-  if (!container) return;
+  if (!container || signal?.aborted) return;
+  const isActive = (): boolean => !signal?.aborted && container.isConnected !== false;
 
-  try {
-    const response = await fetch(
-      `/api/accounts/${encodeURIComponent(accountId)}/transactions`,
-      { cache: "no-store", credentials: "same-origin" },
-    );
-    const payload: unknown = await readJson(response);
-    if (!response.ok || !isAccountDetailResponse(payload)) {
-      throw new Error(getErrorMessage(payload, "Unable to load this account."));
-    }
-    container.innerHTML = renderAccountDetail(payload.account, payload.transactions, payload.accounts);
-    if (payload.account.canImport) initializeAccountImport(payload.account, async result => {
-      await initializeAccountDetailPage(accountId);
-      const message = document.querySelector<HTMLElement>("#account-import-message");
-      if (message) {
-        message.textContent = `Imported ${result.imported} transaction${result.imported === 1 ? "" : "s"}. Skipped ${result.skipped} duplicate${result.skipped === 1 ? "" : "s"}.`;
-        message.hidden = false;
+  const load = async (): Promise<void> => {
+    if (!isActive()) return;
+    try {
+      const response = await fetch(
+        `/api/accounts/${encodeURIComponent(accountId)}/transactions`,
+        { cache: "no-store", credentials: "same-origin" },
+      );
+      const payload: unknown = await readJson(response);
+      if (!isActive()) return;
+      if (!response.ok || !isAccountDetailResponse(payload)) {
+        throw new Error(getErrorMessage(payload, "Unable to load this account."));
       }
-    });
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Unable to load this account.";
-    container.innerHTML = `
-      <section class="panel account-detail-error" role="alert">
-        <strong>This account could not be loaded.</strong>
-        <span>${escapeHtml(message)}</span>
-        <a class="text-button" href="/accounts">Back to accounts</a>
-      </section>
-    `;
-  }
+      container.innerHTML = renderAccountDetail(payload.account, payload.transactions, payload.accounts);
+      if (payload.account.canImport) initializeAccountImport(payload.account, async result => {
+        if (!isActive()) return;
+        await load();
+        if (!isActive()) return;
+        const message = container.querySelector<HTMLElement>("#account-import-message");
+        if (message) {
+          message.textContent = `Imported ${result.imported} transaction${result.imported === 1 ? "" : "s"}. Skipped ${result.skipped} duplicate${result.skipped === 1 ? "" : "s"}.`;
+          message.hidden = false;
+        }
+      }, signal);
+    } catch (error: unknown) {
+      if (!isActive()) return;
+      const message = error instanceof Error ? error.message : "Unable to load this account.";
+      container.innerHTML = `
+        <section class="panel account-detail-error" role="alert">
+          <strong>This account could not be loaded.</strong>
+          <span>${escapeHtml(message)}</span>
+          <a class="text-button" href="/accounts">Back to accounts</a>
+        </section>
+      `;
+    }
+  };
+  await load();
 }
 
-export function initializeBankAccountsPage(): void {
+export function initializeBankAccountsPage(signal?: AbortSignal): void {
+  if (signal?.aborted) return;
+  const container = document.querySelector<HTMLDivElement>("#connected-accounts");
+  const message = document.querySelector<HTMLParagraphElement>("#accounts-message");
   initializeManualAccountCreation(async account => {
-    window.location.assign(`/accounts/${encodeURIComponent(account.id)}`);
+    if (signal?.aborted || !container || container.isConnected === false) return;
+    navigateTo(`/accounts/${encodeURIComponent(account.id)}`);
   });
-  void refreshAccounts();
+  void refreshAccounts(container, message, signal);
 }
 
-export async function initializeConnectionsPage(): Promise<void> {
+export async function initializeConnectionsPage(signal?: AbortSignal): Promise<void> {
+ if(signal?.aborted)return;
  const container=document.querySelector<HTMLDivElement>("#real-estate-properties"); if(!container)return;
- const refresh=async()=>{const response=await fetch("/api/real-estate",{cache:"no-store",credentials:"same-origin"});const payload=await readJson(response);if(!response.ok||typeof payload!=="object"||payload===null||!("properties" in payload)||!Array.isArray(payload.properties))throw new Error("Unable to load properties.");container.innerHTML=renderRealEstateCards(payload.properties as Parameters<typeof renderRealEstateCards>[0]);};
+ const isActive=()=>!signal?.aborted&&container.isConnected!==false;
+ const refresh=async()=>{if(!isActive())return;const response=await fetch("/api/real-estate",{cache:"no-store",credentials:"same-origin"});const payload=await readJson(response);if(!isActive())return;if(!response.ok||typeof payload!=="object"||payload===null||!("properties" in payload)||!Array.isArray(payload.properties))throw new Error("Unable to load properties.");container.innerHTML=renderRealEstateCards(payload.properties as Parameters<typeof renderRealEstateCards>[0]);};
  const address=document.querySelector<HTMLInputElement>("#property-address"), suggestions=document.querySelector<HTMLElement>("#address-suggestions"), zillowField=document.querySelector<HTMLElement>("#zillow-url-field"), done=document.querySelector<HTMLButtonElement>("#done-property"), panel=document.querySelector<HTMLElement>("#new-property-panel"); let selected:{address:string;latitude:number;longitude:number}|null=null, timer=0;
+ signal?.addEventListener("abort",()=>{if(timer)window.clearTimeout(timer);},{once:true});
  document.querySelector("#add-property")?.addEventListener("click",()=>{if(panel)panel.hidden=false;address?.focus();});
- address?.addEventListener("input",()=>{selected=null;if(zillowField)zillowField.hidden=true;if(done)done.disabled=true;if(suggestions)suggestions.replaceChildren();const q=address.value.trim();if(q.length<4)return;window.clearTimeout(timer);timer=window.setTimeout(async()=>{try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(q)}`,{headers:{Accept:"application/json"}});const places=await r.json() as Array<{display_name:string;lat:string;lon:string}>;if(suggestions)suggestions.innerHTML=places.map((p,i)=>`<button type="button" role="option" data-place="${i}">${escapeHtml(p.display_name)}</button>`).join("");suggestions?.querySelectorAll<HTMLButtonElement>("button").forEach(b=>b.addEventListener("click",()=>{const p=places[Number(b.dataset.place)];if(!p)return;selected={address:p.display_name,latitude:Number(p.lat),longitude:Number(p.lon)};if(address)address.value=p.display_name;if(suggestions)suggestions.replaceChildren();if(zillowField)zillowField.hidden=false;}));}catch{if(suggestions)suggestions.textContent="Address suggestions are unavailable.";}},350);});
+ address?.addEventListener("input",()=>{if(!isActive())return;selected=null;window.clearTimeout(timer);if(zillowField)zillowField.hidden=true;if(done)done.disabled=true;if(suggestions)suggestions.replaceChildren();const q=address.value.trim();if(q.length<4)return;timer=window.setTimeout(async()=>{if(!isActive())return;try{const r=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&q=${encodeURIComponent(q)}`,{headers:{Accept:"application/json"}});const places=await r.json() as Array<{display_name:string;lat:string;lon:string}>;if(!isActive()||address.value.trim()!==q)return;if(suggestions)suggestions.innerHTML=places.map((p,i)=>`<button type="button" role="option" data-place="${i}">${escapeHtml(p.display_name)}</button>`).join("");suggestions?.querySelectorAll<HTMLButtonElement>("button").forEach(b=>b.addEventListener("click",()=>{if(!isActive())return;const p=places[Number(b.dataset.place)];if(!p)return;selected={address:p.display_name,latitude:Number(p.lat),longitude:Number(p.lon)};if(address)address.value=p.display_name;if(suggestions)suggestions.replaceChildren();if(zillowField)zillowField.hidden=false;}));}catch{if(isActive()&&suggestions&&address.value.trim()===q)suggestions.textContent="Address suggestions are unavailable.";}},350);});
  document.querySelector<HTMLInputElement>("#zillow-property-url")?.addEventListener("input",event=>{if(done)done.disabled=!selected||!(event.currentTarget as HTMLInputElement).value.trim();});
- document.querySelector<HTMLFormElement>("#add-property-form")?.addEventListener("submit",async(event)=>{event.preventDefault();const form=event.currentTarget as HTMLFormElement;const data=new FormData(form);const message=document.querySelector<HTMLElement>("#property-form-message");const submit=form.querySelector<HTMLButtonElement>("button[type=submit]");if(submit)submit.disabled=true;try{const query=String(data.get("address")??"");const geo=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`,{headers:{Accept:"application/json"}});const places=await geo.json() as Array<{display_name:string;lat:string;lon:string}>;if(!places[0])throw new Error("Address not found.");const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:places[0].display_name,latitude:Number(places[0].lat),longitude:Number(places[0].lon),zillowUrl:String(data.get("zillowUrl")??"")})});const result=await readJson(response);if(!response.ok)throw new Error(getErrorMessage(result,"Unable to save property."));form.reset();if(message)message.textContent="Property added.";await refresh();}catch(error){if(message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}finally{if(submit)submit.disabled=false;}});
- try{await refresh();}catch{container.innerHTML=`<div class="accounts-error">We couldn't load properties. <button id="retry-real-estate" class="text-button" type="button">Try again</button></div>`;container.querySelector("#retry-real-estate")?.addEventListener("click",()=>void initializeConnectionsPage());}
+ const propertyMessage=document.querySelector<HTMLElement>("#property-form-message");
+ document.querySelector<HTMLFormElement>("#add-property-form")?.addEventListener("submit",async(event)=>{event.preventDefault();if(!isActive())return;const form=event.currentTarget as HTMLFormElement;const data=new FormData(form);const message=propertyMessage;const submit=form.querySelector<HTMLButtonElement>("button[type=submit]");if(submit)submit.disabled=true;try{const query=String(data.get("address")??"");const geo=await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(query)}`,{headers:{Accept:"application/json"}});const places=await geo.json() as Array<{display_name:string;lat:string;lon:string}>;if(!isActive())return;if(!places[0])throw new Error("Address not found.");const response=await fetch("/api/real-estate",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({address:places[0].display_name,latitude:Number(places[0].lat),longitude:Number(places[0].lon),zillowUrl:String(data.get("zillowUrl")??"")})});const result=await readJson(response);if(!isActive())return;if(!response.ok)throw new Error(getErrorMessage(result,"Unable to save property."));form.reset();if(message)message.textContent="Property added.";await refresh();}catch(error){if(isActive()&&message)message.textContent=error instanceof Error?error.message:"Unable to save property.";}finally{if(isActive()&&submit)submit.disabled=false;}});
+ try{await refresh();}catch{if(!isActive())return;container.innerHTML=`<div class="accounts-error">We couldn't load properties. <button id="retry-real-estate" class="text-button" type="button">Try again</button></div>`;container.querySelector("#retry-real-estate")?.addEventListener("click",()=>{if(isActive())void initializeConnectionsPage(signal);});}
 }

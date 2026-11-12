@@ -117,7 +117,7 @@ function renderMapping(columns: string[], mapping: CsvMapping | null): string {
   ).join("");
 }
 
-export function initializeAccountImport(account: BankAccount, onImported: (result: ImportResult) => Promise<void>): void {
+export function initializeAccountImport(account: BankAccount, onImported: (result: ImportResult) => Promise<void>, signal?: AbortSignal): void {
   const dialog = document.querySelector<HTMLDialogElement>("#account-import-dialog");
   const form = document.querySelector<HTMLFormElement>("#account-import-form");
   const file = document.querySelector<HTMLInputElement>("#import-file");
@@ -131,6 +131,7 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
   const dateFormat = document.querySelector<HTMLSelectElement>("#import-date-format");
   const convention = document.querySelector<HTMLSelectElement>("#import-amount-convention");
   if (!dialog || !form || !file || !next || !back || !fileStep || !previewStep) return;
+  const isActive = () => !signal?.aborted && dialog.isConnected !== false && form.isConnected !== false;
   let busy = false;
   let stage: "file" | "preview" = "file";
   let preview: ImportPreview | null = null;
@@ -147,32 +148,34 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
     showError(error);
   }
   document.querySelector("#import-transactions")?.addEventListener("click", () => {
+    if (!isActive()) return;
     showFileStep();
     dialog.showModal();
   });
   dialog.addEventListener("cancel", event => { if (busy) event.preventDefault(); });
   back.addEventListener("click", () => {
-    if (busy) return;
+    if (!isActive() || busy) return;
     if (stage === "preview") showFileStep();
     else dialog.close();
   });
   file.addEventListener("change", () => {
+    if (!isActive()) return;
     preview = null;
     confirmedRequest = null;
     if (mappingPanel) mappingPanel.hidden = true;
     if (fields) fields.innerHTML = "";
-    const csvOptions = document.querySelector<HTMLElement>("#import-csv-options");
+    const csvOptions = form.querySelector<HTMLElement>("#import-csv-options");
     if (csvOptions) csvOptions.hidden = !file.files?.[0]?.name.toLowerCase().endsWith(".csv");
     showError(error);
   });
   function csvMapping(): CsvMapping {
     const mapping: CsvMapping = { dateFormat: dateFormat?.value ?? "mdy", amountConvention: convention?.value ?? "inflow-positive" };
     if (!preview?.columns.length) return mapping;
-    const mode = document.querySelector<HTMLSelectElement>("#import-amount-mode")?.value;
+    const mode = form!.querySelector<HTMLSelectElement>("#import-amount-mode")?.value;
     for (const [key] of columnFields) {
       if (mode === "split" && key === "amountColumn") continue;
       if (mode === "signed" && (key === "debitColumn" || key === "creditColumn")) continue;
-      const select = document.querySelector<HTMLSelectElement>(`#import-map-${key}`);
+      const select = form!.querySelector<HTMLSelectElement>(`#import-map-${key}`);
       if (select) {
         if (select.value !== "") mapping[key] = Number(select.value);
       } else if (preview.mapping?.[key] !== undefined) mapping[key] = preview.mapping[key];
@@ -181,7 +184,7 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
   }
   form.addEventListener("submit", async event => {
     event.preventDefault();
-    if (busy) return;
+    if (!isActive() || busy) return;
     busy = true;
     next.disabled = true;
     back.disabled = true;
@@ -195,22 +198,24 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
         if (selected.size > 4 * 1024 * 1024) throw new Error("Choose a file smaller than 4 MB.");
         if (!/\.(csv|ofx|qfx)$/i.test(selected.name)) throw new Error("Choose a CSV, OFX, or QFX file.");
         const request: ImportRequest = { fileName: selected.name, content: await readTransactionFile(selected) };
+        if (!isActive()) return;
         if (/\.csv$/i.test(selected.name)) request.csv = csvMapping();
         const result = await postJson<ImportPreview>(`/api/accounts/${encodeURIComponent(account.id)}/import/preview`, request);
+        if (!isActive()) return;
         preview = result;
         if (fields && result.columns.length) fields.innerHTML = renderMapping(result.columns, result.mapping);
         if (mappingPanel) mappingPanel.hidden = !result.columns.length;
         if (result.errors.length) throw new Error(result.errors.join("\n"));
         confirmedRequest = request;
-        const summary = document.querySelector<HTMLElement>("#import-preview-summary");
+        const summary = form.querySelector<HTMLElement>("#import-preview-summary");
         if (summary) summary.textContent = [`${result.total} transactions found · ${result.importable} new · ${result.duplicates} duplicates will be skipped`, ...(result.notes ?? [])].join("\n");
-        const rows = document.querySelector<HTMLElement>("#import-preview-rows");
+        const rows = form.querySelector<HTMLElement>("#import-preview-rows");
         if (rows) rows.innerHTML = result.transactions.map(transaction => {
           const value = transaction.amount === 0 ? 0 : -transaction.amount;
           const amount = new Intl.NumberFormat(undefined, { style: "currency", currency: transaction.iso_currency_code, signDisplay: "exceptZero" }).format(value);
           return `<tr><td>${escapeHtml(transaction.date)}</td><td>${escapeHtml(transaction.name)}</td><td>${escapeHtml(amount)}</td></tr>`;
         }).join("");
-        const limit = document.querySelector<HTMLElement>("#import-preview-limit");
+        const limit = form.querySelector<HTMLElement>("#import-preview-limit");
         if (limit) limit.textContent = result.total > result.transactions.length ? `Showing the first ${result.transactions.length} of ${result.total} transactions. The entire file has been validated.` : "All transactions shown.";
         fileStep.hidden = true;
         previewStep.hidden = false;
@@ -220,17 +225,20 @@ export function initializeAccountImport(account: BankAccount, onImported: (resul
         next.textContent = `Import ${result.importable} transaction${result.importable === 1 ? "" : "s"}`;
       } else if (confirmedRequest && preview && !preview.errors.length && preview.importable > 0) {
         const result = await postJson<ImportResult>(`/api/accounts/${encodeURIComponent(account.id)}/import`, confirmedRequest);
+        if (!isActive()) return;
         dialog.close();
         await onImported(result);
       }
     } catch (cause) {
-      showError(error, cause instanceof Error ? cause.message : "Unable to import transactions.");
+      if (isActive()) showError(error, cause instanceof Error ? cause.message : "Unable to import transactions.");
     } finally {
       busy = false;
-      next.disabled = stage === "preview" && !preview?.importable;
-      back.disabled = false;
-      file.disabled = false;
-      for (const control of form.querySelectorAll?.<HTMLInputElement | HTMLSelectElement>("input, select") ?? []) control.disabled = false;
+      if (isActive()) {
+        next.disabled = stage === "preview" && !preview?.importable;
+        back.disabled = false;
+        file.disabled = false;
+        for (const control of form.querySelectorAll?.<HTMLInputElement | HTMLSelectElement>("input, select") ?? []) control.disabled = false;
+      }
     }
   });
 }

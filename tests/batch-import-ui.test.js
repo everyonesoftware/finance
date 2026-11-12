@@ -9,12 +9,15 @@ class Element {
   addEventListener(name, fn) { (this.handlers[name] ??= []).push(fn); }
   async emit(name, target = this) { for (const fn of this.handlers[name] ?? []) await fn({ preventDefault() {}, target }); }
   querySelectorAll() { return []; }
+  querySelector(selector) { return this.nodes?.[selector] ?? null; }
+  contains(node) { return Object.values(this.nodes ?? {}).includes(node); }
   showModal() { this.open = true; }
   close() { this.open = false; }
 }
 function setup(t) {
   const ids = ['batch-import-dialog', 'batch-import-form', 'open-batch-import', 'batch-import-files', 'batch-import-rows', 'batch-import-summary', 'batch-import-error', 'batch-import-confirm', 'batch-import-cancel'];
   const nodes = Object.fromEntries(ids.map(id => ['#' + id, new Element()]));
+  for (const node of Object.values(nodes)) node.nodes = nodes;
   const previous = globalThis.document;
   globalThis.document = { querySelector: id => nodes[id] ?? null };
   t.after(() => { globalThis.document = previous; });

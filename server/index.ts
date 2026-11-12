@@ -1,7 +1,6 @@
 import { serve } from "@hono/node-server";
-import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
-import { readFile } from "node:fs/promises";
+import { registerStaticRoutes } from "./static-serving.js";
 import { auth } from "./auth.js";
 import { bankAccountsRouter } from "./bank_accounts.js";
 import { realEstateRouter } from "./real_estate.js";
@@ -23,11 +22,9 @@ app.get("/api/health", async (context) => {
 app.all("/api/auth/*", (context) => auth.handler(context.req.raw));
 app.route("/api/accounts", bankAccountsRouter);
 app.route("/api/real-estate", realEstateRouter);
+app.all("/api", context => context.json({ error: "API endpoint not found." }, 404));
 app.all("/api/*", context => context.json({ error: "API endpoint not found." }, 404));
-app.use("*", serveStatic({ root: "./dist" }));
-app.get("*", async (context) =>
-  context.html(await readFile("./dist/index.html", "utf8")),
-);
+registerStaticRoutes(app);
 
 async function startServer(): Promise<void> {
   await runMigrations();
