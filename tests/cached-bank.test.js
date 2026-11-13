@@ -130,7 +130,10 @@ test('production server returns JSON 404 for removed settings and unknown API pa
   const base = 'http://127.0.0.1:'+port;
   try {
     let ready = false;
-    for (let attempt=0;attempt<150;attempt++) {
+    // A cold tsx/auth import can exceed six seconds on Windows even in
+    // isolation. Keep the real health check, but allow bounded startup time.
+    const deadline = Date.now() + 30_000;
+    while (Date.now() < deadline) {
       if (child.exitCode !== null) break;
       try {if ((await fetch(base+'/api/health')).ok) {ready=true;break;}} catch {}
       await pause(40);

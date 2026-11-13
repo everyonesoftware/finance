@@ -7,6 +7,7 @@ import { createBankAccountsRouter } from '../server/bank_accounts.ts';
 import { decryptBankValue, encryptBankValue } from '../server/bank-crypto.ts';
 import { groupInternalTransfers } from '../src/transaction-list.ts';
 import { renderAccountDetail } from '../src/bank_accounts.ts';
+import { renderInvestmentActivity } from '../src/investments.ts';
 import { fidelityHistory, fidelityRows, fidelityHeader, fidelityFooter } from './fixtures/fidelity-history.js';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -204,7 +205,7 @@ test('Fidelity history preview and commit preserve cash activity and identical E
  assert.deepEqual(preview.columns,fidelityHeader.split(','));
  assert.deepEqual(preview.mapping,{dateColumn:0,nameColumn:1,amountColumn:10,dateFormat:'mdy',amountConvention:'inflow-positive'});
  assert.deepEqual(canonical(preview.transactions),expected);
- assert.equal(preview.notes.length,2);assert.match(preview.notes[0],/cash activity only.*holdings.*not imported/i);assert.match(preview.notes[1],/disclaimer.*footer ignored/i);
+ assert.equal(preview.notes.length,2);assert.match(preview.notes[0],/cash activity and security details.*holdings.*separate snapshot/i);assert.match(preview.notes[1],/disclaimer.*footer ignored/i);
  assert.deepEqual(f.db.serialize(),before,'Preview must not change any stored bytes');
  const committed=await f.post(path,file);assert.equal(committed.status,200);assert.deepEqual(await committed.json(),{imported:8,skipped:0,account});
  const read=await f.router.request('/'+account.id+'/transactions');assert.equal(read.status,200);
@@ -212,7 +213,8 @@ test('Fidelity history preview and commit preserve cash activity and identical E
  assert.deepEqual(canonical(stored).sort(),[...expected].sort());assert.ok(stored.every(t=>t.account_id===account.providerAccountId && t.iso_currency_code==='USD'));
  assert.equal(new Set(stored.map(t=>t.transaction_id)).size,8);
  assert.equal(stored.filter(t=>t.name==='Electronic Funds Transfer Paid (Cash)' && t.date==='2026-10-27' && t.amount===100).length,2);
- const html=renderAccountDetail(account,stored);
+ assert.match(renderAccountDetail(account,stored),/id="investment-detail"/);
+ const html=renderInvestmentActivity(account,stored);
  for(const name of ['REINVESTMENT EXAMPLE FUND (DEMO) (Cash)','DIVIDEND RECEIVED EXAMPLE FUND (DEMO) (Cash)','Electronic Funds Transfer Paid (Cash)','Electronic Funds Transfer Received (Cash)'])assert.ok(html.includes(name),name);
  assert.ok(!html.includes('No Description'));
  const after=f.db.serialize();

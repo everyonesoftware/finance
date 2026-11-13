@@ -52,6 +52,24 @@ New accounts left at the default zero are marked **Default balance · not verifi
 
 The app has no bank-data provider integration. Connecting banks, refreshing remote balances, and automatic syncing are unavailable; imports make no external requests. Previously saved timestamps indicate when data was last retrieved, not a live balance. Settings contains app updates, Twelve Data key management, profile, password, and sign-out controls.
 
+### Brokerage accounts and holdings snapshots
+
+Investment accounts have **Summary**, **Holdings**, **Activity**, and **Income** views in the existing Finance layout. This is read-only at the brokerage: there are no orders, trades, bank connections, or money movements. Adding a snapshot saves a local encrypted copy in Finance only.
+
+For a manual brokerage account, use **Add snapshot** to enter a valuation date, source label, source account value, separate cash, and a holdings CSV. Download the template from the dialog. This first implementation accepts the template format, not arbitrary broker positions exports or transaction-history files:
+
+```csv
+symbol,name,quantity,price,marketValue,costBasis,isCash
+DEMO,Example Fund,10,100,1000,800,false
+UNKNOWN,Example holding with unknown basis,5,20,100,,false
+```
+
+These are fictional examples. Use the account's currency for every amount. Unknown quantity, price, and cost basis are blank, not zero. `marketValue` is the source valuation; Finance does not replace it with quantity times price. `isCash` must be `true` or `false`. If core cash appears as a money-market/cash position with `isCash=true`, enter **0** separate cash so it is not counted twice. Review the snapshot totals and any difference from the source account value before confirming. Negative/short positions and unsupported values are rejected rather than silently rewritten.
+
+Snapshots are immutable records. Adding an older valuation preserves the latest account value; a newer dated snapshot (or the most recently saved snapshot for the same date) updates the manual account's balance reference. Saved-provider accounts remain read-only. Snapshot source dates, reconciliation differences, and unknown basis remain visible. Historical snapshots are not daily portfolio values, investment returns, or backfilled aggregate net-worth history. Live market prices and return calculations are not included.
+
+New Fidelity-format **transaction history** imports preserve source security quantities/prices and categorize recognized trades, distributions, electronic transfers, and fees. Unknown actions remain **Other**. Generic imports, custom cash mappings, and already-imported cash-only records are not silently relabeled; reimporting duplicate history does not enrich those old records. Activity is separate from holdings: a purchase is not household spending and sale proceeds are not investment income. The Income view totals only classified recorded distributions, includes reversals with their sign, and discloses incomplete imported coverage rather than claiming year-to-date totals. A Fidelity `(Cash)` account-type marker does not establish whether a distribution was paid out or reinvested.
+
 ### Twelve Data API key
 
 Open **Settings → Twelve Data** to save, replace, or remove your market-data API key. The key is scoped to your signed-in Finance user and encrypted on the server using the existing secret-derived storage key. It is never returned to the browser after saving, placed in browser storage, or configured through an environment variable. Preserve `BETTER_AUTH_SECRET` in secure backups: losing or rotating it without re-encryption also makes saved API keys unreadable.

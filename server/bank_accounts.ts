@@ -10,6 +10,7 @@ import { listAccountTransactions, listAllUserTransactions } from "./account-stor
 import { getRecentTransactions } from "./transaction-sync.js";
 import { cachedNetWorth } from "./net-worth-history.js";
 import { balanceImpact, balancePreviewToken, deriveBalance, validBalanceDate, validMoney } from "./account-balances.js";
+import { InvestmentError, investmentDestination, listInvestmentSnapshots, previewInvestmentSnapshot, saveInvestmentSnapshot } from "./investments.js";
 
 export interface BankRouterDependencies {
   database: Database.Database;
@@ -208,6 +209,35 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
       });
     });
   }
+  router.get("/:accountId/investments", context => {
+    try {
+      const userId = uid(context), key = deps.getEncryptionKey(), id = context.req.param('accountId');
+      investmentDestination(db, key, userId, id);
+      return context.json({ snapshots: listInvestmentSnapshots(db, key, userId, id) });
+    } catch (error) {
+      if (error instanceof InvestmentError) return context.json({ error: error.message }, error.status);
+      throw error;
+    }
+  });
+  for (const preview of [true, false]) {
+    router.post(preview ? "/:accountId/investments/preview" : "/:accountId/investments", async context => {
+      const body = await readWrite(context);
+      if (body instanceof Response) return body;
+      try {
+        const userId = uid(context), key = deps.getEncryptionKey(), id = context.req.param('accountId');
+        investmentDestination(db, key, userId, id, true);
+        const now = deps.now?.() ?? new Date();
+        if (preview) return context.json({ snapshot: previewInvestmentSnapshot(body, now) });
+        if (Object.keys(body).length !== 1 || !Object.hasOwn(body, 'snapshot')) {
+          return context.json({ error: 'Submit a snapshot object.' }, 400);
+        }
+        return context.json({ snapshot: saveInvestmentSnapshot(db, key, userId, id, body.snapshot, now) }, 201);
+      } catch (error) {
+        if (error instanceof InvestmentError) return context.json({ error: error.message }, error.status);
+        throw error;
+      }
+    });
+  }
   router.get("/:accountId/transactions", context => {
     const userId = uid(context);
     const accounts = accountsFor(userId);
@@ -290,7 +320,7 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
         });
         const previewToken = balancePreviewToken(key, userId, prepared.map((p, i) => [
           p.account?.id ?? null, p.account?.balanceReference ?? null, p.account?.type ?? null,
-          p.account?.currencyCode ?? null, p.file.fileName, p.candidates.map(c => [c.id, c.fingerprint]),
+          p.account?.currencyCode ?? null, p.file.fileName, p.candidates.map(c => [c.id, c.fingerprint, c.tx.investmentActivity ?? null]),
           counts[i].fresh.map(c => c.id), impacts[i], p.result.errors,
         ]));
         return { impacts, previewToken };
@@ -351,7 +381,7 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
         return {
           balanceImpact: impact,
           previewToken: balancePreviewToken(key, userId, [current.id, current.balanceReference ?? null,
-            current.type, current.currencyCode, body.fileName, candidates.map(c => [c.id, c.fingerprint]),
+            current.type, current.currencyCode, body.fileName, candidates.map(c => [c.id, c.fingerprint, c.tx.investmentActivity ?? null]),
             counts.fresh.map(c => c.id), impact, parsed.errors]),
         };
       };

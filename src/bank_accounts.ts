@@ -5,6 +5,7 @@ import { renderRecentTransactionList } from "./transaction-list.ts";
 import { renderRealEstateCards } from "./real-estate.ts";
 import { renderManualAccountDialog, renderImportDialog, initializeManualAccountCreation, initializeAccountImport } from "./account-import.ts";
 import { renderAccountBalanceDialog, initializeAccountBalance } from "./account-balance.ts";
+import { renderInvestmentDetail, initializeInvestmentDetail } from "./investments.ts";
 export {
   findReferencedAccount,
   formatTransactionAmount,
@@ -218,11 +219,11 @@ export function renderAccountDetail(
       </div>
       <p class="account-detail-updated">${account.source === "manual" ? "Manually maintained account · Updated" : "Account details retrieved"} ${escapeHtml(updatedLabel)}</p>
     </section>
-    <section class="panel account-detail-transactions">
+    ${account.type === "investment" ? `${renderInvestmentDetail(account, transactions, accounts)}<section class="panel account-detail-transactions"><div class="panel-heading"><div><h2>Import activity</h2><p>Transaction history is separate from holdings snapshots.</p></div>${account.canImport ? `<button id="import-transactions" class="primary-button" type="button">Import transactions</button>` : ""}</div><p id="account-import-message" class="auth-message success" role="status" hidden></p></section>` : `<section class="panel account-detail-transactions">
       <div class="panel-heading"><div><h2>Transactions</h2><p>Recent activity for this account</p></div>${account.canImport ? `<button id="import-transactions" class="primary-button" type="button">Import transactions</button>` : ""}</div>
       <p id="account-import-message" class="auth-message success" role="status" hidden></p>
       <div class="account-transaction-list">${transactionRows}</div>
-    </section>
+    </section>`}
     ${account.canImport ? renderImportDialog(account) : ""}
     ${account.canImport ? renderAccountBalanceDialog(account) : ""}
   `;
@@ -571,6 +572,10 @@ export async function initializeAccountDetailPage(accountId: string, signal?: Ab
         throw new Error(getErrorMessage(payload, "Unable to load this account."));
       }
       container.innerHTML = renderAccountDetail(payload.account, payload.transactions, payload.accounts);
+      if (payload.account.type === "investment") void initializeInvestmentDetail(payload.account, payload.transactions, payload.accounts, async () => {
+        await load();
+        if (isActive()) container.querySelector<HTMLButtonElement>("#investment-add-snapshot")?.focus();
+      }, signal);
       if (payload.account.canImport) initializeAccountBalance(payload.account, async () => {
         if (!isActive()) return;
         await load();

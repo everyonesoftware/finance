@@ -9,12 +9,20 @@ export interface CsvMapping {
   dateFormat: 'ymd' | 'mdy' | 'dmy';
   amountConvention: 'inflow-positive' | 'outflow-positive';
 }
+export interface InvestmentActivity {
+  kind: 'trade' | 'income' | 'transfer' | 'fee' | 'other';
+  symbol: string | null;
+  quantity: number | null;
+  price: number | null;
+  distribution: 'reinvested' | 'cash' | 'unknown' | null;
+}
 export interface ImportedTransaction {
   date: string;
   name: string;
   amount: number;
   iso_currency_code: string;
   sourceId?: string;
+  investmentActivity?: InvestmentActivity;
 }
 export interface ParsedImport {
   columns: string[];
@@ -35,7 +43,7 @@ export function parseTransactionImport(fileName:string,content:string,currency:s
   const headers=result.columns.map(h=>h.trim().toLowerCase());
   const fidelity=isFidelityHistory(result.columns);
   if(fidelity) result.notes=[
-    'Fidelity history detected. Importing cash activity only; share quantities, holdings and investment valuations are not imported.',
+    'Fidelity history detected. Importing cash activity and security details with source-based activity categories when using the detected cash mapping. Holdings, cost basis and investment valuations require a separate snapshot.',
     ...(ignoredFooter ? ['Fidelity disclaimer and download footer ignored.'] : []),
   ];
   const find=(names:string[])=>{const n=headers.findIndex(h=>names.includes(h));return n<0?undefined:n;};
@@ -89,7 +97,13 @@ export function parseTransactionImport(fileName:string,content:string,currency:s
      amount = d - c;
     }
     const sourceId = mapping.idColumn !== undefined ? row[mapping.idColumn].trim() : undefined;
-    result.transactions.push({ date, name, amount: amount === 0 ? 0 : amount, iso_currency_code: currency, ...(sourceId ? { sourceId } : {}) });
+    // Attach source metadata only when the mapped ledger still represents the
+    // original action and cash amount; arbitrary remappings cannot establish income.
+    const sourceActivity = fidelity && mapping.dateColumn === detected.dateColumn &&
+      mapping.nameColumn === detected.nameColumn && mapping.amountColumn === headers.indexOf('amount ($)') &&
+      mapping.dateFormat === 'mdy' && mapping.amountConvention === 'inflow-positive'
+      ? fidelityActivity(row, headers) : undefined;
+    result.transactions.push({ date, name, amount: amount === 0 ? 0 : amount, iso_currency_code: currency, ...(sourceId ? { sourceId } : {}), ...(sourceActivity ? { investmentActivity: sourceActivity } : {}) });
    }catch(error){result.errors.push(`Row ${index+2}: ${error instanceof Error?error.message:'Invalid transaction.'}`);}
   });
  }catch(error){result.errors.push(error instanceof Error?error.message:'Invalid file.');}
@@ -107,6 +121,26 @@ function money(raw:string):number {
  const value=raw.trim();
  if(!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,2})?$/.test(value))throw Error('Invalid amount.');
  const number=Number(value.replace(/,/g,''));if(!Number.isFinite(number)||Math.abs(number)>Number.MAX_SAFE_INTEGER/100)throw Error('Amount outside supported range.');return number;
+}
+function fidelityActivity(row: string[], headers: string[]): InvestmentActivity {
+  const cell = (header: string) => row[headers.indexOf(header)].trim();
+  const action = cell('action');
+  const number = (header: string, nonnegative: boolean): number | null => {
+    const raw = cell(header);
+    if (!raw) return null;
+    if (!/^[+-]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d{1,8})?$/.test(raw)) throw Error(`Invalid investment ${header}.`);
+    const value = Number(raw.replace(/,/g, ''));
+    if (!Number.isFinite(value) || Math.abs(value) > 1_000_000_000_000 || (nonnegative && value < 0)) throw Error(`Invalid investment ${header}.`);
+    return value;
+  };
+  const reinvestment = /^REINVESTMENT\b/i.test(action);
+  const kind: InvestmentActivity['kind'] = /^(?:YOU BOUGHT|YOU SOLD)\b/i.test(action) || reinvestment ? 'trade'
+    : /^(?:DIVIDEND RECEIVED|INTEREST EARNED)\b/i.test(action) ? 'income'
+    : /^Electronic Funds Transfer (?:Paid|Received)\b/i.test(action) ? 'transfer'
+    : /^(?:SERVICE FEE|ACCOUNT FEE|ADVISORY FEE)\b/i.test(action) ? 'fee' : 'other';
+  return { kind, symbol: cell('symbol') || null, quantity: number('quantity', false), price: number('price ($)', true),
+    // '(Cash)' in an action identifies the account type, not payout treatment.
+    distribution: reinvestment ? 'reinvested' : kind === 'income' ? 'unknown' : null };
 }
 function isFidelityHistory(columns: string[]): boolean {
   const expected = ['run date', 'action', 'symbol', 'description', 'type', 'price ($)', 'quantity',
