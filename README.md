@@ -50,7 +50,13 @@ New dated balance references and amounts used in their calculations support at m
 
 New accounts left at the default zero are marked **Default balance · not verified**. Existing missing balances are not silently replaced with zero: open the account and choose **Set balance**. Existing undated snapshots remain fixed until you explicitly set a dated reference. Replacing the reference recalculates the balance using saved later transactions, without deleting or re-importing history. Investment values remain manually set: importing cash activity cannot reconstruct portfolio valuations. No past net-worth observations or verified historical balances are inferred from incomplete imports. Existing compatible saved-provider snapshots and transactions remain read-only, with no imports or balance edits into those archived accounts. All reads and writes are scoped to the signed-in user; references, account data, and imported transactions are encrypted at rest.
 
-The app has no bank-data provider integration. Connecting banks, refreshing remote balances, and automatic syncing are unavailable; imports make no external requests. Previously saved timestamps indicate when data was last retrieved, not a live balance. Settings contains profile, password, and sign-out controls.
+The app has no bank-data provider integration. Connecting banks, refreshing remote balances, and automatic syncing are unavailable; imports make no external requests. Previously saved timestamps indicate when data was last retrieved, not a live balance. Settings contains app updates, Twelve Data key management, profile, password, and sign-out controls.
+
+### Twelve Data API key
+
+Open **Settings → Twelve Data** to save, replace, or remove your market-data API key. The key is scoped to your signed-in Finance user and encrypted on the server using the existing secret-derived storage key. It is never returned to the browser after saving, placed in browser storage, or configured through an environment variable. Preserve `BETTER_AUTH_SECRET` in secure backups: losing or rotating it without re-encryption also makes saved API keys unreadable.
+
+This panel is setup only. **Saving does not verify the key, contact Twelve Data, spend provider credits, or fetch current/historical prices.** A saved key is labeled **not verified** until provider validation is implemented. Removing the key does not remove your accounts or imported financial data. Use HTTPS outside localhost, and enter the key in Settings rather than chat or source files.
 
 Saved compatible bank data is encrypted using a purpose-specific key derived from `BETTER_AUTH_SECRET`. Back up this secret securely and separately from the database. Changing or losing it makes that saved data unreadable. Older incompatible legacy records remain stored but are not displayed. Removing provider integration does not delete existing financial records or rewrite their encrypted contents. Create a database backup before upgrading.
 

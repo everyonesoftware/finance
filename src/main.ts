@@ -18,6 +18,7 @@ import { renderRecentTransactionList } from "./transaction-list";
 import { createClientRouter } from "./router.ts";
 import { AppUpdates, type UpdateSnapshot } from "./pwa.ts";
 import { appVersion } from "./app-version.ts";
+import { renderTwelveDataSettings, initializeTwelveDataSettings } from "./twelve-data-settings.ts";
 
 function getAppRoot(): HTMLDivElement {
   const root: HTMLDivElement | null =
@@ -242,6 +243,7 @@ function renderSettings(user: AuthUser, signal: AbortSignal): void {
             <button id="later-update" class="secondary-button" type="button" hidden>Later</button>
           </div>
         </section>
+        ${renderTwelveDataSettings()}
         <section class="settings-card">
           <h2>Profile</h2>
           <p>Update your display name and username.</p>
@@ -291,6 +293,7 @@ function renderSettings(user: AuthUser, signal: AbortSignal): void {
   `);
 
   bindAppUpdates(signal);
+  initializeTwelveDataSettings(signal);
 
   document
     .querySelector<HTMLFormElement>("#profile-form")

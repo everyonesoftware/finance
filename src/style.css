@@ -2201,6 +2201,21 @@ a.text-button {
   margin-top: 3px;
 }
 
+.twelve-data-card .twelve-data-note {
+  padding: 12px 14px;
+  border-left: 3px solid #2e6749;
+  background: #edf4ee;
+  color: #486046;
+  line-height: 1.65;
+}
+.twelve-data-help { color: #64715e; font-size: 12px; line-height: 1.6; }
+.twelve-data-card .form-field input { height: 44px; font-size: 16px; }
+.twelve-data-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.twelve-data-actions button { min-height: 44px; max-width: 100%; height: auto; padding: 10px 14px; }
+.twelve-data-actions button[hidden], #twelve-data-message[hidden] { display: none; }
+.twelve-data-actions button:disabled { opacity: .65; cursor: default; }
+#twelve-data-message { overflow-wrap: anywhere; line-height: 1.6; }
+
 .update-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
 .update-heading h2 { margin: 0; }
 .update-card > p { margin-top: 10px; }

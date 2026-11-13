@@ -30,6 +30,7 @@ const server = createServer(async (req, res) => {
       if (req.method !== "GET") mutations++;
       if (path === "/api/offline-test") { offlineMutationAttempts++; json({ success: true }); return; }
       if (path === "/api/auth/get-session") { json(signedIn ? { user, session: { id: "demo-session", userId: user.id, token: "browser-fixture-only", expiresAt: "2099-01-01T00:00:00Z" } } : null); return; }
+      if (path === "/api/settings/twelve-data" && req.method === "GET") { json({ configured: false }); return; }
       if (path === "/api/auth/update-user") {
         let body = ""; for await (const chunk of req) body += chunk;
         Object.assign(user, JSON.parse(body)); json({ user, status: true }); return;
