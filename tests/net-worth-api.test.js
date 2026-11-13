@@ -12,7 +12,7 @@ const key = Buffer.alloc(32, 13);
 test('USD coverage distinguishes unknown balances and excluded currencies without recording incomplete totals', async () => {
   const f = await fixture();
   try {
-    assert.deepEqual(await f.read(), {currencyCode:'USD',total:null,accountCount:0,includedAccountCount:0,excludedAccountCount:0,unknownBalanceCount:0,points:[]});
+    assert.deepEqual(await f.read(), {currencyCode:'USD',total:null,accountCount:0,includedAccountCount:0,excludedAccountCount:0,unknownBalanceCount:0,points:[],history:{eligibleAccountCount:0,unsupportedAccountCount:0,reconstructedPointCount:0}});
     assert.equal(f.db.prepare('SELECT count(*) n FROM net_worth_observation').get().n,0);
     f.account({currencyCode:'EUR',currentBalance:1000});
     f.account({currencyCode:null});
@@ -127,7 +127,7 @@ test('invalid encrypted observation payloads fail closed atomically with generic
   } finally { f.db.close(); }
 });
 
-test('observations never derive history from transaction imports or change saved snapshots', async () => {
+test('undated snapshots do not reconstruct imported history or change saved snapshots', async () => {
   const f = await fixture();
   try {
     const id = f.account({currentBalance:432.10}, {provider:'manual'});
@@ -214,7 +214,7 @@ test('net worth authenticates, scopes active compatible accounts and records an 
     assert.equal(denied.status,401);
     assert.equal(denied.headers.get('cache-control'),'no-store');
     f.setUser('owner');
-    assert.deepEqual(await f.read(), {currencyCode:'USD',total:12345.67,accountCount:1,includedAccountCount:1,excludedAccountCount:0,unknownBalanceCount:0,points:[{date:'2026-11-12',total:12345.67}]});
+    assert.deepEqual(await f.read(), {currencyCode:'USD',total:12345.67,accountCount:1,includedAccountCount:1,excludedAccountCount:0,unknownBalanceCount:0,points:[{date:'2026-11-12',total:12345.67}],history:{eligibleAccountCount:0,unsupportedAccountCount:1,reconstructedPointCount:0}});
     const rows = f.db.prepare('SELECT * FROM net_worth_observation').all();
     assert.equal(rows.length,1);
     assert.equal(rows[0].user_id,'owner');

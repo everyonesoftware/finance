@@ -54,11 +54,11 @@ test('insufficient history does not fabricate a flat line or performance gain', 
 test('trend change handles losses, zero starting balances and negative net worth', () => {
   assert.equal(typeof dashboard.formatNetWorthChange, 'function');
   const points = (a,b) => [{date:'2025-11-13',total:a},{date:'2026-11-12',total:b}];
-  assert.equal(dashboard.formatNetWorthChange(points(100,125)), '+$25.00 (+25.0%) since first observation');
-  assert.equal(dashboard.formatNetWorthChange(points(100,50)), '−$50.00 (−50.0%) since first observation');
-  assert.equal(dashboard.formatNetWorthChange(points(0,50)), '+$50.00 since first observation');
-  assert.equal(dashboard.formatNetWorthChange(points(-100,-50)), '+$50.00 since first observation');
-  assert.equal(dashboard.formatNetWorthChange(points(100,100)), '$0.00 (0.0%) since first observation');
+  assert.equal(dashboard.formatNetWorthChange(points(100,125)), '+$25.00 (+25.0%) since first history point');
+  assert.equal(dashboard.formatNetWorthChange(points(100,50)), '−$50.00 (−50.0%) since first history point');
+  assert.equal(dashboard.formatNetWorthChange(points(0,50)), '+$50.00 since first history point');
+  assert.equal(dashboard.formatNetWorthChange(points(-100,-50)), '+$50.00 since first history point');
+  assert.equal(dashboard.formatNetWorthChange(points(100,100)), '$0.00 (0.0%) since first history point');
   assert.equal(dashboard.formatNetWorthChange([]), '');
 });
 
@@ -71,6 +71,74 @@ function overviewDOM(t) {
   return { nodes, root };
 }
 const summary = { currencyCode: 'USD', total: 200, accountCount: 2, includedAccountCount: 1, excludedAccountCount: 1, unknownBalanceCount: 0, points: [{date:'2026-11-12',total:200}] };
+
+test('mixed history explicitly distinguishes reconstructed estimates from saved observations', () => {
+  const html = dashboard.renderNetWorthHistory([
+    {date:'2026-11-11',total:100,source:'reconstructed'},
+    {date:'2026-11-12',total:200,source:'observed'},
+  ], new Date('2026-11-12T12:00:00Z'));
+  assert.match(html, /Observed and reconstructed history/);
+  assert.match(html, /data-observation-count="1"/);
+  assert.match(html, /data-reconstructed-count="1"/);
+  assert.match(html, /aria-label="[^"]*1 saved observation[^"]*1 reconstructed estimated day/);
+  assert.match(html, /Reconstructed points assume complete posted imports and are not verified/);
+  assert.match(html, /aria-label="[^"]*gaps connect history points/);
+  assert.match(html, /class="overview-history-note">Reconstructed points assume complete posted imports and are not verified\.<\/p>/,'keep mobile disclosure compact; detailed counts belong in the accessible description');
+  assert.doesNotMatch(html, /onpointer|tabindex|crosshair|type="range"/);
+});
+
+test('observed-only history remains clearly observed without a reconstruction claim', () => {
+  const html = dashboard.renderNetWorthHistory([
+    {date:'2026-11-11',total:100}, {date:'2026-11-12',total:200,source:'observed'},
+  ], new Date('2026-11-12T12:00:00Z'));
+  assert.match(html, /Saved balance history/);
+  assert.match(html, /2 saved observations/);
+  assert.doesNotMatch(html, /assume complete posted imports|reconstructed estimated day/);
+});
+
+test('insufficient history explains dated balances and posted imports or observations on two days', () => {
+  for (const points of [[], [{date:'2026-11-12',total:100,source:'reconstructed'}]]) {
+    const html = dashboard.renderNetWorthHistory(points, new Date('2026-11-12T12:00:00Z'));
+    assert.match(html, /dated.*balance.*posted imports/i);
+    assert.match(html, /two different days/);
+    assert.doesNotMatch(html, /past balances are not reconstructed|<svg/);
+    if (points.length) assert.match(html, /Reconstructed points assume complete posted imports and are not verified/);
+  }
+});
+
+test('Overview explains unsupported reconstruction coverage without inventing investment valuations', async t => {
+  const { nodes } = overviewDOM(t);
+  t.mock.method(globalThis, 'fetch', async () => ({ok:true,json:async()=>({...summary,history:{reconstructedPointCount:0,eligibleAccountCount:0,unsupportedAccountCount:1}})}));
+  await dashboard.initializeOverviewNetWorth();
+  const text = nodes['#overview-net-worth-coverage'].textContent;
+  assert.match(text, /1.*account.*cannot.*reconstruct/i);
+  assert.match(text, /dated verified balance.*historical investment valuations/i);
+  assert.match(text, /all included USD accounts/i);
+});
+
+for (const invalid of [
+  {points:[{date:'2026-11-12',total:200,source:'estimated'}]},
+  {points:[{date:'2026-11-12',total:200,source:null}]},
+  {history:null},
+  ...['reconstructedPointCount','eligibleAccountCount','unsupportedAccountCount'].flatMap(key =>
+    [-1,1.5,'1'].map(value => ({history:{reconstructedPointCount:0,eligibleAccountCount:1,unsupportedAccountCount:0,[key]:value}}))),
+]) test(`Overview rejects invalid optional history metadata/source ${JSON.stringify(invalid)}`, async t => {
+  const { nodes } = overviewDOM(t);
+  t.mock.method(globalThis, 'fetch', async () => ({ok:true,json:async()=>({...summary,...invalid})}));
+  await dashboard.initializeOverviewNetWorth();
+  assert.equal(nodes['#overview-total-balance'].textContent, 'Unavailable');
+  assert.match(nodes['#overview-net-worth-chart'].innerHTML, /History unavailable/);
+});
+
+test('Overview accepts reconstructed API points and optional history metadata', async t => {
+  const { nodes } = overviewDOM(t);
+  const today = new Date().toISOString().slice(0,10);
+  const yesterday = new Date(Date.parse(today)-86400000).toISOString().slice(0,10);
+  t.mock.method(globalThis, 'fetch', async () => ({ok:true,json:async()=>({...summary,points:[{date:yesterday,total:100,source:'reconstructed'},{date:today,total:200}],history:{reconstructedPointCount:1,eligibleAccountCount:1,unsupportedAccountCount:0}})}));
+  await dashboard.initializeOverviewNetWorth();
+  assert.match(nodes['#overview-net-worth-chart'].innerHTML, /Reconstructed points assume complete posted imports and are not verified/);
+  assert.equal(nodes['#overview-net-worth-change'].textContent, '+$100.00 (+100.0%) since first history point');
+});
 
 test('Overview initializes actual scoped totals with coverage and insufficient-history messaging', async t => {
   assert.equal(typeof dashboard.initializeOverviewNetWorth, 'function');

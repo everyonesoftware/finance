@@ -8,7 +8,7 @@ import { ofxSource } from "./ofx-import.js";
 import { filenameAccountMasks } from "./filename-account.js";
 import { listAccountTransactions, listAllUserTransactions } from "./account-storage.js";
 import { getRecentTransactions } from "./transaction-sync.js";
-import { observeNetWorth } from "./net-worth.js";
+import { cachedNetWorth } from "./net-worth-history.js";
 import { balanceImpact, balancePreviewToken, deriveBalance, validBalanceDate, validMoney } from "./account-balances.js";
 
 export interface BankRouterDependencies {
@@ -73,7 +73,7 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
       return context.json({ error: "Invalid JSON object." }, 400);
     }
   }
-  function accountsFor(userId: string): Array<Record<string, unknown>> {
+  function accountsFor(userId: string, transactionCache?: Map<unknown, Array<Record<string, unknown>>>): Array<Record<string, unknown>> {
     const rows = db.prepare(`
       SELECT a.*, i.provider, i.encrypted_institution_name, i.updated_at AS retrieved_at
       FROM bank_account a JOIN bank_item i ON i.item_id = a.item_id AND i.user_id = a.user_id
@@ -93,8 +93,10 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
       updatedAt: new Date(row.updated_at * 1000).toISOString(),
       lastRetrievedAt: new Date(row.retrieved_at * 1000).toISOString(),
       };
-      account.currentBalance = deriveBalance(account, account.source === 'manual' && account.balanceReference && account.type !== 'investment'
-        ? listAccountTransactions(db, userId, row.item_id, row.provider_account_id, key) : []);
+      const transactions = account.source === 'manual' && account.balanceReference && account.type !== 'investment'
+        ? listAccountTransactions(db, userId, row.item_id, row.provider_account_id, key) : [];
+      transactionCache?.set(account.id, transactions);
+      account.currentBalance = deriveBalance(account, transactions);
       return account;
     });
   }
@@ -107,9 +109,14 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
   });
   router.onError((_error, context) => context.json({ error: "Unable to read saved bank data." }, 500));
   router.get("/", context => context.json({ configured: false, accounts: accountsFor(uid(context)) }));
-  router.get("/net-worth", context => context.json(observeNetWorth(
-    db, uid(context), accountsFor(uid(context)), deps.getEncryptionKey(), deps.now?.() ?? new Date(),
-  )));
+  router.get("/net-worth", context => {
+    const userId = uid(context), key = deps.getEncryptionKey();
+    const transactions = new Map<unknown, Array<Record<string, unknown>>>();
+    return context.json(cachedNetWorth(db, userId, key, deps.now?.() ?? new Date(),
+      () => accountsFor(userId, transactions),
+      account => transactions.get(account.id) ?? [],
+    ));
+  });
   router.post("/", async context => {
     const body = await readWrite(context);
     if (body instanceof Response) return body;

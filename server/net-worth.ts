@@ -9,8 +9,10 @@ export interface NetWorthSummary {
   includedAccountCount: number;
   excludedAccountCount: number;
   unknownBalanceCount: number;
-  points: Array<{ date: string; total: number }>;
+  points: Array<{ date: string; total: number; source?: "reconstructed" }>;
+  history?: { reconstructedPointCount: number; eligibleAccountCount: number; unsupportedAccountCount: number };
 }
+export type BalanceSummary = Omit<NetWorthSummary, "points" | "history">;
 interface ObservationRow { id: string; encrypted_data: string; created_at: number }
 interface Observation { date: string; total: number }
 
@@ -24,8 +26,7 @@ function readObservation(encrypted: string, key: Buffer): Observation {
   return { date, total };
 }
 
-// A read intentionally observes current account snapshots, never transaction history.
-export function observeNetWorth(db: Database.Database, userId: string, accounts: Array<Record<string, unknown>>, key: Buffer, now: Date): NetWorthSummary {
+export function summarizeAccountBalances(accounts: Array<Record<string, unknown>>): BalanceSummary {
   let cents = 0, includedAccountCount = 0, excludedAccountCount = 0, unknownBalanceCount = 0;
   for (const account of accounts) {
     if (account.currencyCode !== "USD") { excludedAccountCount++; continue; }
@@ -40,6 +41,12 @@ export function observeNetWorth(db: Database.Database, userId: string, accounts:
     includedAccountCount++;
   }
   const total = includedAccountCount && !unknownBalanceCount ? cents / 100 : null;
+  return { currencyCode: "USD", total, accountCount: accounts.length, includedAccountCount, excludedAccountCount, unknownBalanceCount };
+}
+
+// Observations remain factual reads, separate from replaceable reconstructed history.
+export function observeNetWorth(db: Database.Database, userId: string, summary: BalanceSummary, key: Buffer, now: Date): NetWorthSummary {
+  const { total, accountCount, includedAccountCount, excludedAccountCount, unknownBalanceCount } = summary;
   const timestamp = Math.floor(now.getTime() / 1000);
   const date = now.toISOString().slice(0, 10);
   const start = new Date(`${date}T00:00:00Z`);
@@ -50,7 +57,7 @@ export function observeNetWorth(db: Database.Database, userId: string, accounts:
     const observations = rows.map(row => ({ row, point: readObservation(row.encrypted_data, key) }));
     if (total !== null) {
       const point = { date, total };
-      const encrypted = encryptBankValue(JSON.stringify({ ...point, accountCount: accounts.length, includedAccountCount, excludedAccountCount, unknownBalanceCount }), key);
+      const encrypted = encryptBankValue(JSON.stringify({ ...point, accountCount, includedAccountCount, excludedAccountCount, unknownBalanceCount }), key);
       const existing = observations.find(value => value.point.date === date);
       if (existing) {
         db.prepare("UPDATE net_worth_observation SET encrypted_data=?,created_at=? WHERE id=? AND user_id=?")
@@ -68,5 +75,5 @@ export function observeNetWorth(db: Database.Database, userId: string, accounts:
       .map(({ point }) => ({ date: point.date, total: point.total }))
       .sort((a, b) => a.date.localeCompare(b.date)).slice(-365);
   }).immediate();
-  return { currencyCode: "USD", total, accountCount: accounts.length, includedAccountCount, excludedAccountCount, unknownBalanceCount, points };
+  return { ...summary, points };
 }

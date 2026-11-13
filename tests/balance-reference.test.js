@@ -219,12 +219,15 @@ test('unsafe resulting balances reject single and batch writes without leaving u
  assert.equal((await f.patch(a.id,1000000000000,'2026-11-01')).status,409);assert.deepEqual(f.db.serialize(),before);
 });
 
-test('negative credit and loan owed balances are overpayment assets; net-worth observations never backfill dates',async t=>{
+test('negative credit and loan owed balances are overpayment assets in observed and reconstructed history',async t=>{
  const f=fixture(t);await f.create({currentBalance:100,balanceDate:'2026-10-01'});
  for(const type of ['credit','loan']){
   const a=await f.create({type,currentBalance:5,balanceDate:'2026-11-01'});
   assert.equal((await(await f.send('/'+a.id+'/import',file('2026-11-02,Repayment,7,repayment'))).json()).account.currentBalance,-2);
  }
  const summary=await(await f.app.request('/net-worth')).json();assert.equal(summary.total,104);
- assert.deepEqual(summary.points,[{date:'2026-11-12',total:104}]);
+ assert.deepEqual(summary.points.at(-1),{date:'2026-11-12',total:104});
+ assert.deepEqual(summary.points[0],{date:'2026-11-01',total:90,source:'reconstructed'});
+ assert.ok(summary.points.slice(1,-1).every(point=>point.total===104&&point.source==='reconstructed'));
+ assert.equal(f.db.prepare('SELECT count(*) n FROM net_worth_observation').get().n,1,'reconstruction does not create observations');
 });

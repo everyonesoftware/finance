@@ -39,7 +39,7 @@ test('approved Overview layout, genuine-history states and static chart through 
     if(path==='/api/accounts/net-worth'){
       totalRequests++;
       if(mode==='error')return route.fulfill({status:503,json:{error:'Unavailable'}});
-      const data=mode==='empty'?{...summary,total:null,accountCount:0,includedAccountCount:0,points:[]}:mode==='one'?{...summary,points:points.slice(-1)}:summary;
+      const data=mode==='empty'?{...summary,total:null,accountCount:0,includedAccountCount:0,points:[]}:mode==='one'?{...summary,points:points.slice(-1)}:mode==='mixed'?{...summary,points:points.map((point,i)=>i<364?{...point,source:'reconstructed'}:point),history:{reconstructedPointCount:364,eligibleAccountCount:4,unsupportedAccountCount:0}}:mode==='unsupported'?{...summary,history:{reconstructedPointCount:0,eligibleAccountCount:3,unsupportedAccountCount:1}}:summary;
       return route.fulfill({json:data});
     }
     if(path==='/api/accounts')return route.fulfill({json:{accounts,configured:false}});
@@ -85,9 +85,36 @@ test('approved Overview layout, genuine-history states and static chart through 
       await page.screenshot({path:join(process.env.FINANCE_OVERVIEW_SCREENSHOTS,`overview-${width}.png`),fullPage:width>800});
     }
   }
+  mode='mixed';await page.reload();
+  await page.getByText('Observed and reconstructed history',{exact:true}).waitFor();
+  assert.match(await page.locator('.overview-chart').getAttribute('aria-label'), /1 saved observation.*364 reconstructed estimated days/);
+  assert.match(await page.locator('.overview-history-note').textContent(), /assume complete posted imports and are not verified/);
+  assert.match(await page.locator('#overview-net-worth-change').textContent(), /since first history point/);
+  for(const width of [1440,390,320]){
+    await page.setViewportSize({width,height:900});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false,`mixed history overflow at ${width}`);
+    const before=await page.locator('.overview-chart').innerHTML();
+    await page.locator('.overview-chart').hover();await page.locator('.overview-chart').click();
+    assert.equal(await page.locator('.overview-chart').innerHTML(),before);
+    if(process.env.FINANCE_OVERVIEW_SCREENSHOTS&&[1440,390].includes(width)){
+      await page.screenshot({path:join(process.env.FINANCE_OVERVIEW_SCREENSHOTS,`overview-mixed-${width}.png`),fullPage:width>800});
+    }
+  }
+  mode='unsupported';await page.reload();
+  await page.locator('#overview-net-worth-coverage').filter({hasText:'historical investment valuations'}).waitFor();
+  assert.match(await page.locator('.overview-chart').getAttribute('aria-label'), /365 saved observations/);
+  assert.doesNotMatch(await page.locator('.overview-history-note').textContent(), /assume complete posted imports/);
+  for(const width of [1440,390,320]){
+    await page.setViewportSize({width,height:900});
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>document.documentElement.clientWidth),false,`unsupported coverage overflow at ${width}`);
+  }
   for(const [state,text] of [['one','Not enough history yet'],['empty','Your history starts here'],['error','History unavailable']]){
     mode=state;await page.reload();await page.getByRole('heading',{name:text}).waitFor();
     assert.equal(await page.locator('.overview-chart').count(),0);
+    if(state==='one'){
+      assert.match(await page.locator('#overview-net-worth-chart').textContent(), /dated.*balance.*posted imports/i);
+      assert.doesNotMatch(await page.locator('#overview-net-worth-chart').textContent(), /past balances are not reconstructed/);
+    }
   }
   mode='ready';const requestsBefore=totalRequests;
   await page.getByRole('button',{name:'Try again',exact:true}).click();

@@ -149,6 +149,55 @@ test('balance workflows through real Vite frontend and in-memory production rout
   t.after(() => browser.close());
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
 
+  await t.test('Overview reconstructs imported history, reuses cache, and refreshes after another import', async t => {
+    const f = await fixture(t, browser, origin);
+    const day = daysAgo => new Date(Date.parse(new Date().toISOString().slice(0,10))-daysAgo*86400000).toISOString().slice(0,10);
+    const account = await f.create({balanceDate:day(0)}), {page} = f;
+    await page.goto(origin+'/dashboard');
+    await page.getByRole('heading',{name:'Not enough history yet'}).waitFor();
+    await detail(f,origin,account);
+    await preview(f,file('recent-history.csv',[
+      `${day(4)},Earlier purchase,-20,history-one`,
+      `${day(3)},Deposit,100,history-two`,
+      `${day(1)},Latest purchase,-25,history-three`,
+    ]));
+    await page.locator('#import-next').click();
+    await page.locator('#account-import-dialog[open]').waitFor({state:'hidden'});
+    assert.equal(f.db.prepare('SELECT count(*) n FROM net_worth_history_cache').get().n,0,'import invalidates initial one-point cache');
+    await page.goto(origin+'/dashboard');
+    await page.locator('.overview-chart').waitFor();
+    const history = f.calls.filter(call=>call.path==='/net-worth').at(-1).response;
+    assert.equal(history.points.length,5);
+    assert.equal(history.history.reconstructedPointCount,4);
+    assert.equal(history.points[0].total,925);
+    assert.equal(history.points.at(-1).total,1000);
+    assert.match(await page.locator('.overview-history-note').innerText(),/reconstruct/i);
+    assert.match(await page.locator('.overview-chart').getAttribute('aria-label'),/reconstruct/i);
+    const cached = f.db.prepare('SELECT encrypted_data FROM net_worth_history_cache').get().encrypted_data;
+    await page.reload(); await page.locator('.overview-chart').waitFor();
+    assert.equal(f.db.prepare('SELECT encrypted_data FROM net_worth_history_cache').get().encrypted_data,cached);
+    for (const width of [1120,390,320]) {
+      await page.setViewportSize({width,height:width===390?875:900});
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+      await screenshot(page,'reconstructed-history',width);
+      if(width===390) {
+        const geometry = await page.evaluate(()=>({transaction:document.querySelector('#transaction-list .transaction-copy strong').getBoundingClientRect().bottom,navigation:document.querySelector('.mobile-navigation').getBoundingClientRect().top}));
+        assert.ok(geometry.transaction<=geometry.navigation,`first transaction description is visible above phone navigation: ${JSON.stringify(geometry)}`);
+      }
+    }
+    await detail(f,origin,account);
+    await preview(f,file('correction.csv',[`${day(1)},Additional purchase,-10,history-four`]));
+    await page.locator('#import-next').click();
+    await page.locator('#account-import-dialog[open]').waitFor({state:'hidden'});
+    assert.equal(f.db.prepare('SELECT count(*) n FROM net_worth_history_cache').get().n,0);
+    await page.goto(origin+'/dashboard'); await page.locator('.overview-chart').waitFor();
+    const corrected = f.calls.filter(call=>call.path==='/net-worth').at(-1).response;
+    assert.equal(corrected.points[0].total,935);
+    assert.equal(corrected.total,1000,'historical imports do not double-apply against end-of-day anchor');
+    assert.notEqual(f.db.prepare('SELECT encrypted_data FROM net_worth_history_cache').get().encrypted_data,cached);
+    assert.deepEqual(f.errors,[]);
+  });
+
   await t.test('creation has responsive dated balance fields, safe default zero, cancellation and focus restoration', async t => {
     const f = await fixture(t, browser, origin);
     const { page } = f;

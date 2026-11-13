@@ -6,7 +6,7 @@ export interface DashboardUser {
   username: string;
 }
 
-export interface NetWorthPoint { date: string; total: number }
+export interface NetWorthPoint { date: string; total: number; source?: "observed" | "reconstructed" }
 
 const dayMs = 86_400_000;
 const usd = (value: number): string => new Intl.NumberFormat("en-US", {
@@ -36,12 +36,16 @@ export function formatNetWorthChange(points: NetWorthPoint[]): string {
   const change = Math.round(points[points.length - 1].total * 100) - Math.round(first * 100);
   const sign = change > 0 ? "+" : change < 0 ? "−" : "";
   const percentage = first > 0 ? ` (${sign}${(Math.abs(change) / (first * 100) * 100).toFixed(1)}%)` : "";
-  return `${sign}${usd(Math.abs(change) / 100)}${percentage} since first observation`;
+  return `${sign}${usd(Math.abs(change) / 100)}${percentage} since first history point`;
 }
 
 export function renderNetWorthHistory(records: NetWorthPoint[], now = new Date()): string {
   const points = validPoints(records, now);
-  if (points.length < 2) return `<div class="overview-history-state"><h3>Not enough history yet</h3><p>The trend will appear after balances are recorded on two different days. Observations are saved when you open Overview; past balances are not reconstructed from transactions.</p></div>`;
+  const reconstructedCount = points.filter(point => point.source === "reconstructed").length;
+  const observationCount = points.length - reconstructedCount;
+  const counts = `${observationCount} saved observation${observationCount === 1 ? "" : "s"}${reconstructedCount ? `; ${reconstructedCount} reconstructed estimated day${reconstructedCount === 1 ? "" : "s"}` : ""}.`;
+  const reconstructionNote = "Reconstructed points assume complete posted imports and are not verified.";
+  if (points.length < 2) return `<div class="overview-history-state"><h3>Not enough history yet</h3><p>History needs a dated verified balance plus complete posted imports for each supported cash, credit or loan account, or observations saved by opening Overview on two different days. Historical investment valuations are required for investment accounts.</p>${reconstructedCount ? `<p>${counts} ${reconstructionNote}</p>` : ""}</div>`;
   const { start, end } = historyWindow(now);
   const values = points.map(point => point.total);
   const low = Math.min(...values), high = Math.max(...values);
@@ -58,12 +62,13 @@ export function renderNetWorthHistory(records: NetWorthPoint[], now = new Date()
     return `<span>${new Intl.DateTimeFormat("en-GB", { month: "short", ...(i === 0 || i === 4 ? { year: "2-digit" as const } : {}), timeZone: "UTC" }).format(date)}</span>`;
   }).join("");
   const first = points[0], last = points[points.length - 1];
-  return `<p class="overview-chart-label">Saved balance history</p><div class="overview-chart-plot">
-    <svg class="overview-chart" viewBox="0 0 700 160" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(`Recorded net worth from ${first.date}, ${usd(first.total)}, to ${last.date}, ${usd(last.total)}. ${points.length} saved observations.`)}" data-observation-count="${points.length}">
+  const endpoint = (point: NetWorthPoint): string => `${point.date}, ${usd(point.total)}${point.source === "reconstructed" ? " (reconstructed estimate)" : " (observed)"}`;
+  return `<p class="overview-chart-label">${reconstructedCount ? observationCount ? "Observed and reconstructed history" : "Reconstructed history (estimated)" : "Saved balance history"}</p><div class="overview-chart-plot${reconstructedCount ? " overview-chart-reconstructed" : ""}">
+    <svg class="overview-chart" viewBox="0 0 700 160" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(`Net worth history from ${endpoint(first)}, to ${endpoint(last)}. ${counts} Lines across gaps connect history points.`)}" data-observation-count="${observationCount}" data-reconstructed-count="${reconstructedCount}">
       ${ticks.map(value => `<line x1="0" y1="${y(value)}" x2="700" y2="${y(value)}" class="overview-chart-grid"/>`).join("")}
       <polyline points="${coordinates}" class="overview-chart-line"/>
     </svg><div class="overview-chart-values" aria-hidden="true">${ticks.map(value => `<span>${compact(value)}</span>`).join("")}</div>
-  </div><div class="overview-chart-dates" aria-hidden="true">${labels}</div><p class="overview-history-note">Recorded when Overview opens; gaps connect saved observations.</p>`;
+  </div><div class="overview-chart-dates" aria-hidden="true">${labels}</div><p class="overview-history-note">${reconstructedCount ? reconstructionNote : "Recorded when Overview opens; gaps connect saved observations."}</p>`;
 }
 
 interface NetWorthSummary {
@@ -74,14 +79,21 @@ interface NetWorthSummary {
   excludedAccountCount: number;
   unknownBalanceCount: number;
   points: NetWorthPoint[];
+  history?: { reconstructedPointCount: number; eligibleAccountCount: number; unsupportedAccountCount: number };
 }
 
 function isNetWorthSummary(value: unknown): value is NetWorthSummary {
   if (!value || typeof value !== "object") return false;
   const body = value as Record<string, unknown>;
+  const validCount = (count: unknown): boolean => typeof count === "number" && Number.isSafeInteger(count) && count >= 0;
+  if (body.history !== undefined) {
+    if (!body.history || typeof body.history !== "object") return false;
+    const history = body.history as Record<string, unknown>;
+    if (![history.reconstructedPointCount, history.eligibleAccountCount, history.unsupportedAccountCount].every(validCount)) return false;
+  }
   return body.currencyCode === "USD" && (body.total === null || typeof body.total === "number" && Number.isFinite(body.total)) &&
-    [body.accountCount, body.includedAccountCount, body.excludedAccountCount, body.unknownBalanceCount].every(count => typeof count === "number" && Number.isSafeInteger(count) && count >= 0) &&
-    Array.isArray(body.points) && body.points.length <= 365 && body.points.every(point => point && typeof point.date === "string" && typeof point.total === "number" && Number.isFinite(point.total));
+    [body.accountCount, body.includedAccountCount, body.excludedAccountCount, body.unknownBalanceCount].every(validCount) &&
+    Array.isArray(body.points) && body.points.length <= 365 && body.points.every(point => point && typeof point.date === "string" && typeof point.total === "number" && Number.isFinite(point.total) && (point.source === undefined || point.source === "observed" || point.source === "reconstructed"));
 }
 
 export async function initializeOverviewNetWorth(signal?: AbortSignal): Promise<void> {
@@ -103,6 +115,7 @@ export async function initializeOverviewNetWorth(signal?: AbortSignal): Promise<
     const notices: string[] = [];
     if (body.excludedAccountCount) notices.push(`${body.excludedAccountCount} non-USD or unknown-currency account${body.excludedAccountCount === 1 ? "" : "s"} excluded.`);
     if (body.unknownBalanceCount) notices.push(`${body.unknownBalanceCount} USD account balance${body.unknownBalanceCount === 1 ? " is" : "s are"} missing; no observation saved.`);
+    if (body.history?.unsupportedAccountCount) notices.push(`${body.history.unsupportedAccountCount} included USD account${body.history.unsupportedAccountCount === 1 ? " cannot" : "s cannot"} be reconstructed: cash, credit and loan accounts need a dated verified balance and complete posted imports; investment accounts need historical investment valuations. Aggregate reconstruction requires history for all included USD accounts; saved observations remain available.`);
     if (coverage) coverage.textContent = notices.join(" ");
     const points = validPoints(body.points, new Date());
     if (change) change.textContent = formatNetWorthChange(points);

@@ -2885,6 +2885,7 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
   #overview-net-worth-change { font-size: 14px; }
   .overview-history { margin-top: 16px; }
   .overview-chart, .overview-chart-plot { height: 140px; }
+  .overview-chart-reconstructed, .overview-chart-reconstructed .overview-chart { height: 120px; }
   .overview-chart-label { font-size: 12px; letter-spacing: 0; text-transform: none; }
   .overview-chart-values { font-size: 13px; }
   .overview-chart-dates { font-size: 12px; }
