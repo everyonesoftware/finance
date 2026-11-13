@@ -208,9 +208,13 @@ export function renderAccountDetail(
         <p>${escapeHtml(accountType)} · ${mask}</p>
         ${account.officialName ? `<span>${escapeHtml(account.officialName)}</span>` : ""}
       </div>
-      <div class="account-detail-balances">
-        <div><span>Current balance</span><strong>${escapeHtml(formatAccountBalance(account))}</strong></div>
-        ${account.canImport ? `<div class="account-balance-controls"><span>${account.balanceReference ? `${account.balanceReference.verified ? "Reference" : "Default balance · not verified"} · end of ${escapeHtml(account.balanceReference.date)}` : "Set a known balance and date"}</span><button id="set-account-balance" class="secondary-button" type="button">Set balance</button></div>` : `<div><span>Available balance</span><strong>${escapeHtml(formatBalance(account.availableBalance, account.currencyCode))}</strong></div>`}
+      <div class="account-detail-balances${account.canImport ? " account-detail-balances-manual" : ""}">
+        <div>
+          <div class="account-balance-heading"><span>Current balance</span>${account.canImport ? `<button id="account-balance-options" class="account-balance-options" type="button" aria-label="Balance options" popovertarget="account-balance-menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>` : ""}</div>
+          <strong>${escapeHtml(formatAccountBalance(account))}</strong>
+          ${account.canImport ? `<span class="account-balance-reference">${account.balanceReference ? `${account.balanceReference.verified ? "Reference" : "Default balance · not verified"} · end of ${escapeHtml(account.balanceReference.date)}` : "Set a known balance and date"}</span><div id="account-balance-menu" class="account-balance-menu" popover="auto" aria-label="Balance options"><button id="set-account-balance" type="button">Set balance</button></div>` : ""}
+        </div>
+        ${account.canImport ? "" : `<div><span>Available balance</span><strong>${escapeHtml(formatBalance(account.availableBalance, account.currencyCode))}</strong></div>`}
       </div>
       <p class="account-detail-updated">${account.source === "manual" ? "Manually maintained account · Updated" : "Account details retrieved"} ${escapeHtml(updatedLabel)}</p>
     </section>

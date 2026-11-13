@@ -85,7 +85,11 @@ async function poll(check, message) {
 }
 async function detail(f, origin, account) {
   await f.page.goto(origin + '/accounts/' + account.id);
-  await f.page.locator('#set-account-balance').waitFor();
+  await f.page.locator('#account-balance-options').waitFor();
+}
+async function openBalance(page) {
+  await page.locator('#account-balance-options').click();
+  await page.locator('#set-account-balance').click();
 }
 async function preview(f, upload = statement) {
   await f.page.locator('#import-transactions').click();
@@ -230,7 +234,7 @@ test('balance workflows through real Vite frontend and in-memory production rout
     await form.locator('[name=name]').fill('Default-zero checking');
     await form.locator('[name=institutionName]').fill('Example Test Bank');
     await form.locator('button[type=submit]').click();
-    await page.locator('#set-account-balance').waitFor();
+    await page.locator('#account-balance-options').waitFor();
     const [created] = await f.accounts();
     assert.ok(page.url().endsWith('/accounts/' + created.id), 'creation navigates to detail');
     assert.equal(created.currentBalance, 0);
@@ -244,22 +248,72 @@ test('balance workflows through real Vite frontend and in-memory production rout
     assert.deepEqual(f.errors, []);
   });
 
+  await t.test('integrated balance options work with touch, keyboard, dismissal and saving at every breakpoint', async t => {
+    const f = await fixture(t, browser, origin);
+    const account = await f.create();
+    const { page } = f;
+    for (const width of [1120, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await detail(f, origin, account);
+      const options = page.getByRole('button', { name: 'Balance options', exact: true });
+      const menu = page.locator('#account-balance-menu');
+      assert.equal(await page.locator('.account-detail-balances > div').count(), 1);
+      const target = await options.boundingBox();
+      assert.ok(target.width >= 44 && target.height >= 44);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+      await options.focus();
+      await page.keyboard.press('Enter');
+      await menu.waitFor({ state: 'visible' });
+      await poll(() => options.getAttribute('aria-expanded').then(value => value === 'true'), 'expanded state matches open popover');
+      const box = await menu.boundingBox();
+      assert.ok(box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= 900);
+      await page.keyboard.press('Escape');
+      await menu.waitFor({ state: 'hidden' });
+      assert.equal(await options.evaluate(el => el === document.activeElement), true);
+      await options.click();
+      await page.locator('.account-detail-heading h1').click();
+      await menu.waitFor({ state: 'hidden' });
+      await options.click();
+      await page.keyboard.press('Tab');
+      assert.equal(await page.locator('#set-account-balance').evaluate(el => el === document.activeElement), true);
+      await page.keyboard.press('Enter');
+      await page.locator('#account-balance-dialog[open]').waitFor();
+      assert.equal(await menu.isVisible(), false);
+      await geometry(page, '#account-balance-dialog', width, true);
+      await page.locator('#cancel-account-balance').click();
+      await poll(() => options.evaluate(el => el === document.activeElement), 'cancel returns focus');
+      await openBalance(page);
+      await page.keyboard.press('Escape');
+      await poll(() => options.evaluate(el => el === document.activeElement), 'dialog Escape returns focus');
+      await openBalance(page);
+      await page.locator('#account-balance-form [name=currentBalance]').fill('1234.56');
+      await page.locator('#account-balance-form [name=balanceDate]').fill(referenceDate);
+      await page.locator('#save-account-balance').click();
+      await page.locator('.account-detail-balances strong').filter({ hasText: money(1234.56) }).waitFor();
+      assert.equal((await f.saved(account.id)).currentBalance, 1234.56);
+      await screenshot(page, 'integrated-options', width);
+      await page.locator('#account-balance-options').click();
+      await screenshot(page, 'integrated-menu', width);
+    }
+    assert.deepEqual(f.errors, []);
+  });
+
   await t.test('set balance persists and reanchors saved activity, cancellation, real server failure and retry', async t => {
     const f = await fixture(t, browser, origin);
     const account = await f.create();
     await detail(f, origin, account);
     const { page } = f;
-    await page.locator('#set-account-balance').click();
+    await openBalance(page);
     const form = page.locator('#account-balance-form');
     await form.locator('[name=currentBalance]').fill('500.25');
     await page.locator('#cancel-account-balance').click();
-    assert.equal(await page.locator('#set-account-balance').evaluate(el => el === document.activeElement), true);
+    await poll(() => page.locator('#account-balance-options').evaluate(el => el === document.activeElement), 'cancel restores visible balance options');
     assert.equal((await f.saved(account.id)).currentBalance, 1000);
-    await page.locator('#set-account-balance').click();
+    await openBalance(page);
     await page.keyboard.press('Escape');
     assert.equal(await page.locator('#account-balance-dialog').evaluate(el => el.open), false);
-    assert.equal(await page.locator('#set-account-balance').evaluate(el => el === document.activeElement), true);
-    await page.locator('#set-account-balance').click();
+    await poll(() => page.locator('#account-balance-options').evaluate(el => el === document.activeElement), 'Escape restores visible balance options');
+    await openBalance(page);
     await form.locator('[name=currentBalance]').fill('500.25');
     await form.locator('[name=balanceDate]').fill(referenceDate);
     f.db.exec("CREATE TRIGGER fail_balance BEFORE UPDATE ON bank_account BEGIN SELECT RAISE(ABORT,'synthetic balance failure'); END");
@@ -280,7 +334,7 @@ test('balance workflows through real Vite frontend and in-memory production rout
     await page.locator('#import-next').click();
     await page.locator('#account-import-dialog[open]').waitFor({ state: 'hidden' });
     assert.equal((await f.saved(account.id)).currentBalance, 500.25 - 25 + 100);
-    await page.locator('#set-account-balance').click();
+    await openBalance(page);
     await page.locator('#account-balance-form [name=currentBalance]').fill('800');
     await page.locator('#account-balance-form [name=balanceDate]').fill('2020-01-16');
     await page.locator('#save-account-balance').click();
@@ -331,7 +385,7 @@ test('balance workflows through real Vite frontend and in-memory production rout
     assert.equal((await readback.json()).transactions.length, 4, 'historical rows are saved but not double counted');
     await page.locator('.account-detail-balances strong').filter({ hasText: money(expectedBalance) }).waitFor();
     await page.reload();
-    await page.locator('#set-account-balance').waitFor();
+    await page.locator('#account-balance-options').waitFor();
     const repeated = await preview(f);
     assert.equal(repeated.duplicates, 4);
     assert.equal(repeated.importable, 0);
@@ -387,11 +441,11 @@ test('balance workflows through real Vite frontend and in-memory production rout
     await form.locator('[name=currentBalance]').fill('1000');
     await form.locator('[name=balanceDate]').fill(referenceDate);
     await form.locator('button[type=submit]').click();
-    await page.locator('#set-account-balance').waitFor();
+    await page.locator('#account-balance-options').waitFor();
     const [account] = await f.accounts();
     assert.deepEqual(account.balanceReference, { amount: 1000, date: referenceDate, verified: true });
     assert.equal(account.type, 'credit');
-    await page.locator('#set-account-balance').click();
+    await openBalance(page);
     assert.equal(await page.locator('#account-balance-form [name=currentBalance]').locator('..').locator('span').innerText(), 'Amount owed (USD)');
     await page.keyboard.press('Escape');
     const result = await preview(f);
@@ -461,14 +515,14 @@ test('balance workflows through real Vite frontend and in-memory production rout
     await detail(f, origin, account);
     assert.match(await f.page.locator('.account-detail-balances').innerText(), /Balance not set/);
     assert.doesNotMatch(await f.page.locator('.account-detail-balances').innerText(), /Available balance|Default balance/);
-    await f.page.locator('#set-account-balance').click();
+    await openBalance(f.page);
     await f.page.locator('#account-balance-form [name=currentBalance]').fill('0');
     await f.page.locator('#account-balance-form [name=balanceDate]').fill(referenceDate);
     await f.page.locator('#save-account-balance').click();
     await f.page.locator('#account-balance-dialog[open]').waitFor({ state: 'hidden' });
     assert.deepEqual((await f.saved(account.id)).balanceReference, { amount: 0, date: referenceDate, verified: true });
     await f.page.reload();
-    await f.page.locator('#set-account-balance').waitFor();
+    await f.page.locator('#account-balance-options').waitFor();
     assert.match(await f.page.locator('.account-detail-balances').innerText(), /\$0\.00/);
     assert.doesNotMatch(await f.page.locator('.account-detail-balances').innerText(), /Balance not set|not verified/);
     assert.deepEqual(f.errors, []);

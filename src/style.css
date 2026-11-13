@@ -2489,8 +2489,15 @@ a.text-button {
 .balance-reference-fields input { width: 100%; min-width: 0; min-height: 46px; font-size: 16px; }
 .balance-reference-hint { margin: 0 0 18px; color: #626b60; font-size: 13px; line-height: 1.6; }
 .account-balance-dialog .account-workflow { height: auto; max-height: calc(100dvh - 36px); }
-.account-balance-controls { gap: 10px; align-items: flex-start; }
-.account-balance-controls .secondary-button { min-height: 44px; }
+.account-detail-balances.account-detail-balances-manual { grid-template-columns: minmax(0, 1fr); }
+.account-balance-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; }
+.account-balance-options { display: inline-grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; margin: -8px -8px -8px 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: #737970; }
+.account-balance-options:hover { background: #eaf2e9; color: #2e6749; }
+.account-balance-options:focus-visible, .account-balance-menu button:focus-visible { outline: 2px solid #2e6749; outline-offset: 2px; }
+.account-balance-reference { line-height: 1.6; overflow-wrap: anywhere; }
+.account-balance-menu { position: fixed; inset: auto; margin: 0; padding: 5px; min-width: 148px; max-width: calc(100vw - 16px); border: 1px solid #dfe5dd; border-radius: 8px; background: #fff; color: #20251f; box-shadow: 0 6px 20px #20251f14; }
+.account-balance-menu button { display: block; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; font-size: 12px; }
+.account-balance-menu button:hover { background: #eaf2e9; color: #2e6749; }
 .connected-account-info .account-balance-default { color: #2e6749; }
 .account-workflow-actions button { min-height: 44px; }
 .balance-impact { margin: 18px 0; padding: 18px; border: 1px solid #dfe7db; border-left: 3px solid #2e6749; border-radius: 0 8px 8px 0; background: #f4f8f1; }

@@ -36,6 +36,17 @@ test('single import preview contains a real balance calculation slot, not fixed-
  assert.doesNotMatch(html,/Your account balance will not change/);
 });
 
+test('manual balance options and reference share a single current-balance panel', () => {
+ const html=renderAccountDetail(account,[]);
+ assert.match(html,/account-detail-balances account-detail-balances-manual/);
+ assert.match(html,/id="account-balance-options"[^>]*aria-label="Balance options"[^>]*popovertarget="account-balance-menu"/);
+ assert.match(html,/id="account-balance-menu"[^>]*popover="auto"/);
+ assert.match(html,/class="account-balance-reference"/);
+ assert.doesNotMatch(html,/account-balance-controls/);
+ const saved=renderAccountDetail({...account,source:'saved',canImport:false},[]);
+ assert.doesNotMatch(saved,/id="account-balance-options"|id="account-balance-menu"/);
+});
+
 test('a credit overpayment is an asset, not more debt', () => {
  const overpaid = { ...account, type: 'credit', currentBalance: -50 };
  assert.equal(getTotalBalance([overpaid]),50);

@@ -73,11 +73,29 @@ export function initializeAccountBalance(account: BankAccount, onSaved: (account
   const cancel = document.querySelector<HTMLButtonElement>("#cancel-account-balance");
   const submit = document.querySelector<HTMLButtonElement>("#save-account-balance");
   const trigger = document.querySelector<HTMLButtonElement>("#set-account-balance");
+  const options = document.querySelector<HTMLButtonElement>("#account-balance-options");
+  const menu = document.querySelector<HTMLElement>("#account-balance-menu");
   if (!dialog || !form || !submit || !cancel || !trigger) return;
   const active = () => !signal?.aborted && dialog.isConnected !== false && form.isConnected !== false;
   let busy = false;
   const showError = (message = "") => { if (error) { error.textContent = message; error.hidden = !message; } };
-  trigger.addEventListener("click", () => { if (active() && !busy) { showError(); dialog.showModal(); } });
+  menu?.addEventListener("beforetoggle", event => {
+    if ((event as ToggleEvent).newState !== "open" || !options) return;
+    const bounds = options.getBoundingClientRect();
+    menu.style.top = `${bounds.bottom + 4}px`;
+    menu.style.right = `${Math.max(8, window.innerWidth - bounds.right)}px`;
+  }, { signal });
+  menu?.addEventListener("toggle", event => {
+    options?.setAttribute("aria-expanded", String((event as ToggleEvent).newState === "open"));
+  }, { signal });
+  trigger.addEventListener("click", () => {
+    if (active() && !busy) {
+      menu?.hidePopover();
+      showError();
+      dialog.showModal();
+    }
+  });
+  dialog.addEventListener("close", () => { if (active()) options?.focus(); });
   cancel.addEventListener("click", () => { if (active() && !busy) dialog.close(); });
   dialog.addEventListener("cancel", event => { if (busy) event.preventDefault(); });
   form.addEventListener("submit", async event => {
