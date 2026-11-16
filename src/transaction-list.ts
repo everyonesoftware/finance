@@ -283,7 +283,7 @@ function creditBatchCandidate(
   const ordinal = date ? dateOrdinal(date) : null;
   const account = accountId ? accountsByProviderId.get(accountId) : undefined;
   // Match only observed descriptors and their expected account types.
-  const type = name && /^APA\s+TREAS\s+310\s+MISC\s+PAY\s*~\s*Future Amount:\s*\d+(?:\.\d{1,2})?\s*~\s*Tran:\s*DDIR$/i.test(name)
+  const type = name && /^APA\s+TREAS\s+310\s+MISC\s+PAY\s*~\s*Future Amount:\s*(?:\d+(?:\.\d{1,2})?|\.\d{1,2})\s*~\s*Tran:\s*DDIR$/i.test(name)
     && account?.type === "depository" ? "treasury-payment"
     : name && /^CREDIT-TRAVEL\s+REWARD\s+CREDIT-TRAVEL\s+REWARD$/i.test(name)
       && account?.type === "credit" && account.subtype === "credit card"

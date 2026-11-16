@@ -44,6 +44,25 @@ test("same-day TreasuryDirect credits render one batch with every original payme
   assert.deepEqual(records, before);
 });
 
+test("TreasuryDirect credits with omitted leading zeros join the complete same-day batch", () => {
+  const fractional = [".88", ".01", "0.88"].map((amount, index) => ({
+    ...records[0], transaction_id: `fractional-${index}`,
+    name: `APA TREAS 310 MISC PAY~ Future Amount: ${amount} ~ Tran: DDIR`,
+    amount: -Number(amount),
+  }));
+  for (const input of [[...records, ...fractional], [...fractional, ...records].reverse()]) {
+    const groups = groupInternalTransfers(input, [account]);
+    assert.equal(groups.length, 1);
+    assert.equal(groups[0].type, "treasury-payment");
+    assert.deepEqual(groups[0].transactions, input);
+    assert.equal(getTransactionGroupAmount(groups[0]), 218.53);
+    const html = renderTransactionList(input, [account]);
+    assert.match(html, /Bond payments · 12 transactions/);
+    assert.match(html, /class="transfer-pair-amount">\$218\.53/);
+    for (const original of fractional) assert.ok(html.includes(original.name));
+  }
+});
+
 test("Overview takes five recent groups only after collecting the full TreasuryDirect batch", () => {
   assert.equal(typeof transactionList.renderRecentTransactionList, "function");
   const purchases = Array.from({ length: 6 }, (_, index) => ({
