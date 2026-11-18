@@ -90,6 +90,21 @@ jobs:
         with:
           node-version: '24'
 
+      - name: Set up Node.js for Services payload capture
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Set up Node.js for Services payload capture
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Set up Node.js for Services payload capture
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
       - name: Build and push image
         id: services_push
         uses: docker/build-push-action@v6
@@ -100,6 +115,18 @@ jobs:
             APP_VERSION=${{ steps.version.outputs.version }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+
+
+
+
+
+
+
+
+
+
+
+
 
       - name: Capture original Services publication metadata
         id: services_capture
