@@ -7,14 +7,16 @@ import { chromium } from "playwright";
 
 // Isolated browser-only fixtures. No user database, credentials, or real financial APIs.
 const dist = resolve(process.env.FINANCE_BROWSER_DIST ?? "dist");
-const temporary = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), "finance-pwa-browser-"));
+// Run the no-PWA/browser-network checks independently of unrelated layout gates.
+const absenceOnly = process.argv.includes('--absence-only');
+const temporary = await mkdtemp(join(process.env.TMPDIR ?? tmpdir(), "finance-web-browser-"));
 const account = { id: "demo-checking", providerAccountId: "demo-checking", itemId: "demo-item", name: "Checking", officialName: null, institutionName: "Example Bank", mask: "1234", type: "depository", subtype: "checking", currentBalance: 200, availableBalance: 200, currencyCode: "USD", canImport: true, updatedAt: "2026-11-01T12:00:00Z" };
 const otherAccount = { ...account, id: 'demo-savings', providerAccountId: 'demo-savings', name: 'Savings', mask: '5678', subtype: 'savings', currentBalance: 0, availableBalance: 0 };
 const accounts = [account, otherAccount];
 const transactions = Array.from({ length: 70 }, (_, i) => ({ transaction_id: `demo-${i}`, account_id: account.id, name: `Sample transaction ${i}`, amount: i + 1, date: "2026-11-01", iso_currency_code: "USD" }));
 const user = { id: "demo-user", name: "Preview User", username: "preview", displayUsername: "preview", email: "preview@example.test", emailVerified: true, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
 let signedIn = true;
-let release = 1;
+let workerRequests = 0;
 let offlineMutationAttempts = 0;
 let mutations = 0;
 let releaseAccountPreview;
@@ -23,6 +25,7 @@ let holdBatchPreview = false;
 const mime = { ".html": "text/html", ".js": "text/javascript", ".json": "application/json", ".webmanifest": "application/manifest+json", ".css": "text/css", ".png": "image/png", ".svg": "image/svg+xml" };
 const server = createServer(async (req, res) => {
   const path = new URL(req.url, "http://localhost").pathname;
+  if (path === '/sw.js') workerRequests++;
   res.setHeader("Cache-Control", "no-store");
   const json = body => { res.setHeader("Content-Type", "application/json"); res.end(JSON.stringify(body)); };
   try {
@@ -56,15 +59,11 @@ const server = createServer(async (req, res) => {
       if (path === "/api/real-estate") { json({ properties: [] }); return; }
       res.statusCode = 404; json({ error: "Unknown fixture API" }); return;
     }
-    if (path === "/version.json") {
-      const metadata = JSON.parse(await readFile(join(dist, "version.json"), "utf8"));
-      json(release === 1 ? metadata : { ...metadata, version: "browser-test-next" }); return;
-    }
+
     const file = path === "/" || !extname(path) ? "/index.html" : path;
     const target = resolve(dist, "." + file);
     if (!target.startsWith(dist + "/") && !target.startsWith(dist + "\\")) { res.statusCode = 404; res.end(); return; }
-    let bytes = await readFile(target);
-    if (path === "/sw.js" && release === 2) bytes = Buffer.concat([bytes, Buffer.from("\n// Browser-only alternate release 2\n")]);
+    const bytes = await readFile(target);
     res.setHeader("Content-Type", mime[extname(file)] ?? "application/octet-stream");
     res.end(bytes);
   } catch { res.statusCode = 404; res.end("Not found"); }
@@ -80,6 +79,20 @@ async function waitForFixture(predicate) {
 }
 let context;
 const errors = [];
+async function assertNoPwa(page) {
+  assert.equal(workerRequests, 0, 'fresh pages never request a service worker script');
+  assert.equal(await page.locator('link[rel~="manifest"]').count(), 0, 'no web app manifest link');
+  assert.equal(await page.locator('meta[name="apple-mobile-web-app-capable"], meta[name="mobile-web-app-capable"], link[rel="apple-touch-icon"]').count(), 0, 'no install metadata');
+  assert.equal(await page.locator('#update-title, #check-update, #reload-update, #later-update, #update-badge').count(), 0, 'no App updates UI');
+  assert.deepEqual(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).map(registration => registration.scope)), [], 'fresh visits never register a worker');
+  assert.equal(await page.evaluate(() => navigator.serviceWorker.controller === null), true, 'fresh visits are not worker-controlled');
+  assert.deepEqual(await page.evaluate(() => caches.keys()), [], 'fresh visits create no offline caches');
+  const cdp = await context.newCDPSession(page);
+  try {
+    const manifest = await cdp.send('Page.getAppManifest');
+    assert.equal(manifest.url, '', 'Chromium discovers no install manifest');
+  } finally { await cdp.detach(); }
+}
 try {
   const browserOptions = { headless: true, viewport: { width: 1440, height: 960 }, serviceWorkers: "allow" };
   if (process.platform === "win32") browserOptions.channel = "msedge";
@@ -91,6 +104,7 @@ try {
   page.on("request", request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documentRequests++; });
   await page.goto(origin + "/dashboard");
   await page.locator("#overview-total-balance").filter({ hasText: "$200.00" }).waitFor();
+  await assertNoPwa(page);
   await page.evaluate(() => { window.spaDocumentIdentity = "unchanged"; window.originalSidebar = document.querySelector(".sidebar"); });
   await page.locator('.navigation a[href="/transactions"]').click();
   await page.locator("#all-transactions-list .transaction-row").first().waitFor();
@@ -99,11 +113,11 @@ try {
   await page.locator("#transaction-search").fill("Sample transaction 69");
   await page.locator("#all-transactions-list").filter({ hasText: "Sample transaction 69" }).waitFor();
   await page.locator('.settings-gear:visible').click();
-  await page.locator("#check-update").waitFor();
+  await page.locator("#profile-form").waitFor();
   await page.goBack();
   await page.locator("#transaction-search").waitFor();
   await page.goForward();
-  await page.locator("#check-update").waitFor();
+  await page.locator("#profile-form").waitFor();
   await page.locator('.navigation a[href="/accounts"]').click();
   await page.locator('#connected-accounts a[href="/accounts/demo-checking"]').first().click();
   await page.locator('#account-detail-content').filter({ hasText: 'Sample transaction' }).waitFor();
@@ -112,7 +126,7 @@ try {
   await page.locator('.navigation a[href="/real-estate"]').click();
   await page.locator('#real-estate-properties').waitFor();
   await page.locator('.settings-gear:visible').click();
-  await page.locator('#check-update').waitFor();
+  await page.locator('#profile-form').waitFor();
   assert.equal(documentRequests, 1, "links and Back/Forward must not request another document");
   console.log("PASS single-page navigation, persistent sidebar, search, Back/Forward, account details and Real Estate");
 
@@ -169,82 +183,52 @@ try {
   await lifecycle.close();
   console.log('PASS real file-input previews remain isolated across account/page navigation');
 
-  await page.evaluate(async () => { await navigator.serviceWorker.ready; });
-  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
-  await page.locator("#check-update").click();
-  await page.locator("#update-badge").filter({ hasText: "Up to date" }).waitFor();
-  const cdp = await context.newCDPSession(page);
-  const manifest = await cdp.send("Page.getAppManifest");
-  assert.equal(manifest.errors.length, 0, JSON.stringify(manifest.errors));
-  const installability = await cdp.send("Page.getInstallabilityErrors");
-  assert.deepEqual(installability.installabilityErrors, [], JSON.stringify(installability));
-  const caches = await page.evaluate(async () => {
-    const result = [];
-    for (const name of await window.caches.keys()) {
-      for (const request of await (await window.caches.open(name)).keys()) result.push(new URL(request.url).pathname);
-    }
-    return result;
-  });
-  assert.ok(caches.includes("/offline.html"));
-  assert.ok(caches.every(path => path === "/offline.html" || /\.(png|svg|webmanifest)$/.test(path)), JSON.stringify(caches));
-  console.log("PASS real worker registration, manual current check, manifest/installability, public-only cache", JSON.stringify(caches));
-
-  const other = await context.newPage();
-  await other.goto(origin + "/settings");
-  await other.locator("#check-update").waitFor();
-  await other.evaluate(() => { window.otherDocumentIdentity = "stable"; });
-  release = 2;
-  await page.locator("#check-update").click();
-  await page.locator("#update-badge").filter({ hasText: "Update available" }).waitFor();
-  await page.waitForFunction(async () => Boolean((await navigator.serviceWorker.getRegistration()).waiting));
-  assert.equal(documentRequests, 1, "discovery must not reload");
-  await page.locator("#later-update").click();
-  assert.equal(documentRequests, 1, "Later must not reload");
-  await page.locator("#check-update").click();
-  await page.locator("#reload-update").waitFor({ state: "visible" });
-  await Promise.all([page.waitForEvent("load"), page.locator("#reload-update").click()]);
-  await page.locator("#check-update").waitFor();
-  assert.equal(documentRequests, 2, "only explicit apply reloads");
-  assert.equal(await other.evaluate(() => window.otherDocumentIdentity), "stable", "applying in another tab must not discard this tab");
-  await other.close();
-  console.log("PASS real waiting worker, Later, explicit activation/reload, other-tab draft safety");
-
-  await context.setOffline(true);
-  await page.locator("#check-update").click();
-  await page.locator("#update-badge").filter({ hasText: "Offline" }).waitFor();
+  await assertNoPwa(page);
+  console.log('PASS fresh browser has no manifest, install metadata, update UI, worker registration or caches');
+  for (const path of ['/manifest.webmanifest', '/offline.html', '/version.json']) {
+    assert.equal(await page.evaluate(async path => (await fetch(path, { cache: 'no-store' })).status, path), 404, `${path} is not published`);
+  }
   const before = mutations;
+  await context.setOffline(true);
   assert.equal(await page.evaluate(async () => { try { await fetch('/api/offline-test', { method: 'POST' }); return true; } catch { return false; } }), false);
-  assert.equal(await page.evaluate(async () => { try { await fetch('/api/accounts', { cache:'no-store' }); return true; } catch { return false; } }), false);
-  await page.goto(origin + "/accounts");
-  assert.match(await page.locator("body").innerText(), /offline|connection|connect/i);
-  assert.doesNotMatch(await page.locator("body").innerText(), /Sample transaction|Preview User|\$200/);
+  assert.equal(await page.evaluate(async () => { try { await fetch('/api/accounts', { cache: 'no-store' }); return true; } catch { return false; } }), false);
+  const offline = await context.newPage();
+  // A browser network failure is required: no cached app shell or offline page.
+  await assert.rejects(offline.goto(origin + '/accounts'), /net::ERR_(INTERNET_DISCONNECTED|FAILED)/);
+  await offline.close();
   await context.setOffline(false);
-  await page.reload();
-  await page.locator("#connected-accounts").filter({ hasText: "Example Bank" }).waitFor();
+  await page.locator('.navigation a[href="/accounts"]').click();
+  await page.locator('#connected-accounts').filter({ hasText: 'Example Bank' }).waitFor();
   assert.equal(mutations, before);
   assert.equal(offlineMutationAttempts, 0);
-  console.log("PASS offline navigation, uncached private API, rejected mutations, reconnect without replay");
+  console.log('PASS no offline navigation fallback, uncached private API, rejected mutations and no replay');
 
-  for (const width of [320,390,801,1440]) {
-    await page.setViewportSize({ width, height: 844 });
-    await page.locator(width <= 800 ? '.mobile-navigation a[href="/transactions"]' : '.navigation a[href="/transactions"]').click();
-    await page.locator("#transaction-search").waitFor();
-    await page.waitForTimeout(70);
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, `Transactions overflow at ${width}`);
-    const gear = page.locator('.settings-gear:visible, .mobile-gear:visible');
-    assert.equal(await gear.count(), 1, `one visible settings gear at ${width}`);
-    const box = await gear.boundingBox();
-    assert.ok(box.width >=44 && box.height >=44);
-    await gear.click();
-    await page.locator("#check-update").waitFor();
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, `Settings overflow at ${width}`);
-    if (process.env.UI_SCREENSHOTS && [390,1440].includes(width)) {
-      await mkdir(process.env.UI_SCREENSHOTS, { recursive: true });
-      await page.screenshot({ path: join(process.env.UI_SCREENSHOTS, `finance-settings-${width}.png`) });
+  if (!absenceOnly) {
+    for (const width of [320,390,801,1440]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.locator(width <= 800 ? '.mobile-navigation a[href="/transactions"]' : '.navigation a[href="/transactions"]').click();
+      await page.locator("#transaction-search").waitFor();
+      await page.waitForTimeout(70);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, `Transactions overflow at ${width}`);
+      const gear = page.locator('.settings-gear:visible, .mobile-gear:visible');
+      assert.equal(await gear.count(), 1, `one visible settings gear at ${width}`);
+      const box = await gear.boundingBox();
+      assert.ok(box.width >=44 && box.height >=44);
+      await gear.click();
+      await page.locator("#profile-form").waitFor();
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, `Settings overflow at ${width}`);
+      if (process.env.UI_SCREENSHOTS && [390,1440].includes(width)) {
+        await mkdir(process.env.UI_SCREENSHOTS, { recursive: true });
+        await page.screenshot({ path: join(process.env.UI_SCREENSHOTS, `finance-settings-${width}.png`) });
+      }
     }
+    console.log("PASS 320/390/801/1440px navigation, gear targets, Transactions/Settings layout");
   }
-  console.log("PASS 320/390/801/1440px navigation, gear targets, Transactions/Settings layout");
   await page.setViewportSize({ width: 1440, height: 960 });
+  if (absenceOnly) {
+    await page.locator('.settings-gear:visible').click();
+    await page.locator('#profile-form').waitFor();
+  }
   await page.locator('#profile-form input[name="name"]').fill("Changed Preview");
   await page.locator('#profile-form button[type="submit"]').click();
   await page.locator("#settings-message").filter({ hasText: "Profile saved" }).waitFor();
@@ -267,6 +251,8 @@ try {
   await page.locator('#auth-form button[type="submit"]').click();
   await page.locator('#overview-total-balance').waitFor();
   console.log("PASS existing profile save, password validation/save, signup switch, logout and login through SPA (isolated API fixtures)");
+  await assertNoPwa(page);
+  console.log('PASS no manifest, install metadata, update UI, worker registrations or offline caches');
   assert.deepEqual(errors, [], "no runtime exceptions");
   console.log("PASS all production browser checks");
 } finally {

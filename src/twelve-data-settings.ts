@@ -1,7 +1,7 @@
 export function renderTwelveDataSettings(): string {
   return `
     <section id="twelve-data-panel" class="settings-card twelve-data-card" aria-labelledby="twelve-data-title">
-      <div class="update-heading"><h2 id="twelve-data-title">Twelve Data</h2><span id="twelve-data-status" class="update-badge" role="status">Loading…</span></div>
+      <div class="settings-heading"><h2 id="twelve-data-title">Twelve Data</h2><span id="twelve-data-status" class="settings-badge" role="status">Loading…</span></div>
       <p>Set up a market-data API key for investment prices.</p>
       <p class="twelve-data-note">Stored encrypted on the Finance server for your user only. Saving does not verify the key, contact Twelve Data, or start price downloads. Price fetching is not available yet.</p>
       <form id="twelve-data-form" method="post" autocomplete="off">

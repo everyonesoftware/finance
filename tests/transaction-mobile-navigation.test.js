@@ -83,14 +83,15 @@ test("Settings is an accessible profile gear, not a workspace or bottom-bar dest
   }
 });
 
-test("profile gears and update card have responsive accessible styling", async () => {
+test("profile gears and settings panels have responsive accessible styling without update UI", async () => {
   const css = await readFile(new URL("../src/style.css", import.meta.url), "utf8");
   assert.match(css, /\.mobile-profile\s*\{\s*display:\s*none/);
   assert.match(css, /\.settings-gear[\s\S]*?width:\s*44px;[\s\S]*?height:\s*44px;/);
   assert.match(css, /\.settings-gear:focus-visible/);
   assert.match(css, /@media\s*\(max-width:\s*800px\)[\s\S]*?\.mobile-profile\s*\{[^}]*display:\s*flex/);
   assert.match(css, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\)/);
-  for (const selector of [".update-heading h2", '.update-badge[data-state="available"]', '.update-badge[data-state="offline"]', ".version-row", ".update-actions", "#update-message"]) {
+  for (const selector of [".settings-heading h2", ".settings-badge"]) {
     assert.ok(css.includes(selector), `missing ${selector}`);
   }
+  assert.doesNotMatch(css, /\.update-(?:heading|badge|actions)\b|\.version-row\b|#update-message\b/, 'obsolete update styles are removed');
 });

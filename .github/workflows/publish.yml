@@ -42,10 +42,10 @@ jobs:
       - name: Test application
         run: npm test
 
-      - name: Install browser for PWA verification
+      - name: Install browser for web verification
         run: npx playwright install --with-deps chromium
 
-      - name: Test production single-page PWA
+      - name: Test production web app
         run: npm run test:browser
 
   publish:

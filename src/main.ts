@@ -16,8 +16,6 @@ import {
 } from "./bank_accounts";
 import { renderRecentTransactionList } from "./transaction-list";
 import { createClientRouter } from "./router.ts";
-import { AppUpdates, type UpdateSnapshot } from "./pwa.ts";
-import { appVersion } from "./app-version.ts";
 import { renderTwelveDataSettings, initializeTwelveDataSettings } from "./twelve-data-settings.ts";
 
 function getAppRoot(): HTMLDivElement {
@@ -43,13 +41,7 @@ let currentUser: AuthUser | null = null;
 let authLoading: boolean = true;
 let authNotice: string = "";
 let pageLifetime = new AbortController();
-const appUpdates = new AppUpdates(appVersion, {
-  enabled: import.meta.env.PROD && window.isSecureContext,
-  serviceWorker: navigator.serviceWorker,
-  isOnline: () => navigator.onLine,
-  fetch: window.fetch.bind(window),
-  reload: () => window.location.reload(),
-});
+
 const router = createClientRouter(() => {
   render();
   const main = app.querySelector<HTMLElement>("main");
@@ -230,19 +222,8 @@ function renderSettings(user: AuthUser, signal: AbortSignal): void {
       <section class="settings-content">
         <p class="eyebrow">YOUR ACCOUNT</p>
         <h1>Settings</h1>
-        <p class="subheading">Manage your app, profile, and sign-in details.</p>
+        <p class="subheading">Manage your settings, profile, and sign-in details.</p>
         <p id="settings-message" class="auth-message" role="status" hidden></p>
-        <section class="settings-card update-card" aria-labelledby="update-title">
-          <div class="update-heading"><h2 id="update-title">App updates</h2><span id="update-badge" class="update-badge">Ready to check</span></div>
-          <p>Check for a new version of Finance.</p>
-          <div class="version-row"><span>Current version</span><strong id="current-version">${escapeHtml(appVersion)}</strong></div>
-          <p id="update-message" role="status" aria-live="polite">Updates are applied only when you choose to reload.</p>
-          <div class="update-actions">
-            <button id="check-update" class="primary-button" type="button">Check for updates</button>
-            <button id="reload-update" class="primary-button" type="button" hidden>Reload to update</button>
-            <button id="later-update" class="secondary-button" type="button" hidden>Later</button>
-          </div>
-        </section>
         ${renderTwelveDataSettings()}
         <section class="settings-card">
           <h2>Profile</h2>
@@ -292,7 +273,6 @@ function renderSettings(user: AuthUser, signal: AbortSignal): void {
     </div>
   `);
 
-  bindAppUpdates(signal);
   initializeTwelveDataSettings(signal);
 
   document
@@ -363,40 +343,6 @@ function renderSettings(user: AuthUser, signal: AbortSignal): void {
     });
 
   attachLogoutHandler(signal);
-}
-
-function bindAppUpdates(signal: AbortSignal): void {
-  const check = document.querySelector<HTMLButtonElement>("#check-update")!;
-  const reload = document.querySelector<HTMLButtonElement>("#reload-update")!;
-  const later = document.querySelector<HTMLButtonElement>("#later-update")!;
-  const badge = document.querySelector<HTMLElement>("#update-badge")!;
-  const message = document.querySelector<HTMLElement>("#update-message")!;
-  let postponed = false;
-  const labels: Record<UpdateSnapshot["status"], string> = {
-    idle: "Ready to check", checking: "Checking", current: "Up to date", available: "Update available",
-    offline: "Offline", error: "Couldn’t check", unsupported: "Unavailable",
-  };
-  const update = (state: UpdateSnapshot): void => {
-    if (signal.aborted) return;
-    badge.textContent = labels[state.status];
-    badge.dataset.state = state.status;
-    message.textContent = state.message;
-    const offered = state.status === "available" && !postponed;
-    check.hidden = offered;
-    check.disabled = state.status === "checking" || Boolean(state.applying);
-    check.textContent = state.status === "checking" ? "Checking…" : postponed && state.status === "available" ? "Show update" : ["error", "offline"].includes(state.status) ? "Try again" : "Check for updates";
-    reload.hidden = !offered;
-    later.hidden = !offered;
-    reload.disabled = later.disabled = Boolean(state.applying);
-  };
-  const unsubscribe = appUpdates.subscribe(update);
-  signal.addEventListener("abort", unsubscribe, { once: true });
-  check.addEventListener("click", () => {
-    if (postponed && appUpdates.snapshot.status === "available") { postponed = false; update(appUpdates.snapshot); }
-    else void appUpdates.check();
-  });
-  reload.addEventListener("click", () => appUpdates.apply());
-  later.addEventListener("click", () => { postponed = true; appUpdates.defer(); });
 }
 
 function showSettingsMessage(text: string, isError: boolean, signal?: AbortSignal): void {
@@ -568,4 +514,3 @@ function render(): void {
 }
 
 void loadSession();
-void appUpdates.start();

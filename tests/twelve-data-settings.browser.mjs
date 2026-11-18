@@ -200,10 +200,9 @@ test('Twelve Data Settings through Vite, production Hono, and migrated in-memory
     assert.equal(await page.locator(ids('save')).isDisabled(), true);
     assert.equal(await page.locator(ids('remove')).isVisible(), false);
     assert.equal(await page.locator(ids('retry')).isVisible(), false);
-    assert.equal(await page.evaluate(() => {
-      const update = document.querySelector('#update-title')?.closest('section');
-      return update?.nextElementSibling?.id === 'twelve-data-panel';
-    }), true, 'Twelve Data panel follows App updates');
+    assert.equal(await page.locator('#update-title, #check-update, #update-badge').count(), 0, 'App updates is absent');
+    assert.equal(await page.locator('#twelve-data-panel .settings-heading').count(), 1, 'Twelve Data keeps its generic settings heading');
+    assert.equal(await page.locator('#twelve-data-status.settings-badge').count(), 1, 'Twelve Data keeps its generic settings badge');
     f.calls.find(call => call.release).release();
     await status(page, 'Not configured');
     assert.equal(await page.locator(ids('key')).isEnabled(), true);

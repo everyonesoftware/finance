@@ -24,8 +24,7 @@ export function registerStaticRoutes(app: Hono, root = './dist'): void {
     const path = context.req.path;
     const accept = context.req.header('Accept') ?? '*/*';
     const destination = context.req.header('Sec-Fetch-Dest');
-    // A navigation forwarded by the service worker has destination "empty".
-    // Keep the HTML/path checks below so APIs and missing bundles never receive the SPA.
+    // APIs and missing bundles must never receive the SPA.
     if (extname(path) || /^\/(?:assets|icons)(?:\/|$)/.test(path) || path.includes('%') ||
         (destination && destination !== 'document' && destination !== 'iframe' && destination !== 'empty') ||
         (!accept.includes('text/html') && !accept.includes('*/*'))) {

@@ -50,7 +50,7 @@ New dated balance references and amounts used in their calculations support at m
 
 New accounts left at the default zero are marked **Default balance · not verified**. Existing missing balances are not silently replaced with zero: open the account and choose **Set balance**. Existing undated snapshots remain fixed until you explicitly set a dated reference. Replacing the reference recalculates the balance using saved later transactions, without deleting or re-importing history. Investment values remain manually set: importing cash activity cannot reconstruct portfolio valuations. No past net-worth observations or verified historical balances are inferred from incomplete imports. Existing compatible saved-provider snapshots and transactions remain read-only, with no imports or balance edits into those archived accounts. All reads and writes are scoped to the signed-in user; references, account data, and imported transactions are encrypted at rest.
 
-The app has no bank-data provider integration. Connecting banks, refreshing remote balances, and automatic syncing are unavailable; imports make no external requests. Previously saved timestamps indicate when data was last retrieved, not a live balance. Settings contains app updates, Twelve Data key management, profile, password, and sign-out controls.
+The app has no bank-data provider integration. Connecting banks, refreshing remote balances, and automatic syncing are unavailable; imports make no external requests. Previously saved timestamps indicate when data was last retrieved, not a live balance. Settings contains Twelve Data key management, profile, password, and sign-out controls.
 
 ### Brokerage accounts and holdings snapshots
 
@@ -90,15 +90,15 @@ npm run preview
 
 The optimized static site is written to `dist`.
 
-### Single-page app, installation, and updates
+### Single-page web app
 
 Finance navigates between pages without reloading the document, including account details, sign-in, and sign-out. Normal URLs, direct links, browser Back/Forward, and opening links in a new tab remain available.
 
-Production builds include a web app manifest and service worker. Serve Finance over HTTPS (or localhost) to enable PWA support; use the browser's **Install app** or **Add to Home Screen** action where supported. The Vite development server does not register the production worker.
+Finance is a regular browser-based web app, without an install manifest, standalone-app metadata, service-worker registration, or offline page. It requires a connection to the Finance server. The application version remains visible beside your profile.
 
-Open **Settings** using the gear beside your profile at the bottom left (beside your name in the mobile header). **App updates → Check for updates** checks the deployed build and worker. When a new version is ready, choose **Reload to update** or **Later**. Discovery never automatically reloads an open session, and applying from another tab does not reload this tab. Finish unsaved changes before applying an update. Publishing a container image alone does not update a running server: deploy the new image before checking for it in Finance.
+Deploy the new container image to update the server, then refresh the browser after finishing unsaved changes. There are no in-app update checks, background update downloads, or automatic reloads. Publishing a container image alone does not update a running server.
 
-Offline support is deliberately limited to a public disconnected page with **Retry connection**. Financial records, API responses, authenticated screens, and pending writes are not cached or queued for offline use. Reconnect to read or change your finances. The worker's Cache Storage contains only `/offline.html`, and cleanup is restricted to Finance's own offline caches. HTML, worker, and update metadata revalidate; frontend bundles use `no-store`.
+The former `/sw.js` URL serves only a retirement script for browsers that previously registered Finance's worker. When the browser updates that existing registration, the script deletes only `finance-pwa-offline-*` caches and unregisters itself; it does not intercept requests, cache responses, claim tabs, or reload pages. Keep this endpoint available for returning users. Existing home-screen or desktop shortcuts may need to be removed manually. Financial records and pending writes are not cached or queued for offline use. HTML revalidates; frontend bundles use `no-store`.
 
 ## Tests
 
@@ -116,7 +116,7 @@ npx playwright install chromium
 npm run test:browser
 ```
 
-On Windows the browser suite uses installed Microsoft Edge by default; set `PLAYWRIGHT_CHANNEL` to override the channel. It verifies same-document navigation, existing authentication/profile interactions, manifest/installability, actual worker updates and explicit reload, offline privacy/no replay, and desktop/mobile layout. Set `UI_SCREENSHOTS` to an output directory to retain Settings screenshots. CI runs both the regular test suite and this production browser suite before publishing.
+On Windows the browser suite uses installed Microsoft Edge by default; set `PLAYWRIGHT_CHANNEL` to override the channel. It verifies same-document navigation, existing authentication/profile interactions, absence of PWA registration/install metadata/offline fallback, retirement of existing workers, and desktop/mobile layout. Set `UI_SCREENSHOTS` to an output directory to retain Settings screenshots. CI runs both the regular test suite and this production browser suite before publishing.
 
 ## Continuous integration and container publishing
 
