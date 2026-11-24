@@ -201,7 +201,6 @@ export function renderAccountDetail(
     : `<div class="account-empty">No transactions are available for this account yet.</div>`;
 
   return `
-    <a class="account-back-link" href="/accounts">← Back to accounts</a>
     <section class="account-detail-snapshot panel">
       <div class="account-detail-heading">
         <p class="eyebrow">${escapeHtml(account.institutionName)}</p>
@@ -539,12 +538,8 @@ export function renderBankAccountDetailPage(user: BankAccountsPageUser): string 
       <main class="main-content accounts-content">
 
         <section class="page-heading accounts-page-heading">
-          <div><p class="eyebrow">YOUR ACCOUNT</p><h1>Account details</h1><p class="subheading">Account balances and transaction history.</p></div>
-          <div class="account-detail-actions">
-            <a class="text-button account-all-link" href="/accounts">All accounts</a>
-          </div>
+          <h1>Account details</h1>
         </section>
-        <p class="bank-data-notice" role="status">Add accounts manually and import CSV, OFX, or QFX transactions. Automatic bank syncing is unavailable; previously saved data remains available.</p>
         <div id="account-detail-content" class="account-detail-content" aria-live="polite">
           <div class="panel accounts-loading">Loading account details and transactions…</div>
         </div>

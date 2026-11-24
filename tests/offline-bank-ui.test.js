@@ -21,11 +21,24 @@ test('overview omits introductory copy and the bank-data notice', () => {
   assert.match(html, /aria-label="Financial summary"/);
 });
 
+test('account details omit redundant copy and links without removing account content', () => {
+  const shell = bank.renderBankAccountDetailPage(user);
+  const detail = bank.renderAccountDetail({ ...account, canImport: true }, [transaction]);
+  assert.doesNotMatch(shell, /YOUR ACCOUNT|Account balances and transaction history\.|>All accounts<|bank-data-notice/);
+  assert.ok(!shell.includes(notice));
+  assert.doesNotMatch(detail, /← Back to accounts/);
+  assert.match(shell, /<h1>Account details<\/h1>/);
+  assert.match(detail, /<h1>Saved Checking<\/h1>/);
+  assert.match(detail, /Current balance/);
+  assert.match(detail, /Saved purchase/);
+  assert.match(detail, /id="import-transactions"/);
+});
+
 test('bank surfaces display saved data without bank mutation controls or setup prompts', () => {
   for (const [html, showsNotice] of [
     [renderDashboard(user), false],
     [bank.renderBankAccountsPage(user), true],
-    [bank.renderBankAccountDetailPage(user), true],
+    [bank.renderBankAccountDetailPage(user), false],
     [renderTransactionsPage(user), false],
   ]) {
     assert.equal(html.includes(notice), showsNotice);

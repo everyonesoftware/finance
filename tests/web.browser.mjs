@@ -93,6 +93,11 @@ async function assertNoPwa(page) {
     assert.equal(manifest.url, '', 'Chromium discovers no install manifest');
   } finally { await cdp.detach(); }
 }
+async function assertAccountDetailCopy(page) {
+  const main = page.locator('main');
+  await main.getByRole('heading', { name: 'Account details', exact: true }).waitFor();
+  assert.doesNotMatch(await main.textContent(), /YOUR ACCOUNT|Account balances and transaction history\.|All accounts|Automatic bank syncing is unavailable|← Back to accounts/);
+}
 try {
   const browserOptions = { headless: true, viewport: { width: 1440, height: 960 }, serviceWorkers: "allow" };
   if (process.platform === "win32") browserOptions.channel = "msedge";
@@ -121,7 +126,8 @@ try {
   await page.locator('.navigation a[href="/accounts"]').click();
   await page.locator('#connected-accounts a[href="/accounts/demo-checking"]').first().click();
   await page.locator('#account-detail-content').filter({ hasText: 'Sample transaction' }).waitFor();
-  await page.locator('.account-all-link').click();
+  await assertAccountDetailCopy(page);
+  await page.locator('.navigation a[href="/accounts"]').click();
   await page.locator('#connected-accounts').filter({ hasText: 'Example Bank' }).waitFor();
   await page.locator('.navigation a[href="/real-estate"]').click();
   await page.locator('#real-estate-properties').waitFor();
@@ -131,8 +137,12 @@ try {
   console.log("PASS single-page navigation, persistent sidebar, search, Back/Forward, account details and Real Estate");
 
   const deepLink = await context.newPage();
+  await deepLink.setViewportSize({ width: 390, height: 875 });
   await deepLink.goto(origin + '/accounts/demo-checking');
   await deepLink.locator('#account-detail-content').filter({ hasText: 'Sample transaction' }).waitFor();
+  await assertAccountDetailCopy(deepLink);
+  await deepLink.getByRole('button', { name: 'Import transactions' }).click();
+  await deepLink.locator('#account-import-dialog[open]').waitFor();
   await deepLink.reload();
   await deepLink.locator('#account-detail-content').filter({ hasText: 'Sample transaction' }).waitFor();
   await deepLink.close();

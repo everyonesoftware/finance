@@ -844,8 +844,7 @@ test("account detail page provides a protected-page shell and loading target", (
   assert.match(html, /href="\/accounts"/);
   assert.match(html, /Loading account details and transactions/);
   assert.doesNotMatch(html, /id="sync-account-transactions"/);
-  assert.match(html, /class="bank-data-notice"[^>]*role="status"/);
-  assert.match(html, /previously saved data remains available/);
+  assert.doesNotMatch(html, /bank-data-notice|previously saved data remains available/);
   assert.match(html, /id="account-detail-content"[^>]*aria-live="polite"/);
   assert.match(html, /class="app-version">Version dev<\/span>/);
   assert.match(html, /&lt;A User&gt;/);
