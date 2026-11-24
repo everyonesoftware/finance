@@ -46,6 +46,8 @@ try {
     & (Join-Path $validation 'Check-WinUI.ps1')
     & (Join-Path $validation 'Test-ReleasePackage.ps1')
     Invoke-Checked dotnet @('run', '--project', (Join-Path $validation 'ApiChecks.csproj'), '-c', 'Release')
+    Invoke-Checked dotnet @('run', '--project', (Join-Path $validation 'UpdateChecks.csproj'), '-c', 'Release')
+    Invoke-Checked dotnet @('run', '--project', (Join-Path $validation 'UpdateFlowChecks.csproj'), '-c', 'Release')
 
     $scratch = [IO.Directory]::CreateTempSubdirectory('finance-release-').FullName
     $publish = Join-Path $scratch 'publish'

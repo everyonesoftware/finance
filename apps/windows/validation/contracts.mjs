@@ -22,13 +22,25 @@ test('Finance shell uses a themed canvas and compact native navigation', () => {
   assert.match(shell, /x:Name="PageStatus"[^>]+Visibility="Collapsed"/);
 });
 
-test('Settings uses the published shared panel without inventing update actions', () => {
+test('One shared native update panel serves both window routes and is disposed on close', () => {
   const project = readFileSync(source('Finance.App.csproj'), 'utf8');
   const pages = readFileSync(source('MainWindow.Pages.cs'), 'utf8');
+  const window = readFileSync(source('MainWindow.cs'), 'utf8');
+  const program = readFileSync(source('Program.cs'), 'utf8');
   assert.match(project, /Include="EveryoneSoftware.WindowsCommon" Version="\[0\.1\.0-alpha\.1\]"/);
-  assert.match(pages, /new WindowsUpdatesPanel\("Finance", installedVersion/);
-  assert.match(pages, /UpdatePhase\.NotInstalled/);
-  assert.doesNotMatch(pages, /\.CheckRequested\s*\+=/);
+  assert.match(program, /SetAutoApplyOnStartup\(false\)/);
+  assert.match(program, /window\.Activate\(\);\s*window\.StartUpdateCheck\(\);/);
+  assert.match(window, /InitializeUpdates\(\)/);
+  assert.match(window, /closed = true;\s*DisposeUpdates\(\);/);
+  assert.match(window, /ShowSignedOutUpdates\(\)/);
+  assert.match(pages, /panel\.Children\.Add\(BuildSettingsUpdates\(\)\)/);
+  const updates = readFileSync(source('MainWindow.Updates.cs'), 'utf8');
+  assert.equal([...updates.matchAll(/new WindowsUpdatesPanel\(/g)].length, 1);
+  for (const action of ['Check', 'Download', 'Restart']) {
+    assert.match(updates, new RegExp(`\\.${action}Requested\\s*\\+=`));
+    assert.match(updates, new RegExp(`\\.${action}Requested\\s*-=`));
+  }
+  assert.match(updates, /DispatcherQueue|dispatcher\.TryEnqueue/);
 });
 
 test('Dashboard shares structured ledger rows with the bounded transaction list', () => {

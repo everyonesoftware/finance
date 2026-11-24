@@ -41,6 +41,7 @@ internal sealed partial class MainWindow : Window
         }
         navigation = C<NavigationView>("Navigation");
         content = C<ContentControl>("PageContent");
+        InitializeUpdates();
         Content = root;
         Title = "Finance";
         C<Image>("BrandIcon").Source = new BitmapImage(new Uri(Path.Combine(AppContext.BaseDirectory, "Assets", "Finance.png")));
@@ -75,6 +76,7 @@ internal sealed partial class MainWindow : Window
         Closed += (_, _) =>
         {
             closed = true;
+            DisposeUpdates();
             lifetime.Cancel();
             client?.Dispose();
             lifetime.Dispose();
@@ -113,6 +115,7 @@ internal sealed partial class MainWindow : Window
         }
         FinanceClient? candidate = null;
         signingIn = true;
+        RenderUpdates();
         submit.IsEnabled = server.IsEnabled = username.IsEnabled = password.IsEnabled = false;
         status.Text = "Signing in…";
         try
@@ -136,7 +139,11 @@ internal sealed partial class MainWindow : Window
         {
             candidate?.Dispose();
             signingIn = false;
-            if (!closed) submit.IsEnabled = server.IsEnabled = username.IsEnabled = password.IsEnabled = true;
+            if (!closed)
+            {
+                submit.IsEnabled = server.IsEnabled = username.IsEnabled = password.IsEnabled = true;
+                RenderUpdates();
+            }
         }
     }
 
@@ -146,6 +153,7 @@ internal sealed partial class MainWindow : Window
         client = null;
         pageRequest?.Cancel();
         previous?.Dispose();
+        DetachUpdates();
         content.Content = null;
         C<TextBlock>("PageTitle").Text = string.Empty;
         Status(string.Empty);
@@ -155,6 +163,7 @@ internal sealed partial class MainWindow : Window
         C<PasswordBox>("Password").Focus(FocusState.Programmatic);
         page = OverviewPage;
         accountId = null;
+        ShowSignedOutUpdates();
     }
 
     private async Task NavigateAsync(string target, string? id = null)
@@ -179,6 +188,7 @@ internal sealed partial class MainWindow : Window
         var refresh = C<Button>("Refresh");
         refresh.IsEnabled = false;
         C<TextBlock>("PageTitle").Text = target;
+        DetachUpdates();
         content.Content = null;
         Status(target == SettingsPage ? "" : "Loading…");
         var token = request.Token;
@@ -222,7 +232,11 @@ internal sealed partial class MainWindow : Window
             if (ReferenceEquals(pageRequest, request))
             {
                 pageRequest = null;
-                if (!closed) refresh.IsEnabled = !modal;
+                if (!closed)
+                {
+                    refresh.IsEnabled = !modal;
+                    RenderUpdates();
+                }
             }
         }
     }
@@ -268,6 +282,7 @@ internal sealed partial class MainWindow : Window
         foreach (var item in navigation.MenuItems.OfType<NavigationViewItem>()) item.IsEnabled = !active;
         if (navigation.SettingsItem is NavigationViewItem settings) settings.IsEnabled = !active;
         C<Button>("Refresh").IsEnabled = !active && pageRequest is null;
+        RenderUpdates();
     }
 
     private static bool Expected(Exception error) => error is FinanceApiException or HttpRequestException or

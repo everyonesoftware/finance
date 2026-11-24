@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup>
+    <!-- All validation executables live side by side. Never share restored assets or compiler intermediates. -->
+    <BaseIntermediateOutputPath>obj/$(MSBuildProjectName)/</BaseIntermediateOutputPath>
+    <BaseOutputPath>bin/$(MSBuildProjectName)/</BaseOutputPath>
+  </PropertyGroup>
+</Project>

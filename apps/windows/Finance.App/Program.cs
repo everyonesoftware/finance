@@ -36,5 +36,6 @@ public sealed partial class FinanceApplication : Application, IXamlMetadataProvi
         Resources.MergedDictionaries.Add(new XamlControlsResources());
         window = new MainWindow();
         window.Activate();
+        window.StartUpdateCheck();
     }
 }

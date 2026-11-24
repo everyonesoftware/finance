@@ -1,5 +1,3 @@
-using System.Reflection;
-using EveryoneSoftware.WindowsCommon;
 using Finance.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -191,11 +189,7 @@ internal sealed partial class MainWindow
         }));
         connection.Children.Add(actions);
         panel.Children.Add(Card(connection));
-        var installedVersion = Assembly.GetExecutingAssembly().GetName().Version!.ToString(3);
-        // This client has no update backend; the shared panel presents one static, non-interactive snapshot.
-        using var updates = new WindowsUpdatesPanel("Finance", installedVersion);
-        updates.Render(new(UpdatePhase.NotInstalled, "This version of Finance is not configured to check for updates."), restartAllowed: false);
-        panel.Children.Add(Card(updates.View));
+        panel.Children.Add(BuildSettingsUpdates());
         return Scroll(panel);
     }
 
