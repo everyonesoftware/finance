@@ -1,53 +1,150 @@
 <Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Grid.Resources>
-    <DataTemplate x:Key="LedgerRow">
-      <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,6"/>
-    </DataTemplate>
+    <ResourceDictionary>
+      <ResourceDictionary.ThemeDictionaries>
+        <ResourceDictionary x:Key="Light">
+          <SolidColorBrush x:Key="FinanceCanvas" Color="#F5F6F3"/>
+          <SolidColorBrush x:Key="FinanceSurface" Color="#FFFFFF"/>
+          <SolidColorBrush x:Key="FinanceLine" Color="#DFE5DC"/>
+          <SolidColorBrush x:Key="FinanceInk" Color="#20251F"/>
+          <SolidColorBrush x:Key="FinanceMuted" Color="#586356"/>
+          <SolidColorBrush x:Key="FinanceGreen" Color="#2E6749"/>
+          <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#2E6749"/>
+          <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#EDF4EE"/>
+          <SolidColorBrush x:Key="AccentButtonBackground" Color="#2E6749"/>
+          <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#285C40"/>
+          <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#204C35"/>
+          <SolidColorBrush x:Key="AccentButtonForeground" Color="#FFFFFF"/>
+          <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#FFFFFF"/>
+          <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#FFFFFF"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="Dark">
+          <SolidColorBrush x:Key="FinanceCanvas" Color="#1A211C"/>
+          <SolidColorBrush x:Key="FinanceSurface" Color="#242D26"/>
+          <SolidColorBrush x:Key="FinanceLine" Color="#3A493D"/>
+          <SolidColorBrush x:Key="FinanceInk" Color="#EDF0E9"/>
+          <SolidColorBrush x:Key="FinanceMuted" Color="#B7C3B6"/>
+          <SolidColorBrush x:Key="FinanceGreen" Color="#A8D6B2"/>
+          <SolidColorBrush x:Key="NavigationViewSelectionIndicatorForeground" Color="#A8D6B2"/>
+          <SolidColorBrush x:Key="NavigationViewItemBackgroundSelected" Color="#344A3A"/>
+          <SolidColorBrush x:Key="AccentButtonBackground" Color="#A8D6B2"/>
+          <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#B7E1C0"/>
+          <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#91C29D"/>
+          <SolidColorBrush x:Key="AccentButtonForeground" Color="#18271C"/>
+          <SolidColorBrush x:Key="AccentButtonForegroundPointerOver" Color="#18271C"/>
+          <SolidColorBrush x:Key="AccentButtonForegroundPressed" Color="#18271C"/>
+        </ResourceDictionary>
+        <ResourceDictionary x:Key="HighContrast">
+          <SolidColorBrush x:Key="FinanceCanvas" Color="{ThemeResource SystemColorWindowColor}"/>
+          <SolidColorBrush x:Key="FinanceSurface" Color="{ThemeResource SystemColorWindowColor}"/>
+          <SolidColorBrush x:Key="FinanceLine" Color="{ThemeResource SystemColorWindowTextColor}"/>
+          <SolidColorBrush x:Key="FinanceInk" Color="{ThemeResource SystemColorWindowTextColor}"/>
+          <SolidColorBrush x:Key="FinanceMuted" Color="{ThemeResource SystemColorWindowTextColor}"/>
+          <SolidColorBrush x:Key="FinanceGreen" Color="{ThemeResource SystemColorWindowTextColor}"/>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+      <Style x:Key="FinanceCard" TargetType="Border">
+        <Setter Property="Background" Value="{ThemeResource FinanceSurface}"/>
+        <Setter Property="BorderBrush" Value="{ThemeResource FinanceLine}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="12"/>
+        <Setter Property="Padding" Value="20"/>
+      </Style>
+      <Style x:Key="FinanceText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource FinanceInk}"/>
+      </Style>
+      <Style x:Key="FinanceSecondaryText" TargetType="TextBlock">
+        <Setter Property="Foreground" Value="{ThemeResource FinanceMuted}"/>
+      </Style>
+      <Style x:Key="FinanceChartLine" TargetType="Polyline">
+        <Setter Property="Stroke" Value="{ThemeResource FinanceGreen}"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+        <Setter Property="StrokeLineJoin" Value="Round"/>
+      </Style>
+      <Style x:Key="FinanceChartGrid" TargetType="Line">
+        <Setter Property="Stroke" Value="{ThemeResource FinanceLine}"/>
+        <Setter Property="StrokeThickness" Value="1"/>
+      </Style>
+      <Style x:Key="LedgerContainer" TargetType="ListViewItem">
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="Padding" Value="0"/>
+      </Style>
+      <DataTemplate x:Key="HistoryRow">
+        <TextBlock Text="{Binding}" Style="{StaticResource FinanceSecondaryText}" TextWrapping="Wrap"/>
+      </DataTemplate>
+      <DataTemplate x:Key="LedgerRow">
+        <Border BorderBrush="{ThemeResource FinanceLine}" BorderThickness="0,0,0,1" Padding="0,9">
+          <Grid ColumnSpacing="12">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto" MaxWidth="134"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Spacing="3">
+              <TextBlock Text="{Binding Description}" Style="{StaticResource FinanceText}" FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap"/>
+              <TextBlock Text="{Binding Details}" Style="{StaticResource FinanceSecondaryText}" FontSize="12" TextWrapping="Wrap"/>
+            </StackPanel>
+            <TextBlock Grid.Column="1" Text="{Binding Amount}" Style="{StaticResource FinanceText}"
+                       FontSize="13" FontWeight="SemiBold" TextWrapping="Wrap" TextAlignment="Right" VerticalAlignment="Center"/>
+          </Grid>
+        </Border>
+      </DataTemplate>
+    </ResourceDictionary>
   </Grid.Resources>
   <Grid.RowDefinitions>
     <RowDefinition Height="Auto"/>
     <RowDefinition Height="*"/>
   </Grid.RowDefinitions>
-  <Border x:Name="TitleBar" Height="44">
+  <Border x:Name="ShellCanvas" Grid.RowSpan="2" Background="{ThemeResource FinanceCanvas}" IsHitTestVisible="False"/>
+  <Border x:Name="TitleBar" Height="44" Background="{ThemeResource FinanceSurface}">
     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
       <Image x:Name="BrandIcon" Width="22" Height="22"/>
-      <TextBlock Text="Finance" FontWeight="SemiBold" VerticalAlignment="Center"/>
+      <TextBlock x:Name="BrandName" Text="Finance" Style="{StaticResource FinanceText}" FontWeight="SemiBold" VerticalAlignment="Center"/>
     </StackPanel>
   </Border>
   <ScrollViewer x:Name="SignInView" Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
-    <StackPanel MaxWidth="440" Padding="28,48,28,32" Spacing="14">
-      <TextBlock Text="Sign in to Finance" FontSize="30" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level1" TextWrapping="Wrap"/>
-      <TextBlock Text="Connect to your Finance server with your existing Finance account." TextWrapping="Wrap"/>
-      <TextBox x:Name="ServerUrl" Header="Finance server URL" AutomationProperties.Name="Finance server URL" PlaceholderText="https://finance.example.com" MaxLength="2048"/>
-      <TextBox x:Name="Username" Header="Username" AutomationProperties.Name="Username" MaxLength="30"/>
-      <PasswordBox x:Name="Password" Header="Password" AutomationProperties.Name="Password"/>
-      <Button x:Name="SignIn" Content="Sign in" Style="{StaticResource AccentButtonStyle}"/>
-      <TextBlock x:Name="SignInStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
-    </StackPanel>
+    <Border Style="{StaticResource FinanceCard}" MaxWidth="460" Margin="20,48,20,24">
+      <StackPanel Spacing="14">
+        <TextBlock Text="Sign in to Finance" Style="{StaticResource FinanceText}" FontSize="28" FontWeight="Bold" AutomationProperties.HeadingLevel="Level1" TextWrapping="Wrap"/>
+        <TextBlock Text="Connect to your Finance server with your existing Finance account." Style="{StaticResource FinanceSecondaryText}" TextWrapping="Wrap"/>
+        <TextBox x:Name="ServerUrl" Header="Finance server URL" AutomationProperties.Name="Finance server URL" PlaceholderText="https://finance.example.com" MaxLength="2048"/>
+        <TextBox x:Name="Username" Header="Username" AutomationProperties.Name="Username" MaxLength="30"/>
+        <PasswordBox x:Name="Password" Header="Password" AutomationProperties.Name="Password"/>
+        <Button x:Name="SignIn" Content="Sign in" Style="{StaticResource AccentButtonStyle}"/>
+        <TextBlock x:Name="SignInStatus" Style="{StaticResource FinanceSecondaryText}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+      </StackPanel>
+    </Border>
   </ScrollViewer>
   <NavigationView x:Name="Navigation" Grid.Row="1" Visibility="Collapsed"
                   IsBackButtonVisible="Collapsed" IsSettingsVisible="True" PaneDisplayMode="Auto"
-                  CompactModeThresholdWidth="660" ExpandedModeThresholdWidth="980">
+                  OpenPaneLength="246" CompactPaneLength="48" CompactModeThresholdWidth="560" ExpandedModeThresholdWidth="960"
+                  Background="{ThemeResource FinanceSurface}">
+    <NavigationView.Resources>
+      <SolidColorBrush x:Key="NavigationViewContentBackground" Color="Transparent"/>
+    </NavigationView.Resources>
     <NavigationView.MenuItems>
-      <NavigationViewItem x:Name="OverviewNav" Content="Overview" Icon="Home" Tag="Overview"/>
-      <NavigationViewItem Content="Accounts" Icon="Contact" Tag="Accounts"/>
+      <NavigationViewItem Content="Overview" Icon="Home" Tag="Overview"/>
+      <NavigationViewItem Content="Accounts" Tag="Accounts">
+        <NavigationViewItem.Icon><FontIcon Glyph="&#xE8C7;"/></NavigationViewItem.Icon>
+      </NavigationViewItem>
       <NavigationViewItem Content="Transactions" Icon="List" Tag="Transactions"/>
       <NavigationViewItem Content="Real Estate" Icon="Map" Tag="Real Estate"/>
     </NavigationView.MenuItems>
-    <Grid Padding="22,10,22,16" RowSpacing="12">
-      <Grid.RowDefinitions>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="Auto"/>
-        <RowDefinition Height="*"/>
-      </Grid.RowDefinitions>
-      <Grid ColumnSpacing="10">
-        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-        <TextBlock x:Name="PageTitle" FontSize="30" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level1" TextWrapping="Wrap"/>
-        <Button x:Name="Refresh" Grid.Column="1" Content="Refresh" VerticalAlignment="Center"/>
+    <Grid Background="{ThemeResource FinanceCanvas}" BorderBrush="{ThemeResource FinanceLine}" BorderThickness="1,0,0,0">
+      <Grid MaxWidth="1460" Padding="24,18,24,16">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid ColumnSpacing="10" Margin="0,0,0,16">
+          <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+          <TextBlock x:Name="PageTitle" Style="{StaticResource FinanceText}" FontSize="28" FontWeight="Bold" AutomationProperties.HeadingLevel="Level1" TextWrapping="Wrap"/>
+          <Button x:Name="Refresh" Grid.Column="1" Content="Refresh" VerticalAlignment="Center" CornerRadius="8"/>
+        </Grid>
+        <TextBlock x:Name="PageStatus" Grid.Row="1" Visibility="Collapsed" Margin="0,0,0,12" Style="{StaticResource FinanceSecondaryText}" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+        <ContentControl x:Name="PageContent" Grid.Row="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsTabStop="False"/>
       </Grid>
-      <TextBlock x:Name="PageStatus" Grid.Row="1" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
-      <ContentControl x:Name="PageContent" Grid.Row="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsTabStop="False"/>
     </Grid>
   </NavigationView>
 </Grid>

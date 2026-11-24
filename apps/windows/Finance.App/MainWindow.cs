@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Automation.Peers;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Markup;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.System;
 
@@ -61,6 +62,16 @@ internal sealed partial class MainWindow : Window
             C<TextBox>("ServerUrl").Focus(FocusState.Programmatic);
         };
         root.SizeChanged += (_, _) => ApplyInsets();
+        void ApplyCaptionTheme()
+        {
+            if (closed || titleBar.Background is not SolidColorBrush surface ||
+                C<TextBlock>("BrandName").Foreground is not SolidColorBrush ink) return;
+            var caption = AppWindow.TitleBar;
+            caption.ButtonBackgroundColor = caption.ButtonInactiveBackgroundColor = surface.Color;
+            caption.ButtonForegroundColor = caption.ButtonInactiveForegroundColor = ink.Color;
+        }
+        root.Loaded += (_, _) => ApplyCaptionTheme();
+        root.ActualThemeChanged += (_, _) => DispatcherQueue.TryEnqueue(ApplyCaptionTheme);
         Closed += (_, _) =>
         {
             closed = true;
@@ -218,7 +229,12 @@ internal sealed partial class MainWindow : Window
 
     private bool OwnsPage(CancellationTokenSource request, FinanceClient api) =>
         !closed && ReferenceEquals(pageRequest, request) && ReferenceEquals(client, api) && !request.IsCancellationRequested;
-    private void Status(string message) => C<TextBlock>("PageStatus").Text = message;
+    private void Status(string message)
+    {
+        var status = C<TextBlock>("PageStatus");
+        status.Visibility = message.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        status.Text = message;
+    }
 
     private async Task SignOutAsync(FinanceClient api, Button button)
     {
@@ -281,9 +297,10 @@ internal sealed partial class MainWindow : Window
     {
         Content = element, HorizontalScrollMode = ScrollMode.Disabled, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
     };
-    private static Button Action(string label, Func<Task> invoke)
+    private static Button Action(string label, Func<Task> invoke, string? automationName = null)
     {
-        var button = new Button { Content = label };
+        var button = new Button { Content = label, CornerRadius = new CornerRadius(8) };
+        if (automationName is not null) AutomationProperties.SetName(button, automationName);
         button.Click += async (_, _) => await invoke();
         return button;
     }

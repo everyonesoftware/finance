@@ -24,7 +24,7 @@ Write-Host "Parsed runtime XAML and checked $($controls.Count) named controls."
 if (!$PublishDirectory) { return }
 if ($env:OS -ne 'Windows_NT') { throw 'The native launch gate requires Windows PowerShell on an interactive Windows desktop.' }
 $directory = (Resolve-Path $PublishDirectory).Path
-foreach ($path in 'Finance.exe', 'Finance.dll', 'resources.pri', 'Assets/Finance.png') {
+foreach ($path in 'Finance.exe', 'Finance.dll', 'EveryoneSoftware.WindowsCommon.dll', 'resources.pri', 'Assets/Finance.png') {
     if (!(Test-Path (Join-Path $directory $path) -PathType Leaf)) { throw "Publish payload missing: $path" }
 }
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes

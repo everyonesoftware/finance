@@ -1,4 +1,5 @@
 using System.Reflection;
+using EveryoneSoftware.WindowsCommon;
 using Finance.Core;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -14,49 +15,57 @@ internal sealed partial class MainWindow
         await Task.WhenAll(summaryTask, ledgerTask);
         var summary = await summaryTask;
         var ledger = await ledgerTask;
-        var panel = Panel();
-        panel.Children.Add(Heading("Net worth"));
-        panel.Children.Add(Text(summary.Total is null && summary.AccountCount == 0 ? "No accounts yet" : Money(summary.Total, "USD"), 36));
-        panel.Children.Add(Text("Tracked USD accounts minus liabilities · Property excluded"));
-        if (summary.ExcludedAccountCount > 0) panel.Children.Add(Text($"{summary.ExcludedAccountCount} non-USD or unknown-currency accounts excluded."));
-        if (summary.UnknownBalanceCount > 0) panel.Children.Add(Text($"{summary.UnknownBalanceCount} USD accounts have an unknown balance."));
-        var points = summary.Points.OrderByDescending(point => point.Date, StringComparer.Ordinal).ToArray();
-        if (points.Length == 0) panel.Children.Add(Text("No saved net-worth history yet."));
-        else
+        var panel = Section(18);
+        var balance = Section();
+        balance.Children.Add(Heading("Net worth"));
+        balance.Children.Add(Value(summary.Total is null && summary.AccountCount == 0 ? "No accounts yet" : DisplayMoney(summary.Total, "USD"), 38));
+        balance.Children.Add(Secondary("Tracked USD accounts minus liabilities · Property excluded"));
+        if (summary.ExcludedAccountCount > 0) balance.Children.Add(Secondary($"{summary.ExcludedAccountCount} non-USD or unknown-currency accounts excluded."));
+        if (summary.UnknownBalanceCount > 0) balance.Children.Add(Secondary($"{summary.UnknownBalanceCount} USD accounts have an unknown balance."));
+        var points = summary.Points.OrderBy(point => point.Date, StringComparer.Ordinal).ToArray();
+        var history = Section();
+        history.Children.Add(Heading("Net-worth history"));
+        history.Children.Add(BuildNetWorthChart(points));
+        if (points.Length > 0)
         {
-            var history = Panel();
-            history.Children.Add(Text("Reconstructed points are estimates, not verified balances."));
-            history.Children.Add(Scroll(ListFor(points.Select(point =>
-                $"{point.Date}   {Money(point.Total, "USD")}{(point.Source == "reconstructed" ? " · Reconstructed estimate" : " · Saved observation")}"))));
-            ((ScrollViewer)history.Children.Last()).MaxHeight = 250;
-            panel.Children.Add(new Expander { Header = $"Net-worth history · {points.Length} days recorded", Content = history, HorizontalAlignment = HorizontalAlignment.Stretch });
+            var records = new ListView
+            {
+                ItemsSource = points.Reverse().Select(point => $"{point.Date} · {DisplayMoney(point.Total, "USD")} · {(point.Source == "reconstructed" ? "Reconstructed estimate" : "Saved observation")}").ToArray(),
+                MaxHeight = 220, SelectionMode = ListViewSelectionMode.None,
+                ItemTemplate = (DataTemplate)root.Resources["HistoryRow"]
+            };
+            history.Children.Add(new Expander { Header = $"{points.Length:N0} days recorded", Content = records,
+                HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch });
         }
-        panel.Children.Add(Heading("Recent transactions"));
+        panel.Children.Add(Card(ResponsivePair(balance, history, 540, 0.9, 1.3)));
+
+        var recent = Section();
+        recent.Children.Add(Pair(Heading("Recent transactions"), Action("See all", () => NavigateAsync(TransactionsPage), "See all transactions")));
         var accounts = AccountNames(ledger.Accounts);
-        foreach (var tx in ledger.Transactions) panel.Children.Add(Text(TransactionLine(tx, accounts)));
-        if (ledger.Transactions.Length == 0) panel.Children.Add(Text("No transactions yet."));
-        panel.Children.Add(Action("See all transactions", () => NavigateAsync(TransactionsPage)));
-        panel.Children.Add(Action($"Bank accounts · {summary.AccountCount}", () => NavigateAsync(AccountsPage)));
+        if (ledger.Transactions.Length == 0) recent.Children.Add(Secondary("No transactions yet."));
+        else recent.Children.Add(new ItemsControl { ItemsSource = ledger.Transactions.Select(tx => LedgerEntryFor(tx, accounts)).ToArray(),
+            ItemTemplate = LedgerTemplate });
+        var bankAccounts = Section();
+        bankAccounts.Children.Add(Pair(Heading("Bank accounts"), Action("See all", () => NavigateAsync(AccountsPage), "See all accounts")));
+        bankAccounts.Children.Add(Secondary($"{summary.AccountCount:N0} tracked accounts"));
+        foreach (var account in ledger.Accounts.Take(5)) bankAccounts.Children.Add(AccountButton(account));
+        var recentCard = Card(recent);
+        var accountsCard = Card(bankAccounts);
+        panel.Children.Add(ResponsivePair(recentCard, accountsCard, 720, 1.4, 1));
         return Scroll(panel);
     }
 
     private UIElement BuildAccounts(Account[] accounts)
     {
-        var panel = Panel();
-        if (accounts.Length == 0) panel.Children.Add(Text("No accounts yet. Add or manage accounts in Finance on the web."));
+        var panel = Section(16);
+        if (accounts.Length == 0) panel.Children.Add(Card(Secondary("No accounts yet. Add or manage accounts in Finance on the web.")));
         foreach (var group in accounts.GroupBy(account => account.InstitutionName).OrderBy(group => group.Key, StringComparer.CurrentCultureIgnoreCase))
         {
-            panel.Children.Add(Heading(group.Key));
+            var institution = Section();
+            institution.Children.Add(Heading(group.Key));
             foreach (var account in group.OrderBy(account => account.Name, StringComparer.CurrentCultureIgnoreCase))
-            {
-                var label = $"{account.Name}{(string.IsNullOrWhiteSpace(account.Mask) ? "" : $" · ••••{account.Mask}")}\n" +
-                    $"{Money(account.CurrentBalance, account.CurrencyCode)} · {(account.Source == "manual" ? "Manual account" : "Saved · Read-only")}";
-                var button = Action(label, () => NavigateAsync(DetailPage, account.Id));
-                button.Content = Text(label);
-                button.HorizontalAlignment = HorizontalAlignment.Stretch;
-                button.HorizontalContentAlignment = HorizontalAlignment.Left;
-                panel.Children.Add(button);
-            }
+                institution.Children.Add(AccountButton(account));
+            panel.Children.Add(Card(institution));
         }
         return Scroll(panel);
     }
@@ -65,7 +74,7 @@ internal sealed partial class MainWindow
     {
         var detail = await api.AccountAsync(id, ct);
         var account = detail.Account;
-        var head = Panel();
+        var head = Section();
         head.Children.Add(Action("Back to accounts", () => NavigateAsync(AccountsPage)));
         head.Children.Add(Heading(account.Name));
         head.Children.Add(Text($"{account.InstitutionName} · {account.Subtype ?? account.Type}"));
@@ -97,25 +106,30 @@ internal sealed partial class MainWindow
             head.Children.Add(new Expander { Header = "Latest holdings snapshot", Content = holdingsScroll });
         }
         var view = BuildTransactions(new Ledger(detail.Transactions, [account]));
-        return WithHeader(head, view, scrollHeader: true);
+        return WithHeader(Card(head), view, scrollHeader: true);
     }
 
     private Grid BuildTransactions(Ledger ledger)
     {
         var search = new TextBox { Header = "Search transactions", PlaceholderText = "Description, date, or account" };
-        var header = Panel();
+        var header = Section();
         header.Children.Add(search);
-        var count = Text("");
+        var count = Secondary("");
         header.Children.Add(count);
         var names = AccountNames(ledger.Accounts);
         var rows = ledger.Transactions.OrderByDescending(tx => tx.Date, StringComparer.Ordinal)
-            .Select(tx => TransactionLine(tx, names)).ToArray();
-        var list = ListFor(rows);
+            .Select(tx => LedgerEntryFor(tx, names)).ToArray();
+        var transactions = new ListView
+        {
+            SelectionMode = ListViewSelectionMode.None, ItemTemplate = LedgerTemplate,
+            ItemContainerStyle = (Style)root.Resources["LedgerContainer"], Padding = new Thickness(0, 0, 12, 0)
+        };
+        var list = Card(transactions);
         void Filter()
         {
             var query = search.Text.Trim();
-            var matches = query.Length == 0 ? rows : rows.Where(row => row.Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToArray();
-            list.ItemsSource = matches;
+            var matches = query.Length == 0 ? rows : rows.Where(row => row.SearchText.Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToArray();
+            transactions.ItemsSource = matches;
             count.Text = matches.Length == 0 ? rows.Length == 0 ? "No transactions yet." : "No transactions match your search."
                 : $"{matches.Length:N0} transactions";
         }
@@ -124,15 +138,19 @@ internal sealed partial class MainWindow
         return WithHeader(header, list);
     }
 
-    private static UIElement BuildProperties(Property[] properties)
+    private UIElement BuildProperties(Property[] properties)
     {
-        var panel = Panel();
-        if (properties.Length == 0) panel.Children.Add(Text("No properties yet. Add or manage properties in Finance on the web."));
+        var panel = Section(16);
+        if (properties.Length == 0) panel.Children.Add(Card(Secondary("No properties yet. Add or manage properties in Finance on the web.")));
         foreach (var property in properties)
         {
-            var details = Panel();
-            if (property.Estimates.Length == 0) details.Children.Add(Text("No estimates supplied."));
-            foreach (var estimate in property.Estimates.OrderByDescending(estimate => estimate.CreatedAt))
+            var card = Section();
+            card.Children.Add(Heading(property.Address));
+            var details = Section();
+            var estimates = property.Estimates.OrderByDescending(estimate => estimate.CreatedAt).ToArray();
+            if (estimates.Length == 0) card.Children.Add(Secondary("No estimates supplied."));
+            else card.Children.Add(Value(DisplayMoney(estimates[0].Amount, "USD"), 24));
+            foreach (var estimate in estimates)
             {
                 var provider = estimate.Provider switch { "zillow" => "Zillow", "redfin" => "Redfin", _ => "Manual" };
                 var date = estimate.CreatedAt is >= -62135596800000 and <= 253402300799999 ?
@@ -140,21 +158,24 @@ internal sealed partial class MainWindow
                 details.Children.Add(Text($"{Money(estimate.Amount, "USD")} · {provider} · {date}"));
                 if (!string.IsNullOrWhiteSpace(estimate.SourceNotes)) details.Children.Add(Text(estimate.SourceNotes));
             }
-            panel.Children.Add(new Expander { Header = Text(property.Address), Content = details, HorizontalAlignment = HorizontalAlignment.Stretch });
+            if (estimates.Length > 0) card.Children.Add(new Expander { Header = $"Estimate history · {estimates.Length:N0}", Content = details, HorizontalAlignment = HorizontalAlignment.Stretch });
+            panel.Children.Add(Card(card));
         }
         return Scroll(panel);
     }
 
     private UIElement BuildSettings(FinanceClient api)
     {
-        var panel = Panel();
-        panel.Children.Add(Heading("Connection"));
-        panel.Children.Add(Text(api.Origin.GetLeftPart(UriPartial.Authority)));
-        panel.Children.Add(Text("Only the server URL and username are remembered. Your password and session are not saved on this PC."));
+        var panel = Section(16);
+        var connection = Section();
+        connection.Children.Add(Heading("Connection"));
+        connection.Children.Add(Value(api.Origin.GetLeftPart(UriPartial.Authority), 16));
+        connection.Children.Add(Secondary("Only the server URL and username are remembered. Your password and session are not saved on this PC."));
+        var actions = Section();
         var signOut = new Button { Content = "Sign out" };
         signOut.Click += async (_, _) => await SignOutAsync(api, signOut);
-        panel.Children.Add(signOut);
-        panel.Children.Add(Action("Disconnect locally", async () =>
+        actions.Children.Add(signOut);
+        actions.Children.Add(Action("Disconnect locally", async () =>
         {
             if (modal || closed || !ReferenceEquals(client, api)) return;
             SetModal(true);
@@ -168,16 +189,17 @@ internal sealed partial class MainWindow
             }
             finally { if (!closed) SetModal(false); }
         }));
-        panel.Children.Add(Heading($"Current Version: {Assembly.GetExecutingAssembly().GetName().Version!.ToString(3)}"));
-        panel.Children.Add(Text("Update checking is unavailable because there is no published Finance for Windows update feed."));
+        connection.Children.Add(actions);
+        panel.Children.Add(Card(connection));
+        var installedVersion = Assembly.GetExecutingAssembly().GetName().Version!.ToString(3);
+        // This client has no update backend; the shared panel presents one static, non-interactive snapshot.
+        using var updates = new WindowsUpdatesPanel("Finance", installedVersion);
+        updates.Render(new(UpdatePhase.NotInstalled, "This version of Finance is not configured to check for updates."), restartAllowed: false);
+        panel.Children.Add(Card(updates.View));
         return Scroll(panel);
     }
 
-    private ListView ListFor(IEnumerable<string> items) => new()
-    {
-        ItemsSource = items.ToArray(), SelectionMode = ListViewSelectionMode.None,
-        ItemTemplate = (DataTemplate)root.Resources["LedgerRow"], Padding = new Thickness(0, 0, 12, 0)
-    };
+    private DataTemplate LedgerTemplate => (DataTemplate)root.Resources["LedgerRow"];
 
     private static Grid WithHeader(FrameworkElement header, FrameworkElement body, bool scrollHeader = false)
     {
@@ -198,9 +220,26 @@ internal sealed partial class MainWindow
 
     private static string TransactionLine(Transaction tx, Dictionary<string, string> names)
     {
-        // Server storage is outflow-positive. Show cash-flow signs, as on the web.
-        var amount = tx.Amount is { } value ? $"{(value > 0 ? "−" : value < 0 ? "+" : "")}{Money(decimal.Abs(value), tx.CurrencyCode ?? tx.UnofficialCurrencyCode)}" : "Amount unavailable";
-        var account = tx.AccountId is { } id && names.TryGetValue(id, out var name) ? $" · {name}" : "";
-        return $"{tx.Name ?? "Unnamed transaction"}   {amount}\n{tx.Date ?? "Date unavailable"}{account}{(tx.Pending == true ? " · Pending" : "")}";
+        var row = LedgerEntryFor(tx, names);
+        return $"{row.Description}   {row.Amount}\n{row.Details}";
     }
+
+    private static LedgerEntry LedgerEntryFor(Transaction tx, Dictionary<string, string> names)
+    {
+        // Server storage is outflow-positive. Show cash-flow signs, as on the web.
+        var currency = tx.CurrencyCode ?? tx.UnofficialCurrencyCode;
+        var sign = tx.Amount > 0 ? "−" : tx.Amount < 0 ? "+" : "";
+        var magnitude = tx.Amount is { } value ? decimal.Abs(value) : (decimal?)null;
+        var amount = magnitude is null ? "Amount unavailable" : sign + DisplayMoney(magnitude, currency);
+        var searchAmount = magnitude is null ? amount : sign + Money(magnitude, currency);
+        var account = tx.AccountId is { } id && names.TryGetValue(id, out var name) ? $" · {name}" : "";
+        var details = $"{tx.Date ?? "Date unavailable"}{account}{(tx.Pending == true ? " · Pending" : "")}";
+        return new(tx.Name ?? "Unnamed transaction", details, amount, searchAmount);
+    }
+}
+
+// Public for classic {Binding} on the embedded runtime XAML template.
+public sealed record LedgerEntry(string Description, string Details, string Amount, string SearchAmount)
+{
+    internal string SearchText => $"{Description}   {SearchAmount}\n{Details}\n{Amount}";
 }

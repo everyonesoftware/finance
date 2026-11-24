@@ -15,6 +15,8 @@ powershell.exe -NoProfile -File apps/windows/validation/Check-WinUI.ps1 -Publish
 
 The published folder is self-contained. Run `Finance.exe` in that folder; keep its resources and DLLs beside it. The launch check validates the generated resource index and the visible signed-out UI, not signed-in behavior. On a disposable server, exercise invalid/retried login, each navigation route, transaction search, file picker cancellation, invalid and duplicate import previews, dismissal without writes, confirmation with account readback, actual sign-out and reopening without a saved cookie. Check native keyboard navigation and title-bar behavior at multiple DPI settings.
 
+For visual acceptance, check the signed-in views in Windows light, dark and contrast themes. Resize Overview from side-by-side cards to a stacked layout; try empty, single-day and multi-day history. In Transactions, verify search, keyboard scrolling, and right-aligned amounts with long descriptions in a narrow window. In Settings, verify the shared Windows Common panel shows the installed version and that checking for updates is unavailable without a configured backend.
+
 ## Release packaging
 
 `scripts/build-finance-windows.ps1` is the Windows build entrypoint. It requires native x64 Windows, .NET 10, PowerShell 7.4+, and an unlocked interactive desktop on a disposable runner with no existing Finance installation or profile. It uses Velopack **1.2.161** for both the CLI and the app’s installer hooks. The package ID is `EveryoneSoftware.Finance`; the application executable is `Finance.exe`, and the channel and runtime are both `win-x64`. The Finance app does not yet discover or apply updates in-app.

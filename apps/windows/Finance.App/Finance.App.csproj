@@ -23,6 +23,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.WindowsAppSDK.WinUI" Version="1.8.260803003" />
+    <PackageReference Include="EveryoneSoftware.WindowsCommon" Version="[0.1.0-alpha.1]" />
     <PackageReference Include="Velopack" Version="1.2.161" />
     <ProjectReference Include="../Finance.Core/Finance.Core.csproj" />
     <EmbeddedResource Include="Shell.xaml" LogicalName="Finance.App.Shell.xaml" />
