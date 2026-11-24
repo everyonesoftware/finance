@@ -56,14 +56,10 @@ test('approved Overview layout, genuine-history states and static chart through 
     const state=await page.evaluate(()=>{
       const bounds=selector=>document.querySelector(selector).getBoundingClientRect().toJSON();
       const size=selector=>parseFloat(getComputedStyle(document.querySelector(selector)).fontSize);
-      const date=document.querySelector('.overview-date');
-      const text=date.querySelector(matchMedia('(max-width:800px)').matches?'.overview-date-short':'.overview-date-long');
-      const range=document.createRange();range.selectNodeContents(text);
-      const r=date.getBoundingClientRect(),s=text.getBoundingClientRect();
-      return {copy:bounds('.overview-balance-copy'),chart:bounds('.overview-history'),transactions:bounds('#transactions'),accounts:bounds('#accounts'),overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth,description:size('#transaction-list .transaction-copy strong'),amount:size('#transaction-list .transaction-row > b'),metadata:size('#transaction-list .transaction-copy span'),dateLines:range.getClientRects().length,dateOffset:Math.abs((r.top+r.bottom-s.top-s.bottom)/2),chartCount:document.querySelector('.overview-chart').dataset.observationCount};
+      return {copy:bounds('.overview-balance-copy'),chart:bounds('.overview-history'),transactions:bounds('#transactions'),accounts:bounds('#accounts'),overflow:document.documentElement.scrollWidth>document.documentElement.clientWidth,description:size('#transaction-list .transaction-copy strong'),amount:size('#transaction-list .transaction-row > b'),metadata:size('#transaction-list .transaction-copy span'),chartCount:document.querySelector('.overview-chart').dataset.observationCount};
     });
     assert.equal(state.overflow,false,`overflow at ${width}`);
-    assert.equal(state.dateLines,1,`date wraps at ${width}`);assert.ok(state.dateOffset<=1,`date off center at ${width}`);
+    assert.equal((await page.locator('.overview-heading').textContent()).trim(),'Overview',`heading copy at ${width}`);
     assert.equal(state.chartCount,'365');
     if(width>800)assert.ok(state.chart.left>=state.copy.right,`chart must be right of number at ${width}`);
     else{

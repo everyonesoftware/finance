@@ -34,14 +34,25 @@ test('account details omit redundant copy and links without removing account con
   assert.match(detail, /id="import-transactions"/);
 });
 
+test('Accounts keeps the add control and list without introductory copy', () => {
+  const html = bank.renderBankAccountsPage(user);
+  assert.match(html, /<h1>Accounts<\/h1>/);
+  assert.match(html, /id="add-account"/);
+  assert.match(html, /id="connected-accounts"/);
+  assert.doesNotMatch(html, /YOUR FINANCES|Your accounts, balances, and imported activity\.|Automatic bank syncing is unavailable/);
+});
+
+test('Real Estate keeps the add control and list without introductory copy', () => {
+  const html = bank.renderConnectionsPage(user);
+  assert.match(html, /<h1>Real Estate<\/h1>/);
+  assert.match(html, /id="add-property"/);
+  assert.match(html, /id="real-estate-properties"/);
+  assert.doesNotMatch(html, /YOUR FINANCES|Track property values and estimate history\./);
+});
+
 test('bank surfaces display saved data without bank mutation controls or setup prompts', () => {
-  for (const [html, showsNotice] of [
-    [renderDashboard(user), false],
-    [bank.renderBankAccountsPage(user), true],
-    [bank.renderBankAccountDetailPage(user), false],
-    [renderTransactionsPage(user), false],
-  ]) {
-    assert.equal(html.includes(notice), showsNotice);
+  for (const html of [renderDashboard(user), bank.renderBankAccountsPage(user), bank.renderBankAccountDetailPage(user), renderTransactionsPage(user)]) {
+    assert.ok(!html.includes(notice));
     assert.doesNotMatch(html, /(?:id="(?:sync-|connect-bank)|>\s*(?:Connect (?:a bank|an account)|Sync transactions)|Configure .*Settings)/i);
   }
   for (const html of [bank.renderAccounts([account]), bank.renderConnections([{ itemId: account.itemId, institutionName: account.institutionName, lastRetrievedAt: account.updatedAt, accountCount: 1, accounts: [account] }]), bank.renderAccountDetail(account, [transaction])]) {

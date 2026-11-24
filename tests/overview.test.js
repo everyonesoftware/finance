@@ -11,14 +11,13 @@ test('Overview account balances show credit and loan amounts as liabilities', ()
   assert.match(renderOverviewBankAccounts([{...account,type:'loan',currentBalance:-2180}]), /-\$2,180\.00/);
 });
 
-test('Overview renders the approved quiet ledger with net worth, date and transactions first', () => {
-  const html = dashboard.renderDashboard(user, new Date('2026-11-12T12:00:00Z'));
+test('Overview keeps net worth and transactions first without heading copy or date', () => {
+  const html = dashboard.renderDashboard(user);
+  const heading = html.match(/<header class="overview-heading">([\s\S]*?)<\/header>/)?.[1];
+  assert.match(heading, /^\s*<h1>Overview<\/h1>\s*$/);
   assert.match(html, /id="overview-net-worth"/);
   assert.match(html, />Net worth</);
   assert.match(html, /id="overview-net-worth-chart"/);
-  assert.match(html, /datetime="2026-11-12"/);
-  assert.match(html, /12 Nov 2026/);
-  assert.match(html, /12 November 2026/);
   assert.ok(html.indexOf('id="transactions"') < html.indexOf('id="accounts"'));
   assert.doesNotMatch(html, /type="range"|Hide balances|Sample data|Illustrative history|balance-decoration/);
   assert.match(html, /href="\/transactions"/);

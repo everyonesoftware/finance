@@ -2811,11 +2811,8 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
 
 /* Quiet Ledger Overview: page-scoped so transaction/account detail styles stay intact. */
 .overview-content { padding-top: 32px; }
-.overview-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+.overview-heading { margin-bottom: 28px; }
 .overview-heading h1 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -1px; }
-.overview-heading p { margin-top: 7px; color: #697567; font-size: 12px; }
-.overview-date { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; min-height: 36px; padding: 7px 12px; border: 1px solid #dfe5dc; border-radius: 30px; color: #697567; font-size: 11px; line-height: 20px; white-space: nowrap; }
-.overview-date-short { display: none; }
 .overview-hero { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.4fr); align-items: center; gap: 30px; padding: 25px 28px; border: 1px solid #dfe5dc; border-radius: 12px; background: #fff; }
 .overview-balance-copy, .overview-history { min-width: 0; }
 .overview-balance-copy h2 { margin: 0; color: #697567; font-size: 11px; font-weight: 600; letter-spacing: 1.4px; text-transform: uppercase; }
@@ -2857,11 +2854,7 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
 
 @media (max-width: 800px) {
   .overview-content { padding-top: 16px; }
-  .overview-heading { align-items: flex-start; margin-bottom: 16px; gap: 12px; }
-  .overview-heading p { max-width: 170px; font-size: 15px; line-height: 1.45; }
-  .overview-date { font-size: 13px; }
-  .overview-date-long { display: none; }
-  .overview-date-short { display: inline; }
+  .overview-heading { margin-bottom: 16px; }
   .overview-hero { display: block; padding: 18px; }
   .overview-total { font-size: 40px; }
   .overview-balance-copy h2 { font-size: 13px; }

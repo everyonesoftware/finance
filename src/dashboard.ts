@@ -138,11 +138,7 @@ export async function initializeOverviewNetWorth(signal?: AbortSignal): Promise<
   }
 }
 
-export function renderDashboard(user: DashboardUser, now = new Date()): string {
-  const date = now.toISOString().slice(0, 10);
-  const formatDate = (month: "long" | "short") => new Intl.DateTimeFormat("en-GB", {
-    day: "numeric", month, year: "numeric", timeZone: "UTC",
-  }).format(now);
+export function renderDashboard(user: DashboardUser): string {
   return `
   <div class="app-shell">
     ${renderAppNavigation(user, "overview")}
@@ -153,8 +149,7 @@ export function renderDashboard(user: DashboardUser, now = new Date()): string {
 
 
       <header class="overview-heading">
-        <div><h1>Overview</h1><p>Your accounts, in one place.</p></div>
-        <time class="overview-date" datetime="${date}"><span class="overview-date-long">${formatDate("long")}</span><span class="overview-date-short">${formatDate("short")}</span></time>
+        <h1>Overview</h1>
       </header>
 
       <section class="overview-hero" id="overview-net-worth" aria-label="Financial summary">

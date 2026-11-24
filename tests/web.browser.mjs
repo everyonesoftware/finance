@@ -129,8 +129,18 @@ try {
   await assertAccountDetailCopy(page);
   await page.locator('.navigation a[href="/accounts"]').click();
   await page.locator('#connected-accounts').filter({ hasText: 'Example Bank' }).waitFor();
+  await page.getByRole('heading', { name: 'Accounts', exact: true }).waitFor();
+  assert.doesNotMatch(await page.locator('main').textContent(), /YOUR FINANCES|Your accounts, balances, and imported activity\.|Automatic bank syncing is unavailable/);
+  await page.locator('#add-account').click();
+  await page.locator('#manual-account-dialog[open]').waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator('#manual-account-dialog[open]').waitFor({ state: 'detached' });
   await page.locator('.navigation a[href="/real-estate"]').click();
   await page.locator('#real-estate-properties').waitFor();
+  await page.getByRole('heading', { name: 'Real Estate', exact: true }).waitFor();
+  assert.doesNotMatch(await page.locator('main').textContent(), /YOUR FINANCES|Track property values and estimate history\./);
+  await page.locator('#add-property').click();
+  await page.locator('#property-address').waitFor();
   await page.locator('.settings-gear:visible').click();
   await page.locator('#profile-form').waitFor();
   assert.equal(documentRequests, 1, "links and Back/Forward must not request another document");
