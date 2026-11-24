@@ -150,6 +150,35 @@ export function createBankAccountsRouter(deps: BankRouterDependencies): Hono {
     })();
     return context.json({ account: accountsFor(userId).find(a => a.id === id) }, 201);
   });
+  router.delete("/:accountId/deletion", async context => {
+    const body = await readWrite(context, 1);
+    if (body instanceof Response) return body;
+    if (body.confirmed !== true) return context.json({ error: "Account deletion must be confirmed." }, 400);
+
+    const userId = uid(context), id = context.req.param("accountId");
+    const result = db.transaction(() => {
+      const account = db.prepare(`SELECT a.item_id, a.provider_account_id, i.provider
+        FROM bank_account a JOIN bank_item i ON i.item_id = a.item_id AND i.user_id = a.user_id
+        WHERE a.id = ? AND a.user_id = ? AND a.is_active = 1 AND i.provider <> 'legacy'`)
+        .get(id, userId) as { item_id: string; provider_account_id: string; provider: string } | undefined;
+      if (!account) return "missing";
+      if (account.provider !== "manual") return "read-only";
+
+      // Transactions reference the item, not the account; snapshots cascade off the account.
+      db.prepare("DELETE FROM bank_transaction WHERE user_id = ? AND item_id = ? AND account_id = ?")
+        .run(userId, account.item_id, account.provider_account_id);
+      db.prepare("DELETE FROM bank_account WHERE id = ? AND user_id = ?").run(id, userId);
+      db.prepare(`DELETE FROM bank_item WHERE item_id = ? AND user_id = ? AND provider = 'manual'
+        AND NOT EXISTS (SELECT 1 FROM bank_account WHERE item_id = ? AND user_id = ?)`)
+        .run(account.item_id, userId, account.item_id, userId);
+      return "deleted";
+    }).immediate();
+
+    if (result === "missing") return context.json({ error: "Account not found." }, 404);
+    if (result === "read-only") return context.json({ error: "Saved accounts are read-only." }, 409);
+    return context.json({ deleted: true });
+  });
+
   router.patch("/:accountId/balance", async context => {
     const body = await readWrite(context);
     if (body instanceof Response) return body;

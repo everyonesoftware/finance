@@ -36,7 +36,7 @@ test('account details omit redundant copy and links without removing account con
 
 test('Accounts keeps the add control and list without introductory copy', () => {
   const html = bank.renderBankAccountsPage(user);
-  assert.match(html, /<h1>Accounts<\/h1>/);
+  assert.match(html, /<h1\b[^>]*>Accounts<\/h1>/);
   assert.match(html, /id="add-account"/);
   assert.match(html, /id="connected-accounts"/);
   assert.doesNotMatch(html, /YOUR FINANCES|Your accounts, balances, and imported activity\.|Automatic bank syncing is unavailable/);

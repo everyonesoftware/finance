@@ -44,6 +44,45 @@ test('every bank read and unknown mutation authenticates before returning JSON',
   } finally {f.db.close();}
 });
 
+test('deletion requires an authenticated owner, an allowed origin and explicit confirmation', async () => {
+  const f = await fixture();
+  try {
+    const app = new Hono().route('/api/accounts', f.router);
+    const base = 'https://finance.example.test/api/accounts';
+    const send = (id, body, origin = 'https://finance.example.test') => app.request(`${base}/${id}/deletion`, {
+      method: 'DELETE', headers: { origin, 'content-type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const created = await app.request(base, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Brokerage', institutionName: 'Example Bank', type: 'investment', subtype: 'brokerage', currencyCode: 'USD' }),
+    });
+    assert.equal(created.status, 201);
+    const { account } = await created.json();
+    f.db.prepare('INSERT INTO investment_snapshot(id,user_id,account_id,created_at,encrypted_data) VALUES(?,?,?,?,?)')
+      .run('snapshot', 'owner', account.id, '2020-01-01T00:00:00Z', 'opaque-fixture');
+    f.db.prepare('INSERT INTO net_worth_history_cache(user_id,encrypted_data) VALUES(?,?)').run('owner', 'opaque-cache');
+    const before = f.db.serialize();
+    f.setUser(null);
+    assert.equal((await send(account.id, { confirmed: true })).status, 401);
+    f.setUser('other');
+    assert.equal((await send(account.id, { confirmed: true })).status, 404);
+    f.setUser('owner');
+    assert.equal((await send(account.id, { confirmed: true }, 'https://untrusted.example')).status, 403);
+    for (const body of [{}, { confirmed: false }, { confirmed: 'true' }]) {
+      assert.equal((await send(account.id, body)).status, 400);
+    }
+    assert.equal((await send('stable-id', { confirmed: true })).status, 409);
+    assert.deepEqual(f.db.serialize(), before);
+    const result = await send(account.id, { confirmed: true });
+    assert.equal(result.status, 200);
+    assert.deepEqual(await result.json(), { deleted: true });
+    assert.equal(f.db.prepare('SELECT id FROM investment_snapshot WHERE account_id=?').get(account.id), undefined);
+    assert.equal(f.db.prepare('SELECT item_id FROM bank_item WHERE item_id=?').get(account.itemId), undefined);
+    assert.equal(f.db.prepare('SELECT user_id FROM net_worth_history_cache WHERE user_id=?').get('owner'), undefined);
+    assert.equal((await send(account.id, { confirmed: true })).status, 404);
+  } finally { f.db.close(); }
+});
+
 test('cached transaction reads are owner-scoped, exclude incompatible rows and retain recent/all shapes', async () => {
   const f = await fixture();
   try {

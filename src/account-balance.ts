@@ -86,7 +86,11 @@ export function initializeAccountBalance(account: BankAccount, onSaved: (account
     menu.style.right = `${Math.max(8, window.innerWidth - bounds.right)}px`;
   }, { signal });
   menu?.addEventListener("toggle", event => {
-    options?.setAttribute("aria-expanded", String((event as ToggleEvent).newState === "open"));
+    const open = (event as ToggleEvent).newState === "open";
+    options?.setAttribute("aria-expanded", String(open));
+    if (open && options && menu && menu.getBoundingClientRect().bottom > window.innerHeight - 8) {
+      menu.style.top = `${Math.max(8, options.getBoundingClientRect().top - menu.offsetHeight - 4)}px`;
+    }
   }, { signal });
   trigger.addEventListener("click", () => {
     if (active() && !busy) {

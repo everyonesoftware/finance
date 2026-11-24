@@ -53,6 +53,7 @@ async function fixture(t, browser, origin) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   const calls = [];
+  const beforeReply = new Map();
   await page.route('**/api/**', async route => {
     const incoming = route.request();
     const url = new URL(incoming.url());
@@ -69,9 +70,10 @@ async function fixture(t, browser, origin) {
     }));
     const body = await response.text();
     calls.push({ path, method, status: response.status, request: incoming.postDataJSON(), response: JSON.parse(body) });
+    await beforeReply.get(`${method} ${path}`)?.();
     return route.fulfill({ status: response.status, headers: Object.fromEntries(response.headers), body });
   });
-  return { db, page, calls, request, create, accounts, saved, errors };
+  return { db, page, calls, request, create, accounts, saved, errors, beforeReply };
 }
 
 async function poll(check, message) {
@@ -152,6 +154,170 @@ test('balance workflows through real Vite frontend and in-memory production rout
   const browser = await chromium.launch({ headless: true, ...(process.platform === 'win32' ? { channel: 'msedge' } : {}) });
   t.after(() => browser.close());
   const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+
+  await t.test('delete account requires confirmation and returns to the refreshed list', async t => {
+    const f = await fixture(t, browser, origin);
+    const account = await f.create({ name: 'Costco Card', institutionName: 'Citi', mask: '2374', type: 'credit', subtype: 'credit card' });
+    const other = await f.create({ name: 'Keep checking' });
+    const { page } = f;
+    await detail(f, origin, account);
+    await preview(f);
+    await page.locator('#import-next').click();
+    await page.getByText(/Imported 4 transactions/).waitFor();
+    const options = page.getByRole('button', { name: 'Balance options' });
+    const dialog = page.getByRole('dialog', { name: 'Delete account?' });
+    const open = async () => {
+      await options.click();
+      await page.getByRole('button', { name: 'Delete account', exact: true }).click({ timeout: 4000 });
+      await dialog.waitFor();
+      assert.match(await dialog.innerText(), /Costco Card[\s\S]*Citi · Credit card ending in 2374/);
+      assert.equal(await dialog.getByRole('button', { name: 'Cancel' }).evaluate(button => button === document.activeElement), true);
+    };
+    await open();
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    await open();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+    await poll(() => options.evaluate(button => button === document.activeElement), 'focus restored to balance options');
+    assert.equal(f.calls.filter(call => call.method === 'DELETE').length, 0);
+    assert.ok(await f.saved(account.id));
+
+    await page.setViewportSize({ width: 390, height: 660 });
+    await open();
+    f.db.exec("CREATE TRIGGER test_block_account_delete BEFORE DELETE ON bank_account BEGIN SELECT RAISE(ABORT, 'fixture rejects account removal'); END");
+    await dialog.getByRole('button', { name: 'Delete account' }).click();
+    await dialog.getByRole('alert').waitFor();
+    assert.equal(f.calls.filter(call => call.method === 'DELETE').at(-1).status, 500);
+    assert.ok(await f.saved(account.id));
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM bank_transaction WHERE item_id=?').get(account.itemId).n, 4);
+    f.db.exec('DROP TRIGGER test_block_account_delete');
+    await dialog.getByRole('button', { name: 'Delete account' }).click();
+    await page.waitForURL(origin + '/accounts');
+    await page.getByText('Costco Card was deleted.', { exact: true }).waitFor();
+    await page.getByText('Keep checking', { exact: true }).waitFor();
+    assert.deepEqual((await f.accounts()).map(row => row.id), [other.id]);
+    assert.deepEqual(f.calls.filter(call => call.method === 'DELETE').map(call => [call.request, call.status]), [
+      [{ confirmed: true }, 500], [{ confirmed: true }, 200],
+    ]);
+    assert.equal(f.db.prepare('SELECT count(*) AS n FROM bank_transaction WHERE item_id=?').get(account.itemId).n, 0);
+    await page.reload();
+    await page.getByText('Keep checking', { exact: true }).waitFor();
+    assert.equal(await page.getByText('Costco Card', { exact: true }).count(), 0);
+    assert.deepEqual(f.errors, []);
+  });
+
+  await t.test('an in-flight balance readback cannot strand an acknowledged deletion', async t => {
+    const f = await fixture(t, browser, origin);
+    const account = await f.create();
+    const { page } = f;
+    await detail(f, origin, account);
+    const refresh = `/${account.id}/transactions`;
+    const deletion = `/${account.id}/deletion`;
+    const readbackGate = Promise.withResolvers();
+    const deletionGate = Promise.withResolvers();
+    t.after(() => { readbackGate.resolve(); deletionGate.resolve(); });
+    f.beforeReply.set(`GET ${refresh}`, () => readbackGate.promise);
+    f.beforeReply.set(`DELETE ${deletion}`, () => deletionGate.promise);
+
+    await openBalance(page);
+    await page.locator('#account-balance-form input[name=currentBalance]').fill('1200');
+    await page.getByRole('button', { name: 'Save balance' }).click();
+    await poll(() => f.calls.filter(call => call.path === refresh).length === 2, 'balance readback is held');
+    await page.getByRole('button', { name: 'Balance options' }).click();
+    await page.getByRole('button', { name: 'Delete account', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Delete account?' }).getByRole('button', { name: 'Delete account' }).click();
+    await poll(() => f.calls.some(call => call.path === deletion && call.status === 200), 'deletion committed; reply is held');
+
+    const readback = page.waitForResponse(origin + '/api/accounts' + refresh);
+    readbackGate.resolve();
+    await (await readback).finished();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    deletionGate.resolve();
+    await page.waitForURL(origin + '/accounts', { timeout: 4000 });
+    await page.getByText(`${account.name} was deleted.`, { exact: true }).waitFor();
+    assert.equal(await f.saved(account.id), undefined);
+    assert.deepEqual(f.errors, []);
+  });
+
+  for (const dismiss of ['Cancel', 'Escape']) {
+    await t.test(`${dismiss} retains launcher focus and the save notice after a deferred refresh`, async t => {
+      const f = await fixture(t, browser, origin);
+      const account = await f.create();
+      const { page } = f;
+      await detail(f, origin, account);
+      const refresh = `/${account.id}/transactions`;
+      const first = Promise.withResolvers();
+      const deferred = Promise.withResolvers();
+      t.after(() => { first.resolve(); deferred.resolve(); });
+      const readCount = () => f.calls.filter(call => call.path === refresh).length;
+      f.beforeReply.set(`GET ${refresh}`, () => readCount() === 2 ? first.promise : deferred.promise);
+
+      await openBalance(page);
+      await page.locator('#account-balance-form input[name=currentBalance]').fill('1200');
+      await page.getByRole('button', { name: 'Save balance' }).click();
+      await poll(() => readCount() === 2, 'balance readback is held');
+      const options = page.getByRole('button', { name: 'Balance options' });
+      await options.click();
+      await page.getByRole('button', { name: 'Delete account', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Delete account?' });
+      const notice = page.getByText('Balance reference saved.', { exact: true });
+      first.resolve();
+      await notice.waitFor();
+      if (dismiss === 'Escape') await page.keyboard.press('Escape');
+      else await dialog.getByRole('button', { name: dismiss }).click();
+      await poll(() => readCount() === 3, 'deferred readback is held');
+      await poll(() => options.evaluate(button => button === document.activeElement), 'launcher is focused before refresh');
+      deferred.resolve();
+      await page.locator('.account-detail-balances strong').getByText(money(1200), { exact: true }).waitFor();
+      assert.equal(await options.evaluate(button => button === document.activeElement), true, 'launcher stays focused after refresh');
+      assert.equal(await notice.isVisible(), true, 'save notice remains visible after refresh');
+      assert.equal(f.calls.filter(call => call.method === 'DELETE').length, 0);
+      assert.deepEqual(f.errors, []);
+    });
+  }
+
+  await t.test('a refresh deferred by Delete cannot discard the next balance draft', async t => {
+    const f = await fixture(t, browser, origin);
+    const account = await f.create();
+    const { page } = f;
+    await detail(f, origin, account);
+    const refresh = `/${account.id}/transactions`;
+    const refreshURL = origin + '/api/accounts' + refresh;
+    const first = Promise.withResolvers();
+    const deferred = Promise.withResolvers();
+    t.after(() => { first.resolve(); deferred.resolve(); });
+    const readCount = () => f.calls.filter(call => call.path === refresh).length;
+    f.beforeReply.set(`GET ${refresh}`, () => readCount() === 2 ? first.promise : deferred.promise);
+    const balance = page.getByRole('dialog', { name: 'Set balance' });
+    const amount = balance.locator('input[name=currentBalance]');
+
+    await openBalance(page);
+    await amount.fill('1200');
+    await balance.getByRole('button', { name: 'Save balance' }).click();
+    await poll(() => readCount() === 2, 'first balance readback is held');
+    await page.getByRole('button', { name: 'Balance options' }).click();
+    await page.getByRole('button', { name: 'Delete account', exact: true }).click();
+    const firstReply = page.waitForResponse(refreshURL);
+    first.resolve();
+    await (await firstReply).finished();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await page.getByRole('dialog', { name: 'Delete account?' }).getByRole('button', { name: 'Cancel' }).click();
+    await poll(() => readCount() === 3, 'deferred readback is held');
+    await openBalance(page);
+    await amount.fill('1350');
+    const deferredReply = page.waitForResponse(refreshURL);
+    deferred.resolve();
+    await (await deferredReply).finished();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await balance.isVisible(), true, 'deferred readback must keep the editor open');
+    assert.equal(await amount.inputValue(), '1350');
+    await balance.getByRole('button', { name: 'Save balance' }).click();
+    await page.getByText('Balance reference saved.').waitFor();
+    assert.equal((await f.saved(account.id)).currentBalance, 1350);
+    assert.equal(f.calls.filter(call => call.method === 'DELETE').length, 0);
+    assert.deepEqual(f.errors, []);
+  });
 
   await t.test('Overview reconstructs imported history, reuses cache, and refreshes after another import', async t => {
     const f = await fixture(t, browser, origin);

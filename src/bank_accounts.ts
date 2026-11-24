@@ -5,6 +5,7 @@ import { renderRecentTransactionList } from "./transaction-list.ts";
 import { renderRealEstateCards } from "./real-estate.ts";
 import { renderManualAccountDialog, renderImportDialog, initializeManualAccountCreation, initializeAccountImport } from "./account-import.ts";
 import { renderAccountBalanceDialog, initializeAccountBalance } from "./account-balance.ts";
+import { renderAccountDeleteDialog, initializeAccountDelete } from "./account-delete.ts";
 import { renderInvestmentDetail, initializeInvestmentDetail } from "./investments.ts";
 export {
   findReferencedAccount,
@@ -211,7 +212,7 @@ export function renderAccountDetail(
         <div>
           <div class="account-balance-heading"><span>Current balance</span>${account.canImport ? `<button id="account-balance-options" class="account-balance-options" type="button" aria-label="Balance options" popovertarget="account-balance-menu" aria-expanded="false"><svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>` : ""}</div>
           <strong>${escapeHtml(formatAccountBalance(account))}</strong>
-          ${account.canImport ? `<span class="account-balance-reference">${account.balanceReference ? `${account.balanceReference.verified ? "Reference" : "Default balance · not verified"} · end of ${escapeHtml(account.balanceReference.date)}` : "Set a known balance and date"}</span><div id="account-balance-menu" class="account-balance-menu" popover="auto" aria-label="Balance options"><button id="set-account-balance" type="button">Set balance</button></div>` : ""}
+          ${account.canImport ? `<span class="account-balance-reference">${account.balanceReference ? `${account.balanceReference.verified ? "Reference" : "Default balance · not verified"} · end of ${escapeHtml(account.balanceReference.date)}` : "Set a known balance and date"}</span><div id="account-balance-menu" class="account-balance-menu" popover="auto" role="group" aria-label="Balance options"><button id="set-account-balance" type="button">Set balance</button><hr><button id="delete-account" class="delete-account-option" type="button">Delete account</button></div>` : ""}
         </div>
         ${account.canImport ? "" : `<div><span>Available balance</span><strong>${escapeHtml(formatBalance(account.availableBalance, account.currencyCode))}</strong></div>`}
       </div>
@@ -224,6 +225,7 @@ export function renderAccountDetail(
     </section>`}
     ${account.canImport ? renderImportDialog(account) : ""}
     ${account.canImport ? renderAccountBalanceDialog(account) : ""}
+    ${account.canImport ? renderAccountDeleteDialog(account) : ""}
   `;
 }
 
@@ -509,7 +511,7 @@ export function renderBankAccountsPage(user: BankAccountsPageUser): string {
         <p id="accounts-message" class="auth-message" role="status" hidden></p>
 
         <section class="page-heading accounts-page-heading">
-          <h1>Accounts</h1>
+          <h1 id="accounts-title" tabindex="-1">Accounts</h1>
           <button class="primary-button" id="add-account" type="button">＋ Add account</button>
         </section>
 
@@ -547,20 +549,52 @@ export async function initializeAccountDetailPage(accountId: string, signal?: Ab
   const container = document.querySelector<HTMLDivElement>("#account-detail-content");
   if (!container || signal?.aborted) return;
   const isActive = (): boolean => !signal?.aborted && container.isConnected !== false;
+  const deferredDialogs = new WeakSet<HTMLDialogElement>();
+  let loadGeneration = 0;
+
+  // Do not replace any open account workflow: it can contain a draft or a pending write.
+  function deferWhileDialogOpen(): boolean {
+    const dialog = container?.querySelector<HTMLDialogElement>("dialog[open]");
+    if (!dialog) return false;
+    if (!deferredDialogs.has(dialog)) {
+      deferredDialogs.add(dialog);
+      const deferredGeneration = loadGeneration;
+      dialog.addEventListener("close", () => {
+        deferredDialogs.delete(dialog);
+        // Refetch on cancel, but let a newer readback (for example, after Save) win.
+        if (isActive() && loadGeneration === deferredGeneration) void load();
+      }, { once: true, signal });
+    }
+    return true;
+  }
 
   const load = async (): Promise<void> => {
-    if (!isActive()) return;
+    if (!isActive() || deferWhileDialogOpen()) return;
+    const generation = ++loadGeneration;
+    const canRender = () => isActive() && generation === loadGeneration && !deferWhileDialogOpen();
     try {
       const response = await fetch(
         `/api/accounts/${encodeURIComponent(accountId)}/transactions`,
         { cache: "no-store", credentials: "same-origin" },
       );
       const payload: unknown = await readJson(response);
-      if (!isActive()) return;
+      if (!canRender()) return;
       if (!response.ok || !isAccountDetailResponse(payload)) {
         throw new Error(getErrorMessage(payload, "Unable to load this account."));
       }
+      const restoreOptionsFocus = document.activeElement === container.querySelector("#account-balance-options");
+      const savedNotice = container.querySelector<HTMLElement>("#account-import-message:not([hidden])")?.textContent;
       container.innerHTML = renderAccountDetail(payload.account, payload.transactions, payload.accounts);
+      if (savedNotice) setAccountsMessage(container.querySelector("#account-import-message"), savedNotice, false);
+      if (restoreOptionsFocus) container.querySelector<HTMLButtonElement>("#account-balance-options")?.focus({ preventScroll: true });
+      if (payload.account.canImport) {
+        const accountName = payload.account.name;
+        initializeAccountDelete(container, payload.account, () => {
+          navigateTo("/accounts");
+          document.getElementById("accounts-title")?.focus();
+          setAccountsMessage(document.querySelector<HTMLParagraphElement>("#accounts-message"), `${accountName} was deleted.`, false);
+        }, signal);
+      }
       if (payload.account.type === "investment") void initializeInvestmentDetail(payload.account, payload.transactions, payload.accounts, async () => {
         await load();
         if (isActive()) container.querySelector<HTMLButtonElement>("#investment-add-snapshot")?.focus();
@@ -584,7 +618,7 @@ export async function initializeAccountDetailPage(accountId: string, signal?: Ab
         }
       }, signal);
     } catch (error: unknown) {
-      if (!isActive()) return;
+      if (!canRender()) return;
       const message = error instanceof Error ? error.message : "Unable to load this account.";
       container.innerHTML = `
         <section class="panel account-detail-error" role="alert">

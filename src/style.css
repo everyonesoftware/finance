@@ -2460,6 +2460,30 @@ a.text-button {
 .account-balance-menu { position: fixed; inset: auto; margin: 0; padding: 5px; min-width: 148px; max-width: calc(100vw - 16px); border: 1px solid #dfe5dd; border-radius: 8px; background: #fff; color: #20251f; box-shadow: 0 6px 20px #20251f14; }
 .account-balance-menu button { display: block; width: 100%; min-height: 44px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; color: inherit; text-align: left; font-size: 12px; }
 .account-balance-menu button:hover { background: #eaf2e9; color: #2e6749; }
+.account-balance-menu hr { border: 0; border-top: 1px solid #e9ebe6; margin: 3px 5px; }
+.account-balance-menu .delete-account-option { color: #a3312a; }
+.account-balance-menu .delete-account-option:hover { background: #fbedeb; color: #86251f; }
+.account-delete-dialog { width: min(450px, calc(100% - 32px)); }
+.account-delete-dialog::backdrop { background: #20291f69; backdrop-filter: none; }
+.account-delete-body { padding: 24px; }
+.account-delete-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.account-delete-heading h2 { margin: 0; font-size: 22px; }
+.account-delete-icon { display: grid; place-items: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 8px; background: #fbedeb; color: #a3312a; }
+.account-delete-identity { padding: 11px 13px; margin: 0 0 14px; border: 1px solid #e3e7df; border-radius: 8px; background: #f6f7f4; overflow-wrap: anywhere; }
+.account-delete-identity strong { display: block; font-size: 15px; }
+.account-delete-identity span, .account-delete-warning { font-size: 14px; line-height: 1.55; color: #606b60; }
+.account-delete-warning { margin: 0; overflow-wrap: anywhere; }
+.account-delete-warning strong { display: block; margin-top: 6px; color: #303730; }
+.account-delete-body .auth-message { margin: 14px 0 0; }
+.account-delete-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; padding: 15px 24px; border-top: 1px solid #e3e7df; background: #fafbf9; }
+.account-delete-actions button { min-height: 44px; }
+.account-delete-actions .account-delete-confirm { background: #a3312a; border-color: #a3312a; color: white; }
+.account-delete-actions .account-delete-confirm:hover { background: #86251f; border-color: #86251f; }
+.account-delete-actions button:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 420px) {
+  .account-delete-body { padding: 20px; }
+  .account-delete-actions { padding: 14px 20px; }
+}
 .connected-account-info .account-balance-default { color: #2e6749; }
 .account-workflow-actions button { min-height: 44px; }
 .balance-impact { margin: 18px 0; padding: 18px; border: 1px solid #dfe7db; border-left: 3px solid #2e6749; border-radius: 0 8px 8px 0; background: #f4f8f1; }
