@@ -2,9 +2,14 @@
 
 A personal-finance app with a Vite/TypeScript frontend, Hono TypeScript API, Better Auth username/password authentication, SQLite, manual financial accounts, transaction imports, saved bank-account views, and real-estate tracking. Saved financial data is encrypted at rest.
 
-## Native clients
+## Current downloads
 
-[Android](android/README.md) and [Windows](apps/windows/README.md) connect to the same Finance server as the web app. Use the server's HTTPS URL and an existing Finance username and password. The native clients support browsing financial data and single-file transaction imports; account and property management remains available in the web app. No native release or update feed is published.
+| Platform | Version | Download | SHA-256 |
+| --- | --- | --- | --- |
+| Android | 0.1.123 | [Signed APK](https://github.com/everyonesoftware/finance/releases/download/native-v0.1.123/Finance-android-0.1.123.apk) | [Checksum](https://github.com/everyonesoftware/finance/releases/download/native-v0.1.123/Finance-android-0.1.123.apk.sha256) |
+| Windows x64 | 0.1.123 | [Unsigned Setup EXE](https://github.com/everyonesoftware/finance/releases/download/native-v0.1.123/Finance-windows-x64-0.1.123-Setup.exe) | [Checksum](https://github.com/everyonesoftware/finance/releases/download/native-v0.1.123/Finance-windows-x64-0.1.123-Setup.exe.sha256) |
+
+[Android](android/README.md) and [Windows](apps/windows/README.md) use the same Finance server as the web app. Use your server's HTTPS URL and existing Finance username and password. The apps browse financial data and import individual transaction files; account and property management remains in the web app. GitHub sign-in with access to this repository is required for downloads. In-app updating is not available.
 
 ## Requirements
 
