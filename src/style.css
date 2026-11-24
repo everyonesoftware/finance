@@ -2805,6 +2805,7 @@ body:has(.transaction-controls-dialog[open]) { overflow: hidden; }
 }
 @media (max-width: 360px) {
   .app-shell:has(.transactions-content) .sidebar { gap: 4px; padding-inline: 8px; }
+  .app-shell:has(.transactions-content) .mobile-profile { flex-shrink: 1; min-width: 46px; }
   .app-shell:has(.transactions-content) .mobile-profile-name { max-width: 24px; }
   .app-shell:has(.transactions-content) .transaction-heading-actions { gap: 4px; }
 }

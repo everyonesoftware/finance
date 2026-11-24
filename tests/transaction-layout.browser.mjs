@@ -38,9 +38,16 @@ test('transaction rails scroll behind the full search gutter and mobile rows mat
     await initializeTransactionsPage();
   });
 
+  async function resize(width) {
+    await page.setViewportSize({ width, height: 740 });
+    // CSS updates before the media-query listener moves the shared search field.
+    const slot = width <= 800 ? '#transaction-mobile-search' : '#transaction-desktop-search';
+    await page.locator(`${slot} #transaction-search`).waitFor();
+  }
+
   await t.test('mobile ordinary rows have the same white surface as collapsed groups', async () => {
     for (const width of [320, 390, 800]) {
-      await page.setViewportSize({ width, height: 740 });
+      await resize(width);
       const colors = await page.evaluate(() => {
         const background = element => {
           while (element) {
@@ -61,13 +68,17 @@ test('transaction rails scroll behind the full search gutter and mobile rows mat
 
   await t.test('search background occludes rails as they reach the sticky search area', async () => {
     for (const width of [320, 390, 800, 801, 1440]) {
-      await page.setViewportSize({ width, height: 740 });
-      await page.evaluate(() => window.scrollTo(0, 0));
+      await resize(width);
       await page.evaluate(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
         const element = document.querySelector('.transactions-sticky-controls');
         const controls = element.getBoundingClientRect();
-        const group = document.querySelector('.transaction-transfer-pair').getBoundingClientRect();
-        window.scrollBy(0, group.top - parseFloat(getComputedStyle(element).top) - controls.height + 30);
+        const group = document.querySelector('.transaction-transfer-pair');
+        const box = group.getBoundingClientRect();
+        const rail = getComputedStyle(group, '::before');
+        const railMiddle = (box.top + parseFloat(rail.top) + box.bottom - parseFloat(rail.bottom)) / 2;
+        const stickyProbe = parseFloat(getComputedStyle(element).top) + controls.height - 3;
+        window.scrollTo({ top: railMiddle - stickyProbe, behavior: 'instant' });
       });
       const bounds = await page.evaluate(() => {
         const controls = document.querySelector('.transactions-sticky-controls').getBoundingClientRect();
@@ -79,25 +90,29 @@ test('transaction rails scroll behind the full search gutter and mobile rows mat
         const top = document.elementFromPoint(x, y);
         return {
           covered: Boolean(top?.closest('.transactions-sticky-controls')),
-          railCrossesSearch: box.top + parseFloat(rail.top) < y && box.bottom > y,
+          railCrossesSearch: box.top + parseFloat(rail.top) < y && box.bottom - parseFloat(rail.bottom) > y,
           horizontalOverflow: document.documentElement.scrollWidth > innerWidth,
         };
       });
       assert.equal(bounds.railCrossesSearch, true, `fixture must put the rail behind search at ${width}px`);
       assert.equal(bounds.covered, true, `rail gutter must be covered at ${width}px`);
       assert.equal(bounds.horizontalOverflow, false, `no horizontal overflow at ${width}px`);
+      if (width <= 800) {
+        const gear = await page.locator('.mobile-gear').boundingBox();
+        assert.ok(gear.width >= 44 && gear.height >= 44 && gear.x + gear.width <= width, `Settings target fits at ${width}px`);
+      }
     }
   });
 
   await t.test('expanded details retain their gray surface and row identity across breakpoints', async () => {
-    await page.setViewportSize({ width: 390, height: 740 });
+    await resize(390);
     await page.evaluate(() => {
       window.scrollTo(0, 0);
       window.layoutGroup = document.querySelector('.transaction-transfer-pair');
       window.layoutGroup.open = true;
     });
     for (const width of [390, 1440, 390]) {
-      await page.setViewportSize({ width, height: 740 });
+      await resize(width);
       assert.deepEqual(await page.evaluate(() => ({
         same: window.layoutGroup === document.querySelector('.transaction-transfer-pair'),
         open: window.layoutGroup.open,
