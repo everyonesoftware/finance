@@ -3,9 +3,8 @@ import { escapeHtml } from "./html-utils.ts";
 
 export type MainNavigationPage = "overview" | "transactions" | "real-estate" | "accounts" | "settings";
 
-export function renderAppNavigation(user: { displayName: string; username: string }, activePage: MainNavigationPage): string {
+export function renderAppNavigation(user: { displayName: string }, activePage: MainNavigationPage): string {
   const displayName = escapeHtml(user.displayName);
-  const username = escapeHtml(user.username);
   const initial = escapeHtml(user.displayName.charAt(0).toUpperCase() || "U");
   return `
     <aside class="sidebar" aria-label="Main navigation">
@@ -15,7 +14,7 @@ export function renderAppNavigation(user: { displayName: string; username: strin
       ${renderMainNavigation(activePage)}
       <div class="sidebar-bottom">
         <div class="profile-avatar" aria-hidden="true">${initial}</div>
-        <div class="profile-copy"><strong>${displayName}</strong><span>@${username}</span><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
+        <div class="profile-copy"><strong>${displayName}</strong><span class="app-version">Version ${escapeHtml(appVersion)}</span></div>
         ${renderSettingsGear(activePage)}
       </div>
     </aside>

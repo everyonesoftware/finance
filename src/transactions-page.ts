@@ -24,7 +24,6 @@ import { initializeBatchImport, renderBatchImportDialog } from "./batch-import.t
 
 export interface TransactionsPageUser {
   displayName: string;
-  username: string;
 }
 
 interface TransactionsResponse {

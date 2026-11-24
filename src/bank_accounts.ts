@@ -14,7 +14,6 @@ export {
 
 export interface BankAccountsPageUser {
   displayName: string;
-  username: string;
 }
 
 export interface BankAccount {

@@ -142,7 +142,6 @@ button {
   font-size: 11px;
 }
 
-.profile-copy span,
 .account-info span {
   color: var(--muted);
   font-size: 10px;

@@ -3,7 +3,6 @@ import { escapeHtml } from "./html-utils.ts";
 
 export interface DashboardUser {
   displayName: string;
-  username: string;
 }
 
 export interface NetWorthPoint { date: string; total: number; source?: "observed" | "reconstructed" }

@@ -53,7 +53,11 @@ test("shared app navigation renders desktop and mobile links outside the sidebar
   for (const activePage of pages) {
     const html = navigation.renderAppNavigation({ displayName: '<Test & User>', username: 'test"user' }, activePage);
     assert.match(html, /&lt;Test &amp; User&gt;/);
-    assert.match(html, /@test&quot;user/);
+    const profile = html.match(/<div class="profile-copy">([\s\S]*?)<\/div>/)?.[1];
+    assert.ok(profile);
+    assert.doesNotMatch(profile, /@test/);
+    assert.match(profile, /<strong>&lt;Test &amp; User&gt;<\/strong>/);
+    assert.match(profile, /class="app-version">Version /);
     assert.match(html, /<\/aside>\s*<nav class="mobile-navigation"/);
     const mobile = html.match(/<nav class="mobile-navigation"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
     assert.ok(mobile);

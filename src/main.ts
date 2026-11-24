@@ -217,7 +217,7 @@ function renderLanding(): void {
 function renderSettings(user: AuthUser, signal: AbortSignal): void {
   mountPage(`
     <div class="app-shell">
-      ${renderAppNavigation({ displayName: displayNameFor(user), username: user.username ?? "" }, "settings")}
+      ${renderAppNavigation({ displayName: displayNameFor(user) }, "settings")}
       <main class="main-content settings-main">
       <section class="settings-content">
         <p class="eyebrow">YOUR ACCOUNT</p>
@@ -442,7 +442,6 @@ function render(): void {
     if (path === "/transactions") {
       mountPage(renderTransactionsPage({
         displayName: displayNameFor(currentUser),
-        username: currentUser.username ?? "",
       }));
       attachLogoutHandler();
       void initializeTransactionsPage(signal);
@@ -452,7 +451,6 @@ function render(): void {
     if (path === "/accounts") {
       mountPage(renderBankAccountsPage({
         displayName: displayNameFor(currentUser),
-        username: currentUser.username ?? "",
       }));
       attachLogoutHandler();
       initializeBankAccountsPage(signal);
@@ -460,7 +458,7 @@ function render(): void {
     }
 
     if (path === "/real-estate") {
-      mountPage(renderConnectionsPage({ displayName: displayNameFor(currentUser), username: currentUser.username ?? "" }));
+      mountPage(renderConnectionsPage({ displayName: displayNameFor(currentUser) }));
       attachLogoutHandler();
       void initializeConnectionsPage(signal);
       return;
@@ -477,7 +475,6 @@ function render(): void {
       }
       mountPage(renderBankAccountDetailPage({
         displayName: displayNameFor(currentUser),
-        username: currentUser.username ?? "",
       }));
       attachLogoutHandler();
       void initializeAccountDetailPage(accountId, signal);
@@ -486,7 +483,6 @@ function render(): void {
 
     mountPage(renderDashboard({
       displayName: displayNameFor(currentUser),
-      username: currentUser.username ?? "",
     }));
     attachLogoutHandler();
     void initializeOverviewBankAccounts(signal, false);
