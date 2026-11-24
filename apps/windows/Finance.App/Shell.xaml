@@ -1,0 +1,53 @@
+<Grid xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}">
+  <Grid.Resources>
+    <DataTemplate x:Key="LedgerRow">
+      <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,6"/>
+    </DataTemplate>
+  </Grid.Resources>
+  <Grid.RowDefinitions>
+    <RowDefinition Height="Auto"/>
+    <RowDefinition Height="*"/>
+  </Grid.RowDefinitions>
+  <Border x:Name="TitleBar" Height="44">
+    <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+      <Image x:Name="BrandIcon" Width="22" Height="22"/>
+      <TextBlock Text="Finance" FontWeight="SemiBold" VerticalAlignment="Center"/>
+    </StackPanel>
+  </Border>
+  <ScrollViewer x:Name="SignInView" Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled">
+    <StackPanel MaxWidth="440" Padding="28,48,28,32" Spacing="14">
+      <TextBlock Text="Sign in to Finance" FontSize="30" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level1" TextWrapping="Wrap"/>
+      <TextBlock Text="Connect to your Finance server with your existing Finance account." TextWrapping="Wrap"/>
+      <TextBox x:Name="ServerUrl" Header="Finance server URL" AutomationProperties.Name="Finance server URL" PlaceholderText="https://finance.example.com" MaxLength="2048"/>
+      <TextBox x:Name="Username" Header="Username" AutomationProperties.Name="Username" MaxLength="30"/>
+      <PasswordBox x:Name="Password" Header="Password" AutomationProperties.Name="Password"/>
+      <Button x:Name="SignIn" Content="Sign in" Style="{StaticResource AccentButtonStyle}"/>
+      <TextBlock x:Name="SignInStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+    </StackPanel>
+  </ScrollViewer>
+  <NavigationView x:Name="Navigation" Grid.Row="1" Visibility="Collapsed"
+                  IsBackButtonVisible="Collapsed" IsSettingsVisible="True" PaneDisplayMode="Auto"
+                  CompactModeThresholdWidth="660" ExpandedModeThresholdWidth="980">
+    <NavigationView.MenuItems>
+      <NavigationViewItem x:Name="OverviewNav" Content="Overview" Icon="Home" Tag="Overview"/>
+      <NavigationViewItem Content="Accounts" Icon="Contact" Tag="Accounts"/>
+      <NavigationViewItem Content="Transactions" Icon="List" Tag="Transactions"/>
+      <NavigationViewItem Content="Real Estate" Icon="Map" Tag="Real Estate"/>
+    </NavigationView.MenuItems>
+    <Grid Padding="22,10,22,16" RowSpacing="12">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+      </Grid.RowDefinitions>
+      <Grid ColumnSpacing="10">
+        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+        <TextBlock x:Name="PageTitle" FontSize="30" FontWeight="SemiBold" AutomationProperties.HeadingLevel="Level1" TextWrapping="Wrap"/>
+        <Button x:Name="Refresh" Grid.Column="1" Content="Refresh" VerticalAlignment="Center"/>
+      </Grid>
+      <TextBlock x:Name="PageStatus" Grid.Row="1" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+      <ContentControl x:Name="PageContent" Grid.Row="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" IsTabStop="False"/>
+    </Grid>
+  </NavigationView>
+</Grid>

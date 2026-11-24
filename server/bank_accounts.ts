@@ -1,4 +1,5 @@
 import { Hono, type Context } from "hono";
+import { mountedRequest } from "./mounted-request.js";
 import type Database from "better-sqlite3";
 import { decryptBankValue, encryptBankValue, getBankEncryptionKey } from "./bank-crypto.js";
 import { randomUUID } from "node:crypto";
@@ -472,5 +473,5 @@ bankAccountsRouter.all("*", async context => {
   const url = new URL(context.req.url);
   const prefix = context.req.routePath.replace(/\*$/, "").replace(/\/$/, "");
   url.pathname = url.pathname.slice(prefix.length) || "/";
-  return defaultRouter.fetch(new Request(url, context.req.raw));
+  return defaultRouter.fetch(mountedRequest(url, context.req.raw));
 });

@@ -2,6 +2,10 @@
 
 A personal-finance app with a Vite/TypeScript frontend, Hono TypeScript API, Better Auth username/password authentication, SQLite, manual financial accounts, transaction imports, saved bank-account views, and real-estate tracking. Saved financial data is encrypted at rest.
 
+## Native clients
+
+[Android](android/README.md) and [Windows](apps/windows/README.md) connect to the same Finance server as the web app. Use the server's HTTPS URL and an existing Finance username and password. The native clients support browsing financial data and single-file transaction imports; account and property management remains available in the web app. No native release or update feed is published.
+
 ## Requirements
 
 - Node.js 22 or newer
